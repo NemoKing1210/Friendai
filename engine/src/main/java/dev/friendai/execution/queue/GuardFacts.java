@@ -69,6 +69,14 @@ public interface GuardFacts {
     }
 
     /**
+     * The same question with three answers: {@code true} the block is there, {@code false} it is confirmed absent,
+     * {@code null} the position could not be read (an unloaded chunk). A guard must not act on {@code null}.
+     */
+    default Boolean blockAtOrNull(String idOrTag, int x, int y, int z) {
+        return blockAt(idOrTag, x, y, z);
+    }
+
+    /**
      * Whether the owner is online, or {@code null} when a pure caller cannot know. A guard must not treat unknown as
      * offline; only an explicit false satisfies {@code owner_offline}.
      */

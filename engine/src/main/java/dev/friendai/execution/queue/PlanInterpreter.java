@@ -23,12 +23,15 @@ public final class PlanInterpreter {
         }
     }
 
-    public sealed interface Event permits Event.EmitAction, Event.Complete, Event.Failed {
+    public sealed interface Event permits Event.EmitAction, Event.Complete, Event.Failed, Event.Undecided {
         record EmitAction(QueuedStep step, String path) implements Event {}
 
         record Complete() implements Event {}
 
         record Failed(String path, String reason) implements Event {}
+
+        /** A condition on the path needs evidence the facts do not carry; the cursor keeps its place. */
+        record Undecided(String path, String reason) implements Event {}
     }
 
     public record Transition(PlanCursor cursor, Event event) {}
@@ -67,6 +70,7 @@ public final class PlanInterpreter {
             Transition transition = advance(plan, walk, facts, result);
             if (transition.event() instanceof Event.Complete) return new Remaining(actions, true);
             if (transition.event() instanceof Event.Failed) return new Remaining(actions, false);
+            if (transition.event() instanceof Event.Undecided) return new Remaining(actions, false);
             actions++;
             if (transition.cursor().equals(walk)) return new Remaining(actions, false);
             walk = transition.cursor();
@@ -134,7 +138,13 @@ public final class PlanInterpreter {
                 if (frame.repeatBody()) {
                     PlanNode.Repeat repeat = (PlanNode.Repeat) nodeAtRoute(plan, frame.route());
                     int iteration = state.repeatIterations.getOrDefault(frame.ownerPath(), 1);
-                    if (repeat.until().holds(facts)) continue;
+                    Guard.Truth until = repeat.until().evaluate(facts);
+                    if (until == Guard.Truth.UNKNOWN) {
+                        // Missing evidence neither ends the loop nor starts another pass: put the frame back.
+                        state.stack.add(frame);
+                        return undecided(state, frame.ownerPath() + " → repeat → until", repeat.until());
+                    }
+                    if (until == Guard.Truth.TRUE) continue;
                     if (iteration >= repeat.maxIterations()) {
                         return failed(
                                 state,
@@ -150,15 +160,14 @@ public final class PlanInterpreter {
             int index = frame.nextIndex();
             PlanNode node = sequence.get(index);
             String nodePath = nodePath(frame, index + 1);
-            state.replaceLast(withNext(frame, index + 1));
-            if (node instanceof PlanNode.Action action) {
-                state.pendingPath = nodePath;
-                state.pendingAction = action.step();
-                state.pendingJobId = 0;
-                return new Transition(state.freeze(), new Event.EmitAction(action.step(), nodePath));
-            }
             if (node instanceof PlanNode.Conditional conditional) {
-                boolean selectedThen = conditional.condition().holds(facts);
+                Guard.Truth condition = conditional.condition().evaluate(facts);
+                if (condition == Guard.Truth.UNKNOWN) {
+                    // No branch is selected from missing data; the cursor stays on this node.
+                    return undecided(state, nodePath, conditional.condition());
+                }
+                state.replaceLast(withNext(frame, index + 1));
+                boolean selectedThen = condition == Guard.Truth.TRUE;
                 state.selectedBranches.put(nodePath, selectedThen);
                 List<PlanNode> selected = selectedThen ? conditional.thenNodes() : conditional.elseNodes();
                 if (!selected.isEmpty()) {
@@ -172,15 +181,50 @@ public final class PlanInterpreter {
                 }
                 continue;
             }
-            PlanNode.Repeat repeat = (PlanNode.Repeat) node;
-            if (repeat.until().holds(facts)) {
-                state.repeatIterations.put(nodePath, 0);
+            if (node instanceof PlanNode.Repeat repeat) {
+                Guard.Truth until = repeat.until().evaluate(facts);
+                if (until == Guard.Truth.UNKNOWN) return undecided(state, nodePath + " → until", repeat.until());
+                state.replaceLast(withNext(frame, index + 1));
+                if (until == Guard.Truth.TRUE) {
+                    state.repeatIterations.put(nodePath, 0);
+                    continue;
+                }
+                state.repeatIterations.put(nodePath, 1);
+                state.stack.add(repeatFrame(appendRoute(frame.route(), index, 3), nodePath, repeat));
                 continue;
             }
-            state.repeatIterations.put(nodePath, 1);
-            state.stack.add(repeatFrame(appendRoute(frame.route(), index, 3), nodePath, repeat));
+            PlanNode.Action action = (PlanNode.Action) node;
+            state.replaceLast(withNext(frame, index + 1));
+            state.pendingPath = nodePath;
+            state.pendingAction = action.step();
+            state.pendingJobId = 0;
+            return new Transition(state.freeze(), new Event.EmitAction(action.step(), nodePath));
         }
         return new Transition(state.freeze(), new Event.Complete());
+    }
+
+    /**
+     * Whether the plan, from its saved cursor, is currently waiting for evidence it does not have, and the first
+     * condition that asks for it. Well-defined on a persisted cursor, so a reload shows the same note.
+     */
+    public static java.util.Optional<String> undecided(PlanDefinition plan, PlanCursor cursor, GuardFacts facts) {
+        if (plan == null || cursor == null || facts == null) return java.util.Optional.empty();
+        // Walk a copy of the cursor: a pending action was already emitted, so it is settled, not undecided.
+        Mutable walk = new Mutable(cursor);
+        if (!walk.pendingPath.isEmpty()) {
+            walk.pendingPath = "";
+            walk.pendingAction = null;
+            walk.pendingJobId = 0;
+        }
+        Transition transition = advance(plan, walk.freeze(), facts, new ActionResult.None());
+        if (transition.event() instanceof Event.Undecided undecided) {
+            return java.util.Optional.of(undecided.reason() + " at " + undecided.path());
+        }
+        return java.util.Optional.empty();
+    }
+
+    private static Transition undecided(Mutable state, String path, Guard guard) {
+        return new Transition(state.freeze(), new Event.Undecided(path, guard.describe()));
     }
 
     private static PlanCursor.Frame repeatFrame(List<Integer> route, String path, PlanNode.Repeat repeat) {

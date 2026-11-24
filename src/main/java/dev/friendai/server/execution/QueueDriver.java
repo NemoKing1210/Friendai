@@ -316,7 +316,7 @@ public final class QueueDriver {
             if (QueuePolicy.held(queue, job, facts)
                     || !QueuePolicy.dependenciesDone(queue, job)
                     || job.retryAtTick() > queue.clock()) continue;
-            for (var guard : job.guards()) if (!guard.holds(facts)) return job;
+            if (QueuePolicy.guardConfirmedUnmet(job, facts)) return job;
         }
         return null;
     }
@@ -407,6 +407,8 @@ public final class QueueDriver {
             queue.cancelPlan(planId);
             finishPlan(planId, failed.path() + ": " + failed.reason(), false);
         }
+        // An Undecided event keeps the updated cursor and emits nothing: the plan waits until the fact it needs can be
+        // read, and the plan row says which one.
     }
 
     void skipUnmet(GuardFacts facts) {

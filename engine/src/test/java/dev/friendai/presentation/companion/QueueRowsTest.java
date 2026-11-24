@@ -168,4 +168,59 @@ class QueueRowsTest {
         assertTrue(row.note().contains("waits for"), row.note());
         assertTrue(!row.note().contains("last attempt"), row.note());
     }
+
+    @Test
+    void aConditionalPlanWaitingForUnreadableEvidenceNamesTheFact() {
+        JobQueue q = new JobQueue(QueueLimits.DEFAULTS);
+        q.addStructuredPlan(
+                "check the site",
+                new PlanDefinition(List.of(new PlanNode.Conditional(
+                        new Guard.Not(new Guard.BlockAt("minecraft:stone", 4, 64, 4)),
+                        List.of(new PlanNode.Action(step("place_block", List.of(), List.of()))),
+                        List.of(new PlanNode.Action(step("mine_blocks", List.of(), List.of())))))),
+                PlanOptions.DEFAULT);
+        GuardFacts unknown = new GuardFacts() {
+            @Override
+            public int countItems(String idOrTag) {
+                return 0;
+            }
+
+            @Override
+            public int emptySlots() {
+                return 10;
+            }
+
+            @Override
+            public float healthFraction() {
+                return 1;
+            }
+
+            @Override
+            public int ownerDistance() {
+                return 0;
+            }
+
+            @Override
+            public int countBlocks(String idOrTag, int radius) {
+                return 0;
+            }
+
+            @Override
+            public String dimension() {
+                return "minecraft:overworld";
+            }
+
+            @Override
+            public Boolean blockAtOrNull(String idOrTag, int x, int y, int z) {
+                return null;
+            }
+        };
+
+        List<QueueRow> rows = QueueRows.build(q, unknown, null);
+        QueueRow row = rows.getFirst();
+        assertEquals("active", row.state());
+        assertTrue(row.note().contains("cannot tell yet whether"), row.note());
+        assertTrue(row.note().contains("minecraft:stone"), row.note());
+        assertTrue(rows.size() == 1, "no branch emitted a job: " + rows.size());
+    }
 }

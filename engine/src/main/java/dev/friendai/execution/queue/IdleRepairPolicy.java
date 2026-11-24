@@ -43,14 +43,18 @@ public final class IdleRepairPolicy {
                 .toList();
         for (Job job : ordered) {
             for (Guard guard : job.guards()) {
-                if (guard instanceof Guard.HasItem item && !item.holds(facts) && !alreadyRepairing(jobs, item.item())) {
+                if (guard instanceof Guard.HasItem item
+                        && item.evaluate(facts) == Guard.Truth.FALSE
+                        && !alreadyRepairing(jobs, item.item())) {
                     return Optional.of(new Repair(
                             job,
                             new PlanRepair.Item(item.item(), item.count(), REMEDY_TOOL),
                             REMEDY_TOOL,
                             "job #" + job.id() + " needs " + item.count() + " " + item.item()));
                 }
-                if (guard instanceof Guard.ToolAtLeast tool && !tool.holds(facts) && tools != null) {
+                if (guard instanceof Guard.ToolAtLeast tool
+                        && tool.evaluate(facts) == Guard.Truth.FALSE
+                        && tools != null) {
                     String item = tools.itemFor(tool.block()).orElse(null);
                     if (item != null && !alreadyRepairing(jobs, item)) {
                         return Optional.of(new Repair(

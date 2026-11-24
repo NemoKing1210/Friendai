@@ -44,7 +44,11 @@ class IdleRepairPolicyTest {
     void aToolGuardSelectsTheMappedPickaxe() {
         Job blocked = job(2, "mine_blocks", new Guard.ToolAtLeast("minecraft:iron_ore"), JobState.PENDING, 7);
         var repair = IdleRepairPolicy.select(
-                        List.of(blocked), FACTS, Set.of("obtain_item"), Set.of(7L), ToolRepairRule.vanillaPickaxes())
+                        List.of(blocked),
+                        withoutTool(),
+                        Set.of("obtain_item"),
+                        Set.of(7L),
+                        ToolRepairRule.vanillaPickaxes())
                 .orElseThrow();
         assertEquals("1 minecraft:stone_pickaxe", repair.prerequisite().describe());
     }
@@ -94,4 +98,37 @@ class IdleRepairPolicyTest {
 
     /** No carried items and no stations: a definite missing for has_item. */
     private static final GuardFacts FACTS = new FakeGuardFacts(Map.of(), 0, 1f, 0, Map.of(), "minecraft:overworld");
+
+    /** The same pass, with the tool check confirmed unmet rather than unknown: the only state a repair may act on. */
+    private static GuardFacts withoutTool() {
+        return new GuardFacts() {
+            public int countItems(String idOrTag) {
+                return FACTS.countItems(idOrTag);
+            }
+
+            public int emptySlots() {
+                return FACTS.emptySlots();
+            }
+
+            public float healthFraction() {
+                return FACTS.healthFraction();
+            }
+
+            public int ownerDistance() {
+                return FACTS.ownerDistance();
+            }
+
+            public int countBlocks(String idOrTag, int radius) {
+                return FACTS.countBlocks(idOrTag, radius);
+            }
+
+            public String dimension() {
+                return FACTS.dimension();
+            }
+
+            public Boolean canHarvest(String block) {
+                return false;
+            }
+        };
+    }
 }

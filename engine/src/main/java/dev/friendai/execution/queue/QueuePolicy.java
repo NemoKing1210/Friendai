@@ -54,6 +54,15 @@ public final class QueuePolicy {
         return blockingHold(queue, job, facts).isPresent();
     }
 
+    /**
+     * Whether a `SKIP` job's guard is confirmed unmet, so the step may be dropped. Missing evidence is not an answer:
+     * an unknown guard leaves the step in place for the next pass.
+     */
+    public static boolean guardConfirmedUnmet(Job job, GuardFacts facts) {
+        for (Guard guard : job.guards()) if (guard.evaluate(facts) == Guard.Truth.FALSE) return true;
+        return false;
+    }
+
     public static boolean dependenciesDone(JobQueue queue, Job job) {
         for (long dependency : job.after()) {
             if (queue.job(dependency).filter(j -> j.state() == JobState.DONE).isEmpty()) return false;
@@ -145,9 +154,11 @@ public final class QueuePolicy {
                 return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
         }
         return job.guards().stream()
-                .filter(g -> !g.holds(facts))
+                .filter(g -> g.evaluate(facts) != Guard.Truth.TRUE)
                 .findFirst()
-                .map(g -> "waits for " + g.describe())
+                .map(g -> g.evaluate(facts) == Guard.Truth.UNKNOWN
+                        ? "cannot tell yet whether " + g.describe()
+                        : "waits for " + g.describe())
                 .orElse("pending");
     }
 

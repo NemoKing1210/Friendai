@@ -9,6 +9,8 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.ExecutionHold;
@@ -17,10 +19,12 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.plan.PlanStepFactory;
+import dev.friendai.task.queue.CompanionGuardFacts;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
+import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -439,6 +443,118 @@ public final class ConditionalPlansTests {
                 List.of("low_a", "urgent_action", "low_b"),
                 "the order takes the body as soon as the busy work settles: " + started);
         h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aConditionalOnAnUnloadedSiteWaitsForEvidence(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        var site = companion.blockPosition().offset(2048, 0, 0);
+        long plan = runner.enqueuePlan(
+                "check a distant site",
+                new PlanDefinition(List.of(new PlanNode.Conditional(
+                        new Guard.Not(new Guard.BlockAt("minecraft:stone", site.getX(), site.getY(), site.getZ())),
+                        List.of(action("then_action")),
+                        List.of(action("else_action"))))),
+                PlanOptions.DEFAULT,
+                Map.of(
+                        "then_action", recorder("then_action", started),
+                        "else_action", recorder("else_action", started)));
+        for (int i = 0; i < 20; i++) runner.tick();
+
+        h.assertTrue(started.isEmpty(), "missing evidence runs no branch: " + started);
+        h.assertTrue(runner.queue().jobsOfPlan(plan).isEmpty(), "no branch emitted a job");
+        h.assertTrue(
+                runner.queue()
+                        .plan(plan)
+                        .orElseThrow()
+                        .cursor()
+                        .selectedBranches()
+                        .isEmpty(),
+                "no branch was committed");
+        String shown = QueueText.show(runner.queue(), new CompanionGuardFacts(companion), null, 10, false);
+        h.assertTrue(shown.contains("cannot tell yet whether"), "the plan row names the missing fact: " + shown);
+        h.assertTrue(shown.contains("minecraft:stone"), "and the fact it needs: " + shown);
+
+        // A reload while the evidence is still unknown keeps the same plan, cursor and note.
+        QueueSave.Decoded saved = new QueueSave.Decoded(runner.queue(), 0);
+        CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        ExecutionCoordinator again = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
+        again.installRestoredState(
+                saved,
+                Map.of(),
+                Map.of(
+                        plan,
+                        Map.of(
+                                "then_action", recorder("then_action", started),
+                                "else_action", recorder("else_action", started))),
+                null);
+        again.wakeQueue();
+        for (int i = 0; i < 5; i++) again.tick();
+        h.assertTrue(started.isEmpty(), "the reloaded plan still runs no branch: " + started);
+        h.assertTrue(again.queue().plan(plan).isPresent(), "the plan survives the reload");
+        h.assertTrue(
+                QueueText.show(again.queue(), new CompanionGuardFacts(reloaded), null, 10, false)
+                        .contains("cannot tell yet whether"),
+                "the reloaded plan row still names the missing fact");
+        again.stop("test cleanup");
+        runner.stop("test cleanup");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 200)
+    public void aLoadedSiteChoosesItsBranchExactlyOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        var withStone = companion.blockPosition().offset(1024, 0, 0);
+        var withoutStone = companion.blockPosition().offset(-1024, 0, 0);
+        long planA = runner.enqueuePlan(
+                "site with stone",
+                conditional(new Guard.Not(stoneAt(withStone))),
+                PlanOptions.DEFAULT,
+                Map.of("then_action", recorder("a_then", started), "else_action", recorder("a_else", started)));
+        long planB = runner.enqueuePlan(
+                "site without stone",
+                conditional(new Guard.Not(stoneAt(withoutStone))),
+                PlanOptions.DEFAULT,
+                Map.of("then_action", recorder("b_then", started), "else_action", recorder("b_else", started)));
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertTrue(started.isEmpty(), "nothing runs while both sites are unloaded: " + started);
+
+        // Loading the sites supplies the evidence: one has the block (not(block_at) is false), one does not.
+        h.getLevel().setBlock(withStone, Blocks.STONE.defaultBlockState(), 3);
+        h.getLevel().getChunk(withoutStone.getX() >> 4, withoutStone.getZ() >> 4);
+        for (int i = 0; i < 40; i++) runner.tick();
+
+        h.assertValueEqual(
+                started,
+                List.of("a_else", "b_then"),
+                "each site chooses its branch once the evidence exists: " + started);
+        h.assertTrue(
+                runner.queue().plan(planA).isEmpty()
+                        && runner.queue().plan(planB).isEmpty(),
+                "both finished");
+        h.succeed();
+    }
+
+    private static Guard.BlockAt stoneAt(BlockPos pos) {
+        return new Guard.BlockAt("minecraft:stone", pos.getX(), pos.getY(), pos.getZ());
+    }
+
+    private static PlanDefinition conditional(Guard condition) {
+        return new PlanDefinition(List.of(
+                new PlanNode.Conditional(condition, List.of(action("then_action")), List.of(action("else_action")))));
+    }
+
+    private static PlanStepFactory recorder(String name, List<String> started) {
+        return (context, when) -> {
+            started.add(name);
+            return finishingTask(name);
+        };
     }
 
     private static QueuedStep step(String tool) {

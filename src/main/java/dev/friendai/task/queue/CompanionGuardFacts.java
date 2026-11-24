@@ -250,10 +250,16 @@ public final class CompanionGuardFacts implements GuardFacts {
 
     @Override
     public boolean blockAt(String id, int x, int y, int z) {
+        return Boolean.TRUE.equals(blockAtOrNull(id, x, y, z));
+    }
+
+    @Override
+    public Boolean blockAtOrNull(String id, int x, int y, int z) {
         var matcher = BlockMatcher.parse(id).orElse(null);
-        if (matcher == null) return false;
+        if (matcher == null) return null;
         BlockPos pos = new BlockPos(x, y, z);
-        if (!companion.level().hasChunkAt(pos)) return false;
+        // An unloaded chunk is missing evidence, not an absent block.
+        if (!companion.level().hasChunkAt(pos)) return null;
         return matcher.test(companion.level().getBlockState(pos));
     }
 

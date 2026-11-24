@@ -68,6 +68,11 @@ public final class QueueText {
         return base + "; " + results;
     }
 
+    /** The first condition, from the plan's saved cursor, that asks for a fact the snapshot cannot read yet. */
+    public static java.util.Optional<String> undecided(PlanDefinition plan, PlanCursor cursor, GuardFacts facts) {
+        return PlanInterpreter.undecided(plan, cursor, facts);
+    }
+
     public static String show(JobQueue q, GuardFacts facts, Long planId, int limit, boolean includeDone) {
         var snapshot = QueuePolicy.snapshot(q, facts);
         if (q.jobCount() == 0 && q.plans().stream().noneMatch(p -> p.cursor() != null)) {
@@ -91,6 +96,11 @@ public final class QueueText {
             q.hold(HoldKey.plan(plan.id()))
                     .ifPresent(hold ->
                             out.append(" [").append(hold.describe(q.clock())).append(']'));
+            if (facts != null) {
+                // A conditional plan with no emitted job says why it is still waiting: a fact it cannot read yet.
+                PlanInterpreter.undecided(plan.definition(), plan.cursor(), facts)
+                        .ifPresent(reason -> out.append(" [cannot tell yet whether ").append(reason).append(']'));
+            }
             out.append("\ntree: ").append(planTree(plan));
         }
         List<Job> jobs = q.jobs().stream()

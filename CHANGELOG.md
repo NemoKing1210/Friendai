@@ -13,6 +13,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- The companion no longer acts on a condition it cannot check yet. If a plan asks "is this block there?" about a
+  place that is not loaded, it waits and says so in the task panel instead of taking the opposite branch, skipping the
+  step or repeating work; once you load the area it picks the right branch, once.
 - An urgent conditional order such as "if I have diamonds, make a pickaxe, otherwise keep tidying" now starts as
   soon as it is the most important work at hand, instead of waiting behind every queued chore that can already run.
   While its condition cannot be met yet, those chores still go ahead.

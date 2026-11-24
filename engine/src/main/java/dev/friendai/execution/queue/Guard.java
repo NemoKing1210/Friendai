@@ -42,7 +42,49 @@ public sealed interface Guard
     int MAX_CHILDREN = 8;
     int MAX_DEPTH = 8;
 
+    /**
+     * What a guard can say about the world: confirmed true, confirmed false, or not knowable yet because the evidence
+     * it needs is unavailable (an unloaded position, an absent owner record, an unreadable clock). Composition follows
+     * three-valued (Kleene) logic, so {@code not} of unknown stays unknown and a group never decides from missing data.
+     */
+    enum Truth {
+        TRUE,
+        FALSE,
+        UNKNOWN;
+
+        public Truth negate() {
+            return this == TRUE ? FALSE : this == FALSE ? TRUE : UNKNOWN;
+        }
+
+        public static Truth all(List<Truth> values) {
+            boolean unknown = false;
+            for (Truth value : values) {
+                if (value == FALSE) return FALSE;
+                if (value == UNKNOWN) unknown = true;
+            }
+            return unknown ? UNKNOWN : TRUE;
+        }
+
+        public static Truth any(List<Truth> values) {
+            boolean unknown = false;
+            for (Truth value : values) {
+                if (value == TRUE) return TRUE;
+                if (value == UNKNOWN) unknown = true;
+            }
+            return unknown ? UNKNOWN : FALSE;
+        }
+    }
+
+    /** Confirmed true only. A caller that must not act on missing evidence asks {@link #evaluate} instead. */
     boolean holds(GuardFacts facts);
+
+    /**
+     * The three-valued answer. The default keeps every guard that cannot tell the difference, and every stored guard
+     * JSON, exactly as it was: a fact is unknown only where its own type can say so.
+     */
+    default Truth evaluate(GuardFacts facts) {
+        return holds(facts) ? Truth.TRUE : Truth.FALSE;
+    }
 
     String describe();
 
@@ -408,6 +450,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            String observed = facts.dimension();
+            if (observed == null || observed.isBlank()) return Truth.UNKNOWN;
+            return dimension.equals(observed) ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "in " + dimension;
         }
@@ -428,6 +477,11 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return conditions.stream().allMatch(g -> g.holds(facts));
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            return Truth.all(conditions.stream().map(g -> g.evaluate(facts)).toList());
         }
 
         @Override
@@ -452,6 +506,11 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            return Truth.any(conditions.stream().map(g -> g.evaluate(facts)).toList());
+        }
+
+        @Override
         public String describe() {
             return "any of " + conditions.stream().map(Guard::describe).toList();
         }
@@ -470,7 +529,12 @@ public sealed interface Guard
 
         @Override
         public boolean holds(GuardFacts facts) {
-            return !condition.holds(facts);
+            return condition.evaluate(facts) == Truth.FALSE;
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            return condition.evaluate(facts).negate();
         }
 
         @Override
@@ -519,6 +583,13 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return biome.equals(facts.biome());
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            String observed = facts.biome();
+            if (observed == null || observed.isBlank()) return Truth.UNKNOWN;
+            return biome.equals(observed) ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override
@@ -719,6 +790,12 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean known = facts.blockAtOrNull(block, x, y, z);
+            return known == null ? Truth.UNKNOWN : known ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return block + " at " + x + " " + y + " " + z;
         }
@@ -741,6 +818,12 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean online = facts.ownerOnline();
+            return online == null ? Truth.UNKNOWN : online ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "owner online";
         }
@@ -756,6 +839,12 @@ public sealed interface Guard
         public boolean holds(GuardFacts facts) {
             // Unknown is not offline: only an explicit false satisfies the guard.
             return Boolean.FALSE.equals(facts.ownerOnline());
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean online = facts.ownerOnline();
+            return online == null ? Truth.UNKNOWN : online ? Truth.FALSE : Truth.TRUE;
         }
 
         @Override
@@ -776,6 +865,12 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean day = facts.daytime();
+            return day == null ? Truth.UNKNOWN : day ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "daytime";
         }
@@ -790,6 +885,12 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return Boolean.FALSE.equals(facts.daytime());
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean day = facts.daytime();
+            return day == null ? Truth.UNKNOWN : day ? Truth.FALSE : Truth.TRUE;
         }
 
         @Override
@@ -818,6 +919,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            String observed = facts.weather();
+            if (observed == null || observed.isBlank()) return Truth.UNKNOWN;
+            return weather.equals(observed) ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "weather " + weather;
         }
@@ -841,6 +949,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            int level = facts.foodLevel();
+            if (level < 0) return Truth.UNKNOWN;
+            return level >= points ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "food at least " + points;
         }
@@ -861,6 +976,13 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return facts.xpLevel() >= levels;
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            int level = facts.xpLevel();
+            if (level < 0) return Truth.UNKNOWN;
+            return level >= levels ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override
@@ -888,6 +1010,12 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean found = facts.stationWithin(station, radius);
+            return found == null ? Truth.UNKNOWN : found ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return station + " within " + radius + " blocks";
         }
@@ -909,6 +1037,12 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return Boolean.TRUE.equals(facts.canHarvest(block));
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean able = facts.canHarvest(block);
+            return able == null ? Truth.UNKNOWN : able ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override
@@ -935,6 +1069,12 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean done = facts.planDone(planId);
+            return done == null ? Truth.UNKNOWN : done ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "plan #" + planId + " done";
         }
@@ -955,6 +1095,12 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return Boolean.TRUE.equals(facts.goalMet(goalId));
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean met = facts.goalMet(goalId);
+            return met == null ? Truth.UNKNOWN : met ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override

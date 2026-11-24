@@ -89,6 +89,14 @@ public final class QueueRows {
             String note = queue.hold(HoldKey.plan(plan.id()))
                     .map(hold -> hold.describe(queue.clock()))
                     .orElse("");
+            // A plan waiting for evidence it cannot read yet names the fact, so the owner knows why nothing moves.
+            if (facts != null) {
+                note = append(
+                        note,
+                        QueueText.undecided(plan.definition(), plan.cursor(), facts)
+                                .map(reason -> "cannot tell yet whether " + reason)
+                                .orElse(""));
+            }
             String progress = QueueText.planProgress(plan);
             rows.add(new QueueRow(
                     0,
