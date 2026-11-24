@@ -323,7 +323,7 @@ public final class ObtainTools implements FeatureToolContributor {
         WorldFacts world = WorldScan.scan(taskContext(companion), WorldScan.BLOCK_RADIUS, useContainers, explore);
         ObtainPlan plan = ObtainPlanner.plan(item, count, inventory, RecipeIndex.of(level), DropIndex.of(level), world);
         if (!plan.actionable()) {
-            return "can't get " + count + " " + item + " here: " + ObtainText.missingText(plan.missing(), !explore);
+            return ObtainText.failureText(plan, item, count, !explore);
         }
         return ObtainText.planText(plan, item, count, inventory);
     }

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.231.2] - 2026-11-24
+
+### Fixed
+
+- Getting an item out of a very large recipe book no longer ends with "can't get … here" when the search simply ran out of planning work. The companion now says it stopped at its planning limit, reports what it spent, and keeps looking at other ways to make the item instead of writing it off as unavailable.
+
 ## [0.231.1] - 2026-11-24
 
 ### Fixed

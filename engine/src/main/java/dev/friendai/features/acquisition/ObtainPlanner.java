@@ -31,7 +31,13 @@ public final class ObtainPlanner {
     /** How many nested obtain steps the search may chain. */
     public static final int MAX_DEPTH = 8;
     /** Upper bound on recursive provider evaluations in one plan, so many ingredient alternatives cannot stall. */
-    private static final int MAX_PROVIDER_EVALUATIONS = 20_000;
+    public static final int MAX_PROVIDER_EVALUATIONS = 20_000;
+    /**
+     * Upper bound on simulated-inventory copies in one plan. An evaluation copies once per candidate provider, so a
+     * book full of mutually substituting ingredients multiplies the work without multiplying evaluations; both
+     * counters bound the same recursion.
+     */
+    public static final int MAX_SIMULATION_COPIES = 40_000;
 
     /** Items the planner will burn; the first obtainable one is used. */
     private static final List<String> FUELS = List.of(
@@ -70,6 +76,32 @@ public final class ObtainPlanner {
             SourceBook sources,
             WorldFacts world,
             TradingContext trading) {
+        return plan(
+                target,
+                count,
+                inventory,
+                recipes,
+                sources,
+                world,
+                trading,
+                MAX_PROVIDER_EVALUATIONS,
+                MAX_SIMULATION_COPIES);
+    }
+
+    /** The same plan under explicit work caps, so a test can reach a limit without building a huge book. */
+    static ObtainPlan plan(
+            String target,
+            int count,
+            Map<String, Integer> inventory,
+            RecipeBook recipes,
+            SourceBook sources,
+            WorldFacts world,
+            TradingContext trading,
+            int maxEvaluations,
+            int maxCopies) {
+        if (maxEvaluations < 1 || maxCopies < 1) {
+            throw new IllegalArgumentException("work caps must be positive");
+        }
         Objects.requireNonNull(target, "target");
         if (target.isEmpty()) {
             throw new IllegalArgumentException("target must not be empty");
@@ -94,10 +126,16 @@ public final class ObtainPlanner {
                 sim.containers.put(item, amount);
             }
         });
-        Attempt attempt =
-                new Search(recipes, sources, world, trading).need(target, count, 0, new LinkedHashSet<>(), sim, true);
+        Search search = new Search(recipes, sources, world, trading, maxEvaluations, maxCopies);
+        Attempt attempt = search.need(target, count, 0, new LinkedHashSet<>(), sim, true);
         List<ObtainStep> steps = merge(attempt.steps);
-        return new ObtainPlan(steps, attempt.missing, steps.size(), attempt.conditional);
+        return new ObtainPlan(
+                steps,
+                attempt.missing,
+                steps.size(),
+                attempt.conditional,
+                new ObtainPlan.Work(search.evaluations, search.copies),
+                search.limited);
     }
 
     /** Merges consecutive steps that do the same thing. */
@@ -281,13 +319,38 @@ public final class ObtainPlanner {
         private final SourceBook sources;
         private final WorldFacts world;
         private final TradingContext trading;
+        private final int maxEvaluations;
+        private final int maxCopies;
         private int evaluations;
+        private int copies;
+        /** The pass hit a work cap before it could decide; its {@code missing} is not proof the item is absent. */
+        private boolean limited;
 
-        Search(RecipeBook book, SourceBook sources, WorldFacts world, TradingContext trading) {
+        Search(
+                RecipeBook book,
+                SourceBook sources,
+                WorldFacts world,
+                TradingContext trading,
+                int maxEvaluations,
+                int maxCopies) {
             this.book = book;
             this.sources = sources;
             this.world = world;
             this.trading = trading;
+            this.maxEvaluations = maxEvaluations;
+            this.maxCopies = maxCopies;
+        }
+
+        /**
+         * A working copy of the simulated inventory, counted against this pass's budget. Returns null once the budget
+         * is spent: the caller stops exploring further candidates instead of paying for the copy.
+         */
+        private Sim copyFor(Sim sim) {
+            if (++copies > maxCopies) {
+                limited = true;
+                return null;
+            }
+            return sim.copy();
         }
 
         /**
@@ -306,7 +369,8 @@ public final class ObtainPlanner {
             if (qty <= 0) {
                 return total;
             }
-            if (++evaluations > MAX_PROVIDER_EVALUATIONS) {
+            if (++evaluations > maxEvaluations) {
+                limited = true;
                 total.missing.merge(item, qty, Integer::sum);
                 return total;
             }
@@ -324,7 +388,11 @@ public final class ObtainPlanner {
                     if (capacity <= 0) {
                         continue;
                     }
-                    Sim copy = sim.copy();
+                    Sim copy = copyFor(sim);
+                    if (copy == null) {
+                        total.missing.merge(item, qty, Integer::sum);
+                        return total;
+                    }
                     Candidate candidate = provider.take(this, copy, capacity, depth, nextPath, emitCraft);
                     if (candidate != null
                             && (candidate.supplied() > 0 || candidate.attempt().conditional)
@@ -545,7 +613,10 @@ public final class ObtainPlanner {
                 int repeats = Math.min(
                         fill.repeats(),
                         (want + offer.output().count() - 1) / offer.output().count());
-                var working = sim.copy();
+                var working = copyFor(sim);
+                if (working == null) {
+                    return null;
+                }
                 Attempt attempt = new Attempt();
                 for (var input : offer.effectiveInputs()) {
                     int total = Math.multiplyExact(input.count(), repeats);
@@ -578,7 +649,11 @@ public final class ObtainPlanner {
                 Attempt attempt = new Attempt();
                 attempt.add(new ObtainStep.InspectTrader(trader));
                 attempt.conditional = true;
-                return new Candidate(this, attempt, sim.copy(), 0);
+                Sim working = copyFor(sim);
+                if (working == null) {
+                    return null;
+                }
+                return new Candidate(this, attempt, working, 0);
             }
         }
 
@@ -681,7 +756,11 @@ public final class ObtainPlanner {
                 if (recipe.station().isCooking()) {
                     continue;
                 }
-                Sim copy = sim.copy();
+                Sim copy = copyFor(sim);
+                if (copy == null) {
+                    total.missing.merge(item, qty, Integer::sum);
+                    break;
+                }
                 Candidate candidate = new CraftProvider(recipe).take(this, copy, qty, depth, nextPath, true);
                 if (candidate != null
                         && candidate.supplied() > 0
@@ -723,7 +802,10 @@ public final class ObtainPlanner {
             Attempt best = null;
             Sim bestSim = null;
             for (String fuel : FUELS) {
-                Sim copy = sim.copy();
+                Sim copy = copyFor(sim);
+                if (copy == null) {
+                    break;
+                }
                 Attempt planned = need(fuel, count, depth + 1, path, copy, true);
                 if (planned.ok() && (best == null || planned.cost < best.cost)) {
                     best = planned;
@@ -793,7 +875,10 @@ public final class ObtainPlanner {
                 Ingredient ingredient, int qty, int depth, Set<String> path, Sim sim, boolean allowExplore) {
             Choice best = null;
             for (String id : ingredient.items()) {
-                Sim copy = sim.copy();
+                Sim copy = copyFor(sim);
+                if (copy == null) {
+                    return best;
+                }
                 Attempt planned = need(id, qty, depth + 1, path, copy, false, allowExplore);
                 if (!planned.ok() && !planned.conditional) {
                     continue;
@@ -922,7 +1007,10 @@ public final class ObtainPlanner {
                 Attempt attempt = new Attempt();
                 String inputItem = null;
                 for (String id : input.items()) {
-                    Sim copy = sim.copy();
+                    Sim copy = copyFor(sim);
+                    if (copy == null) {
+                        break;
+                    }
                     Attempt planned = need(id, times, depth + 1, path, copy, true, allowExplore);
                     if (planned.conditional) {
                         attempt.merge(planned);

@@ -87,6 +87,32 @@ class ObtainTextTest {
     }
 
     @Test
+    void aLimitedPlanIsReportedAsAPlanningLimitNotAsAMissingMaterial() {
+        ObtainPlan limited = new ObtainPlan(
+                List.of(), Map.of("minecraft:diamond", 1), 0, false, new ObtainPlan.Work(20_001, 40_002), true);
+
+        String text = ObtainText.failureText(limited, "minecraft:diamond", 1, true);
+
+        assertTrue(text.contains("work limit"), text);
+        assertTrue(text.contains("1 minecraft:diamond"), text);
+        assertTrue(text.contains("20001 candidate evaluations"), text);
+        assertTrue(text.contains("40002 inventory copies"), text);
+        assertFalse(text.contains("can't get"), "a limit is not an absent material: " + text);
+        assertFalse(text.contains("missing:"), text);
+        assertEquals(text, ObtainText.planText(limited, "minecraft:diamond", 1));
+    }
+
+    @Test
+    void aFinishedPlanThatCannotBeObtainedKeepsTheMissingLine() {
+        ObtainPlan plan =
+                new ObtainPlan(List.of(), Map.of("minecraft:diamond", 1), 0, false, new ObtainPlan.Work(3, 4), false);
+
+        assertEquals(
+                "can't get 1 minecraft:diamond here: missing: 1 × minecraft:diamond (exploring is off)",
+                ObtainText.failureText(plan, "minecraft:diamond", 1, true));
+    }
+
+    @Test
     void toolNeedSatisfaction() {
         ToolNeed stone = new ToolNeed(ToolKind.PICKAXE, Tier.STONE);
         assertTrue(stone.satisfiedBy(new ToolNeed(ToolKind.PICKAXE, Tier.IRON)));

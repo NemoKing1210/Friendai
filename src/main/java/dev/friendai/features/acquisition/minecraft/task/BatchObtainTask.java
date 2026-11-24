@@ -8,6 +8,7 @@ import dev.friendai.features.acquisition.AcquisitionAttempts;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.ObtainStep;
+import dev.friendai.features.acquisition.ObtainText;
 import dev.friendai.features.acquisition.TradingContext;
 import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
@@ -76,6 +77,8 @@ public final class BatchObtainTask implements Task {
     private final Set<String> failedKeys = new LinkedHashSet<>();
     /** Shared with every gather child, so one failed material source is not retried by the next child. */
     private final AcquisitionAttempts attempts = new AcquisitionAttempts();
+    /** The last plan that stopped at the planner's work limit, so a failure names the limit, not a missing item. */
+    private ObtainPlan limitedPlan;
 
     private Task current;
     private ChildKind childKind = ChildKind.NONE;
@@ -385,9 +388,15 @@ public final class BatchObtainTask implements Task {
                 if (candidate == null) {
                     candidate = choose(inventory, search, next.need(), true);
                     if (candidate == null) {
-                        String text = "couldn't get " + next.need().count() + " "
-                                + next.need().label() + " for "
-                                + remaining.get(0).item();
+                        String text = limitedPlan != null
+                                ? ObtainText.failureText(
+                                        limitedPlan,
+                                        next.need().label(),
+                                        next.need().count(),
+                                        !explore)
+                                : "couldn't get " + next.need().count() + " "
+                                        + next.need().label() + " for "
+                                        + remaining.get(0).item();
                         if (!lastGatherSummary.isBlank()) {
                             text += ": " + lastGatherSummary;
                         }
@@ -434,6 +443,9 @@ public final class BatchObtainTask implements Task {
      * first one nobody has failed yet: an unobtainable plan is still tried once, because its failure text is what the
      * owner then reads. A station is looked up with the fallback off, so an impossible one is recognized instead of
      * starting a gather child that is bound to fail.
+     *
+     * <p>A candidate whose plan stopped at the planner's work limit is not unobtainable, only unsettled: it is skipped
+     * like an obtainable one and remembered in {@link #limitedPlan}, and the next candidate is tried instead.
      */
     private String choose(
             Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need, boolean fallbackToFirst) {
@@ -441,14 +453,18 @@ public final class BatchObtainTask implements Task {
         if (candidates.isEmpty()) {
             return null;
         }
+        limitedPlan = null;
         for (String candidate : candidates) {
             ObtainPlan plan = ObtainPlanner.plan(
                     candidate, need.count(), inventory, search.book(), search.drops(), search.facts(), tradingContext);
             if (plan.actionable()) {
                 return candidate;
             }
+            if (plan.limited()) {
+                limitedPlan = plan;
+            }
         }
-        return fallbackToFirst ? candidates.get(0) : null;
+        return limitedPlan != null || !fallbackToFirst ? null : candidates.get(0);
     }
 
     /** The need's candidates nobody has failed yet, in preference order. */

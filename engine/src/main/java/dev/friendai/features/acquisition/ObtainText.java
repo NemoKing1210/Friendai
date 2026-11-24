@@ -24,7 +24,7 @@ public final class ObtainText {
                     + "; verify the remembered source, then replan; unresolved: " + missingText(plan.missing(), false);
         }
         if (!plan.ok()) {
-            return "can't get " + count + " " + target + " here: " + missingText(plan.missing(), false);
+            return failureText(plan, target, count, false);
         }
         String header = "to get " + count + " " + target + ": ";
         if (plan.steps().isEmpty()) {
@@ -39,6 +39,20 @@ public final class ObtainText {
             steps.add(text);
         }
         return header + steps + "; about " + plan.estimatedSteps() + " steps";
+    }
+
+    /**
+     * Why a plan cannot be executed. A pass that ran out of planning work is not evidence that the material is
+     * absent, so it must never be reported as one; the measured counters let the reader see what was spent.
+     */
+    public static String failureText(ObtainPlan plan, String target, int count, boolean exploreOff) {
+        if (plan.limited()) {
+            return "planning stopped at its work limit before deciding whether " + count + " " + target
+                    + " is reachable (" + plan.work().evaluations() + " candidate evaluations, "
+                    + plan.work().copies() + " inventory copies). A route may still exist: narrow the request or "
+                    + "retry when the surroundings change";
+        }
+        return "can't get " + count + " " + target + " here: " + missingText(plan.missing(), exploreOff);
     }
 
     /** {@code missing: 1 × minecraft:diamond (exploring is off)}. */

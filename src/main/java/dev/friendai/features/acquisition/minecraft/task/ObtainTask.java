@@ -472,8 +472,7 @@ public final class ObtainTask implements Task {
             }
         }
         if (!plan.actionable()) {
-            return fail(
-                    "can't get " + count + " " + item + " here: " + ObtainText.missingText(plan.missing(), !explore));
+            return fail(ObtainText.failureText(plan, item, count, !explore));
         }
         if (plan.steps().isEmpty()) {
             return fail("can't get " + count + " " + item + " here: nothing to do");

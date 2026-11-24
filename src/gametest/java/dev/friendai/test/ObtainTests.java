@@ -1556,6 +1556,9 @@ public class ObtainTests {
                     result.summary.startsWith("can't get 1 minecraft:iron_ingot here: missing:"),
                     "summary was " + result.summary);
             h.assertTrue(result.summary.endsWith("(exploring is off)"), "summary was " + result.summary);
+            h.assertFalse(
+                    result.summary.contains("work limit"),
+                    "a finished search reports the material, not a planning limit: " + result.summary);
         });
     }
 
