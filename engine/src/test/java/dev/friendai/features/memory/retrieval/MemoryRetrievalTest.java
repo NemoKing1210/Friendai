@@ -113,9 +113,9 @@ class MemoryRetrievalTest {
         assertFalse(block.contains("Likes stone axes"), "the owner never sees a guest's fact here");
 
         String two = MemoryRetrieval.prompt(
-                book, OWNER, owner(), "Where is the lake?", settings(2), new RetrievalCache(), null);
+                book, OWNER, owner(), "Where are the lake and the cave?", settings(2), new RetrievalCache(), null);
         assertTrue(two.contains("The lake is north"), two);
-        assertTrue(two.contains("The cave mouth is by the river"), "the second-best fact fills the second slot");
+        assertTrue(two.contains("The cave mouth is by the river"), "the second relevant fact fills the second slot");
         assertTrue(two.indexOf("The lake is north") < two.indexOf("The cave mouth"), "best match first");
     }
 
@@ -140,26 +140,90 @@ class MemoryRetrievalTest {
     }
 
     @Test
+    void aLookupSaysWhyItCarriesNoBlock() {
+        MemoryBook book = bookWithFacts();
+        assertEquals(
+                MemoryRetrieval.Status.OFF,
+                MemoryRetrieval.lookup(
+                                book,
+                                OWNER,
+                                owner(),
+                                "lake",
+                                MemoryRetrieval.Settings.off(),
+                                new RetrievalCache(),
+                                null)
+                        .status());
+        assertEquals(
+                MemoryRetrieval.Status.UNAVAILABLE,
+                MemoryRetrieval.lookup(book, OWNER, owner(), "lake", null, new RetrievalCache(), null)
+                        .status());
+        assertEquals(
+                MemoryRetrieval.Status.UNAVAILABLE,
+                MemoryRetrieval.lookup(book, OWNER, owner(), "lake", settings(2), null, null)
+                        .status(),
+                "a missing index store is a failure, not an empty memory");
+
+        for (String query : List.of("", "  ", "is the", "hello there")) {
+            MemoryRetrieval.Result miss =
+                    MemoryRetrieval.lookup(book, OWNER, owner(), query, settings(2), new RetrievalCache(), null);
+            assertEquals(MemoryRetrieval.Status.NO_MATCH, miss.status(), "no content to look up: " + query);
+            assertEquals("", miss.text());
+            assertFalse(miss.selected());
+        }
+
+        MemoryRetrieval.Result hit =
+                MemoryRetrieval.lookup(book, OWNER, owner(), "lake", settings(2), new RetrievalCache(), null);
+        assertEquals(MemoryRetrieval.Status.SELECTED, hit.status());
+        assertTrue(hit.selected());
+        assertTrue(hit.text().contains("The lake is north"), hit.text());
+    }
+
+    @Test
+    void aRussianLineSelectsTheRussianFactAndAnUnrelatedLineSelectsNothing() {
+        MemoryBook book = new MemoryBook();
+        book.addFact(Subject.WORLD, Category.PLACE, "Озеро к северу от базы", OWNER, "Ann", 0, LIMITS);
+        book.addFact(Subject.WORLD, Category.NOTE, "В пещере у реки нет железной руды", OWNER, "Ann", 0, LIMITS);
+        RetrievalCache cache = new RetrievalCache();
+
+        MemoryRetrieval.Result hit =
+                MemoryRetrieval.lookup(book, OWNER, owner(), "Где озеро?", settings(2), cache, null);
+        assertEquals(MemoryRetrieval.Status.SELECTED, hit.status());
+        assertTrue(hit.text().contains("Озеро к северу"), hit.text());
+        assertFalse(hit.text().contains("железной руды"), hit.text());
+
+        MemoryRetrieval.Result unrelated =
+                MemoryRetrieval.lookup(book, OWNER, owner(), "Привет, как дела?", settings(2), cache, null);
+        assertEquals(MemoryRetrieval.Status.NO_MATCH, unrelated.status());
+        assertEquals("", unrelated.text());
+    }
+
+    @Test
     void aGuestNeverRetrievesOrEmbedsTheOwnersFacts() {
         MemoryBook book = bookWithFacts();
         Recording embedding = new Recording();
-        String block = MemoryRetrieval.prompt(
+        String unrelated = MemoryRetrieval.prompt(
                 book, OWNER, guest(), "diamonds under the bed", settings(4), new RetrievalCache(), null, embedding);
 
-        assertFalse(block.contains("diamonds"), block);
+        assertFalse(unrelated.contains("diamonds"), unrelated);
         assertFalse(
                 embedding.seen.stream().anyMatch(text -> text.contains("Keeps diamonds")),
                 "the owner's fact was never embedded for a guest: " + embedding.seen);
-        assertFalse(block.contains("The lake"), "a guest does not read world facts");
-        assertFalse(block.contains("Likes oak logs"), "a guest does not read the owner's facts");
-        assertTrue(block.contains("Likes stone axes"), block);
+        assertFalse(unrelated.contains("The lake"), "a guest does not read world facts");
+        assertFalse(unrelated.contains("Likes oak logs"), "a guest does not read the owner's facts");
+        assertEquals("", unrelated, "nothing visible speaks to an unrelated line");
+
+        String own =
+                MemoryRetrieval.prompt(book, OWNER, guest(), "stone axes", settings(4), new RetrievalCache(), null);
+        assertTrue(own.contains("Likes stone axes"), own);
+        assertFalse(own.contains("The lake"), "a guest does not read world facts");
+        assertFalse(own.contains("Likes oak logs"), "a guest does not read the owner's facts");
     }
 
     @Test
     void aTrustedPlayerSeesTheWorldAndTheirOwnFactsButNotTheOwners() {
         MemoryBook book = bookWithFacts();
         String block = MemoryRetrieval.prompt(
-                book, OWNER, trusted(), "diamonds under the bed", settings(4), new RetrievalCache(), null);
+                book, OWNER, trusted(), "lake and cave", settings(4), new RetrievalCache(), null);
 
         assertFalse(block.contains("diamonds"), block);
         assertFalse(block.contains("Likes oak logs"), block);
@@ -203,7 +267,8 @@ class MemoryRetrievalTest {
 
         UnaryOperator<String> second = text -> first.apply(text).replace("anvil", "[item]");
         Counting counting = new Counting();
-        String after = MemoryRetrieval.prompt(book, OWNER, owner(), "vault code", settings(2), cache, second, counting);
+        String after =
+                MemoryRetrieval.prompt(book, OWNER, owner(), "vault and anvil", settings(2), cache, second, counting);
         assertTrue(after.contains("[item]"), after);
         assertFalse(after.contains("anvil"), after);
         assertTrue(counting.calls > 1, "a changed mask rebuilds instead of reusing the old vectors");

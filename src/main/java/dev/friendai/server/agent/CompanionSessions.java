@@ -1057,7 +1057,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                             return "";
                         }
                         MemoryBook book = memory.book(owner);
-                        String memoryText = MemoryRetrieval.prompt(
+                        MemoryRetrieval.Result retrieved = MemoryRetrieval.lookup(
                                 book,
                                 owner,
                                 caller,
@@ -1065,16 +1065,20 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 config.memory.retrievalSettings(),
                                 retrievalCache,
                                 gateways.redactor());
+                        String memoryText = retrieved.text();
                         if (memoryText.isEmpty()) {
-                            // Retrieval off, no backend, a missing or stale index, or nothing selected: the ordinary
-                            // bounded book renders exactly as it did before.
-                            memoryText = MemoryPromptRenderer.render(
-                                    book,
-                                    owner,
-                                    caller,
-                                    config.memory.limits(),
-                                    config.memory.compactAtPercent,
-                                    gateways.redactor());
+                            // Off, no backend or a stale index still renders the ordinary bounded book. A working
+                            // index with no match does not: ranking an unrelated line against the whole book is
+                            // exactly how old facts used to fill the prompt.
+                            memoryText = retrieved.status() == MemoryRetrieval.Status.NO_MATCH
+                                    ? MemoryPromptRenderer.NOTHING_RELEVANT
+                                    : MemoryPromptRenderer.render(
+                                            book,
+                                            owner,
+                                            caller,
+                                            config.memory.limits(),
+                                            config.memory.compactAtPercent,
+                                            gateways.redactor());
                         }
                         String continuity = continuity(owner, session, caller);
                         String social = InteractionStyle.appendTo(
@@ -1119,7 +1123,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             boolean memoryGrounds = false;
             if (config.memory.enabled) {
                 MemoryBook book = memory.book(owner);
-                String selected = MemoryRetrieval.prompt(
+                MemoryRetrieval.Result retrieved = MemoryRetrieval.lookup(
                         book,
                         owner,
                         caller,
@@ -1129,9 +1133,9 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         gateways.redactor());
                 // Only a retrieval hit says memory speaks to this line. The render fallback below keeps the prompt
                 // whole, but a merely nonempty block (a language fact, say) grounds no reference.
-                memoryGrounds = !selected.isEmpty();
-                remembered = selected;
-                if (remembered.isEmpty()) {
+                memoryGrounds = retrieved.selected();
+                remembered = retrieved.text();
+                if (remembered.isEmpty() && retrieved.status() != MemoryRetrieval.Status.NO_MATCH) {
                     remembered = MemoryPromptRenderer.render(
                             book,
                             owner,

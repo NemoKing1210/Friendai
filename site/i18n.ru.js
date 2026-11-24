@@ -390,8 +390,8 @@ const RU = {
   "Skills advise only": "Навыки лишь советуют",
   "They never change permissions.": "Они никогда не меняют права.",
   "Opt-in retrieval": "Выборка по запросу",
-  "Default off; caller-visible facts selected by a local word match within a bounded budget.":
-    "По умолчанию выключено; видимые собеседнику факты отбираются локальным совпадением слов в пределах ограниченного бюджета.",
+  "Default off; caller-visible facts selected by a local word match within a bounded budget, and only when a word actually relates to the line.":
+    "По умолчанию выключено; видимые собеседнику факты отбираются локальным совпадением слов в пределах ограниченного бюджета и только когда слово действительно относится к реплике.",
 
   /* ---- Places ---- */
   "Places": "Места",

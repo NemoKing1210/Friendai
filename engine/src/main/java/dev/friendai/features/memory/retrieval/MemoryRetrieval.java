@@ -32,6 +32,34 @@ import java.util.function.UnaryOperator;
  * </ol>
  */
 public final class MemoryRetrieval {
+    /** Why a prompt carries the memory block it does, so a caller can tell "nothing matches" from "no index". */
+    public enum Status {
+        /** Retrieval is disabled or has no settings; the caller renders the ordinary book. */
+        OFF,
+        /** The backend, index or cache could not answer; the caller renders the ordinary book. */
+        UNAVAILABLE,
+        /** The index answered and nothing reached the relevance floor. */
+        NO_MATCH,
+        /** Facts were selected and rendered. */
+        SELECTED
+    }
+
+    /** One lookup: the status above and the rendered block (empty unless {@link Status#SELECTED}). */
+    public record Result(Status status, String text) {
+        public static final Result OFF = new Result(Status.OFF, "");
+        public static final Result UNAVAILABLE = new Result(Status.UNAVAILABLE, "");
+        public static final Result NO_MATCH = new Result(Status.NO_MATCH, "");
+
+        public Result {
+            status = status == null ? Status.UNAVAILABLE : status;
+            text = text == null ? "" : text;
+        }
+
+        public boolean selected() {
+            return status == Status.SELECTED;
+        }
+    }
+
     public static final int MIN_TOP_K = 1;
     public static final int MAX_TOP_K = 8;
 
@@ -81,10 +109,22 @@ public final class MemoryRetrieval {
             Settings settings,
             RetrievalCache cache,
             UnaryOperator<String> redactor) {
-        return prompt(book, owner, caller, query, settings, cache, redactor, LEXICAL);
+        return lookup(book, owner, caller, query, settings, cache, redactor).text();
     }
 
-    /** The same path with an explicit backend, so a test can make one fail or forget a fact mid-build. */
+    /** The same path as {@link #prompt}, reporting why a block is or is not present. */
+    public static Result lookup(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            String query,
+            Settings settings,
+            RetrievalCache cache,
+            UnaryOperator<String> redactor) {
+        return lookup(book, owner, caller, query, settings, cache, redactor, LEXICAL);
+    }
+
+    /** The rendered block with an explicit backend, as {@link #prompt} without one. */
     static String prompt(
             MemoryBook book,
             UUID owner,
@@ -94,20 +134,34 @@ public final class MemoryRetrieval {
             RetrievalCache cache,
             UnaryOperator<String> redactor,
             Embedder embedder) {
-        if (settings == null
-                || !settings.enabled()
-                || book == null
-                || owner == null
-                || caller == null
-                || cache == null
-                || embedder == null) {
-            return "";
+        return lookup(book, owner, caller, query, settings, cache, redactor, embedder)
+                .text();
+    }
+
+    /** The same path with an explicit backend, so a test can make one fail or forget a fact mid-build. */
+    static Result lookup(
+            MemoryBook book,
+            UUID owner,
+            Caller caller,
+            String query,
+            Settings settings,
+            RetrievalCache cache,
+            UnaryOperator<String> redactor,
+            Embedder embedder) {
+        if (settings == null) {
+            return Result.UNAVAILABLE;
+        }
+        if (!settings.enabled()) {
+            return Result.OFF;
+        }
+        if (book == null || owner == null || caller == null || cache == null || embedder == null) {
+            return Result.UNAVAILABLE;
         }
         try {
             UnaryOperator<String> clean = redactor == null ? text -> text : redactor;
             List<Fact> visible = MemoryAudit.visible(book, owner, caller);
             if (visible.isEmpty()) {
-                return "";
+                return Result.NO_MATCH;
             }
             List<RetrievalIndex.Source> sources = sources(visible);
             List<String> redacted = redactedTexts(sources, clean);
@@ -125,51 +179,66 @@ public final class MemoryRetrieval {
                 index = RetrievalIndex.build(
                         sources, redacted, LexicalEmbedder.ID, LexicalEmbedder.DIMENSIONS, embedder);
                 if (index == null) {
-                    return "";
+                    return Result.UNAVAILABLE;
                 }
                 if (!stillCurrent(book, owner, caller, facts)) {
                     // A forget or an edit landed while the vectors were being built: the result is about facts that
                     // are gone, so it is dropped instead of published.
-                    return "";
+                    return Result.UNAVAILABLE;
                 }
                 if (!cache.publish(epoch, key, index)) {
                     // An owner switch (or an explicit invalidation) passed this build; never publish across it.
-                    return "";
+                    return Result.UNAVAILABLE;
                 }
                 if (ownerScope) {
                     book.putRetrievalIndex(owner, index);
                 }
             }
+            // Only the query loses its function words: the fact vectors keep every token, so the persisted index and
+            // its cache key are untouched, and a message with nothing to look up selects nothing.
+            String content = clean.apply(query == null ? "" : query);
+            if (MemoryRetriever.contentTokens(content).isEmpty()) {
+                // Nothing to look up: an event-only turn or a bare politeness line must not rank the whole book.
+                return Result.NO_MATCH;
+            }
             float[] queryVector;
             try {
-                queryVector = embedder.embed(clean.apply(query == null ? "" : query));
+                queryVector = embedder.embed(content);
             } catch (RuntimeException failed) {
-                return "";
+                return Result.UNAVAILABLE;
             }
             if (queryVector == null || queryVector.length != index.dimensions()) {
-                return "";
+                return Result.UNAVAILABLE;
             }
             List<MemoryRetriever.Candidate> selected = MemoryRetriever.rank(
-                    candidates(visible), queryVector, index.vectors(), settings.topK(), settings.maxChars(), clean);
+                    candidates(visible),
+                    content,
+                    queryVector,
+                    index.vectors(),
+                    settings.topK(),
+                    settings.maxChars(),
+                    clean);
             if (selected.isEmpty()) {
-                return "";
+                return Result.NO_MATCH;
             }
             List<Fact> selectedFacts = factsById(visible, selected);
             if (selectedFacts.isEmpty()) {
-                return "";
+                return Result.NO_MATCH;
             }
-            return MemoryPromptRenderer.renderSelection(
-                    book,
-                    owner,
-                    caller,
-                    settings.limits(),
-                    settings.compactAtPercent(),
-                    selectedFacts,
-                    settings.maxChars(),
-                    clean);
+            return new Result(
+                    Status.SELECTED,
+                    MemoryPromptRenderer.renderSelection(
+                            book,
+                            owner,
+                            caller,
+                            settings.limits(),
+                            settings.compactAtPercent(),
+                            selectedFacts,
+                            settings.maxChars(),
+                            clean));
         } catch (RuntimeException failed) {
             // A broken backend, a malformed index or an inconsistent book is never worth a failed turn.
-            return "";
+            return Result.UNAVAILABLE;
         }
     }
 

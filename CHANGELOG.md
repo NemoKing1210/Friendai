@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.2] - 2026-11-24
+
+### Fixed
+
+- A message that has nothing to do with anything the companion remembers no longer drags old facts into its memory block, so it stops answering from memories the current line never touched.
+- When a job fails, the companion now looks for the goal and the problem in what it remembers, so a saved note like where the pickaxe is kept can actually be recalled for the order that needs it.
+
 ## [0.232.1] - 2026-11-24
 
 ### Fixed

@@ -18,6 +18,12 @@ public final class MemoryPromptRenderer {
     /** The block a book with nothing readable renders; a caller that needs "is there any memory?" checks this. */
     public static final String NOTHING_REMEMBERED = "Memory: nothing remembered yet.";
 
+    /**
+     * What a retrieval-enabled prompt says when the index answered and no fact reached the relevance floor. It is a
+     * different statement from {@link #NOTHING_REMEMBERED}: the book may be full, it just has nothing on this line.
+     */
+    public static final String NOTHING_RELEVANT = "Memory: nothing relevant to this line.";
+
     private MemoryPromptRenderer() {}
 
     public static String render(MemoryBook book, UUID owner, Caller caller) {

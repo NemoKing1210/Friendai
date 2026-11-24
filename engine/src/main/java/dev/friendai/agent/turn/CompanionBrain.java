@@ -171,6 +171,10 @@ public final class CompanionBrain {
     private Audience turnAudience = Audience.NEARBY;
     /** The event that opened the running turn, so a silent answer can be replaced by a line the mod knows. */
     private BrainEvent turnEvent;
+    /** The memory query for this turn: what the player said, or for a recovery the goal and its blocker. */
+    private String turnMemoryQuery = "";
+    /** The most recovery evidence one memory query carries, so an event batch cannot flood retrieval. */
+    private static final int RECOVERY_QUERY_CHARS = 400;
 
     private final List<String> turnPlayerTexts = new ArrayList<>();
     /**
@@ -398,6 +402,32 @@ public final class CompanionBrain {
     }
 
     /**
+     * A bounded memory query for a recovery turn: the active goal, its unmet needs, what the owner asked this turn
+     * and the failure that stopped it. The order and the goal carry the owner's own words, so a fact saved in their
+     * language still matches in English or Russian.
+     */
+    private static String recoveryMemoryQuery(GoalView goal, String playerText, String evidence) {
+        StringBuilder query = new StringBuilder();
+        if (goal != null && !goal.isEmpty()) {
+            query.append(goal.text());
+            if (!goal.unmet().isEmpty()) {
+                query.append(" (").append(String.join("; ", goal.unmet())).append(')');
+            }
+        }
+        for (String part : new String[] {playerText, evidence}) {
+            if (part == null || part.isBlank() || query.length() >= RECOVERY_QUERY_CHARS) {
+                continue;
+            }
+            if (query.length() > 0) {
+                query.append('\n');
+            }
+            int room = RECOVERY_QUERY_CHARS - query.length();
+            query.append(part, 0, Math.min(part.length(), room));
+        }
+        return query.length() <= RECOVERY_QUERY_CHARS ? query.toString() : query.substring(0, RECOVERY_QUERY_CHARS);
+    }
+
+    /**
      * Guests are throttled because every request costs money; the owner never is. Dropped messages go to the
      * observer and the debug log, never to chat.
      */
@@ -449,6 +479,7 @@ public final class CompanionBrain {
         incidents.cancelled();
         pendingPlans.clear();
         recoveryTurn = false;
+        turnMemoryQuery = "";
         streamInFlight = false;
         if (thinking) {
             thinking = false;
@@ -606,7 +637,7 @@ public final class CompanionBrain {
                 skillSession.persona(persona.get()),
                 perception.describe(turnCaller, turnReferent),
                 turnCaller,
-                memorySource.describe(turnCaller, String.join("\n", turnPlayerTexts)),
+                memorySource.describe(turnCaller, turnMemoryQuery),
                 turnKind,
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
@@ -911,6 +942,13 @@ public final class CompanionBrain {
             }
             skillText = withFailure.toString();
         }
+        String memoryQuery = String.join("\n", turnPlayerTexts);
+        if (memoryQuery.isBlank() && recoveryTurn) {
+            // A recovery turn has no player text: the goal and the failure lines are what memory should speak to.
+            String evidence = batch.stream().map(BrainEvent::toPromptLine).collect(Collectors.joining("\n"));
+            memoryQuery = recoveryMemoryQuery(goalView, "", evidence);
+        }
+        turnMemoryQuery = memoryQuery;
         skillSession = skillSource.begin(turnCaller, skillText, turnKind);
         teachingContext = null;
         if (turnPlayerTexts.isEmpty() && batch.stream().noneMatch(e -> e instanceof BrainEvent.FreeTimeShift)) {
@@ -1066,6 +1104,10 @@ public final class CompanionBrain {
         if (incidents.paused()) {
             outcomeLines = outcomeLines + "\n" + incidents.modelLine();
         }
+        // The follow-up request is a recovery: memory should answer for the goal and the blocker that stopped it,
+        // not only for the order that started the turn.
+        turnMemoryQuery =
+                recoveryMemoryQuery(goalSource.view(turnCaller), String.join("\n", turnPlayerTexts), outcomeLines);
         memory.add(Message.user(outcomeLines));
         visibleGroups.addAll(ToolCatalog.recoveryGroups());
         for (BrainEvent.TaskFinished task : outcomes) {
@@ -1813,6 +1855,7 @@ public final class CompanionBrain {
         lastTurnEnd = scheduler.nowMillis();
         turnPlanIds.clear();
         turnGoalIds.clear();
+        turnMemoryQuery = "";
         // Internal state is already settled: an external indicator that fails must not stop the next turn.
         speakSafely("thinking", () -> speaker.thinking(false));
         activePrincipal = null;

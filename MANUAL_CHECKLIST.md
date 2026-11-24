@@ -797,3 +797,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       the next reply treats redstone as disliked.
 - [ ] Write "I don't like spiders. Call me Boss.": the Memory tab keeps both facts, and the companion uses the name.
 - [ ] Write the same after a reload of the world: the stored preference is still the one you said last.
+
+## Relevance-ranked memory in ordinary and recovery prompts (TODO 156)
+
+- [ ] With lexical retrieval on, save a few unrelated facts, then say something about none of them ("hello there"):
+      the assembled request's memory block says nothing is relevant instead of listing old facts.
+- [ ] Save "the pickaxe is in the chest by the door", start an order that fails for a missing pickaxe, and read the
+      recovery request: the saved fact is part of the memory block, in English and in Russian.
+- [ ] Ask about one saved fact in Russian with a Russian message: the fact is selected and rendered; switch retrieval
+      off and the ordinary bounded book renders as before.

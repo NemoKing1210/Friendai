@@ -1250,6 +1250,67 @@ class CompanionBrainTest {
         assertTrue(gateway.requests.get(1).system().contains("MEM:owner"));
     }
 
+    /** A memory source that records the query it was given, so a test can see what retrieval would search for. */
+    private void recordMemoryQueries(List<String> queries) {
+        brain = new CompanionBrain(
+                () -> new Persona("Friendai", "friendly", "auto"),
+                () -> new BrainSettings(maxSteps, 30, cooldown, guestCooldown),
+                () -> gatewaySupplier.get(),
+                tools,
+                () -> perceptionText,
+                speaker,
+                scheduler,
+                AccessResolver.of(OWNER, trusted::contains),
+                new MemorySource() {
+                    @Override
+                    public String describe(dev.friendai.execution.tool.Caller caller) {
+                        return "";
+                    }
+
+                    @Override
+                    public String describe(dev.friendai.execution.tool.Caller caller, String playerText) {
+                        queries.add(playerText);
+                        return "MEM";
+                    }
+                });
+    }
+
+    @Test
+    void anEventOnlyRecoveryTurnAsksMemoryAboutTheGoalAndItsBlocker() {
+        List<String> queries = new ArrayList<>();
+        recordMemoryQueries(queries);
+        brain.setGoalSource(caller -> new dev.friendai.agent.goal.GoalView(
+                "gather 12 iron ore", List.of("12 iron ore"), "plan 4 running", "", RiskClass.CAREFUL));
+        gateway.enqueue(text("I need a stone pickaxe first."));
+        brain.post(new BrainEvent.TaskFinished(7, "mine_blocks", false, "no pickaxe in the inventory"));
+
+        assertEquals(1, queries.size());
+        assertTrue(queries.get(0).contains("gather 12 iron ore"), queries.get(0));
+        assertTrue(queries.get(0).contains("no pickaxe in the inventory"), queries.get(0));
+        assertTrue(
+                queries.get(0).length() <= 400,
+                "a recovery query is bounded: " + queries.get(0).length());
+        assertTrue(gateway.requests.get(0).system().contains("MEM"));
+    }
+
+    @Test
+    void aFailureDuringARequestReAsksMemoryAboutTheBlockerNotOnlyTheOrder() {
+        List<String> queries = new ArrayList<>();
+        recordMemoryQueries(queries);
+        CompletableFuture<LlmResponse> pending = gateway.enqueuePending();
+        gateway.enqueue(text("I will look elsewhere."));
+        brain.post(said("collect iron ore"));
+        brain.post(new BrainEvent.TaskFinished(7, "mine_blocks", false, "no pickaxe in the inventory"));
+
+        assertEquals("collect iron ore", queries.get(0), "the first request asks about the order alone");
+
+        pending.complete(text("The cave wall is too hard."));
+        assertEquals(2, gateway.requests.size());
+        assertEquals(2, queries.size());
+        assertTrue(queries.get(1).contains("collect iron ore"), queries.get(1));
+        assertTrue(queries.get(1).contains("no pickaxe in the inventory"), queries.get(1));
+    }
+
     @Test
     void perceptionReceivesTheTurnCaller() {
         java.util.List<dev.friendai.execution.tool.Caller> seen = new java.util.ArrayList<>();

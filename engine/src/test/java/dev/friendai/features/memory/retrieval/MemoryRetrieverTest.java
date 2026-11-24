@@ -73,14 +73,18 @@ class MemoryRetrieverTest {
     @Test
     void topKAndCharacterBudgetAreBothEnforced() {
         var selected = MemoryRetriever.select(
-                List.of(fact(1, "aaaa"), fact(2, "bbbb"), fact(3, "cccc"), fact(4, "dddd")),
-                "a b c d",
+                List.of(fact(1, "lake a"), fact(2, "lake b"), fact(3, "lake c"), fact(4, "lake d")),
+                "lake",
                 new BagEmbedder(),
                 2,
-                8,
+                12,
                 null);
         assertEquals(2, selected.size());
-        assertEquals(8, selected.stream().mapToInt(c -> c.text().length()).sum());
+        assertEquals(12, selected.stream().mapToInt(c -> c.text().length()).sum());
+
+        var tight = MemoryRetriever.select(
+                List.of(fact(1, "lake a"), fact(2, "lake b")), "lake", new BagEmbedder(), 2, 6, null);
+        assertEquals(1, tight.size(), "a row over the character budget is skipped whole");
     }
 
     @Test
@@ -120,6 +124,58 @@ class MemoryRetrieverTest {
                 .isEmpty());
         assertTrue(MemoryRetriever.select(List.of(fact(1, "x")), "x", new BagEmbedder(), 0, 10, null)
                 .isEmpty());
+    }
+
+    @Test
+    void anUnrelatedMessageSelectsNothing() {
+        var selected = MemoryRetriever.select(
+                List.of(
+                        fact(1, "The lake is north of the base"),
+                        fact(2, "Keeps diamonds under the bed"),
+                        fact(3, "Likes oak logs")),
+                "hello there",
+                new BagEmbedder(),
+                5,
+                500,
+                null);
+
+        assertTrue(selected.isEmpty(), "no shared content means no match: " + selected);
+    }
+
+    @Test
+    void aSharedFunctionWordAloneIsNotAMatch() {
+        var selected = MemoryRetriever.select(
+                List.of(fact(1, "the vault code is hidden"), fact(2, "iron is in the chest")),
+                "is the",
+                new BagEmbedder(),
+                5,
+                500,
+                null);
+
+        assertTrue(selected.isEmpty(), "function words alone select nothing: " + selected);
+    }
+
+    @Test
+    void onlyCandidatesAboveTheScoreFloorAreKept() {
+        var selected = MemoryRetriever.select(
+                List.of(fact(1, "lake lake lake"), fact(2, "lake a b c d e f g h")),
+                "lake",
+                new BagEmbedder(),
+                5,
+                500,
+                null);
+
+        assertEquals(
+                List.of(1),
+                selected.stream().map(MemoryRetriever.Candidate::id).toList(),
+                "a fact sharing one word in a long text scores too low to show");
+    }
+
+    @Test
+    void contentTokensDropStopwordsAndShortRuns() {
+        assertEquals(java.util.Set.of("lake", "north"), MemoryRetriever.contentTokens("Where is the lake, north?"));
+        assertTrue(MemoryRetriever.contentTokens("the and is").isEmpty());
+        assertTrue(MemoryRetriever.contentTokens("").isEmpty());
     }
 
     @Test
