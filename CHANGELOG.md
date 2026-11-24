@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.0] - 2026-11-24
+
+### Added
+
+- The Tasks tab now opens a long history row in place: a stopped task leads with the blocker and the next step it
+  would take, followed by the rest of its report, so you can see why the bread never arrived without reading the
+  whole sentence. A task that ran out of time has its own "Timed out" label instead of a plain failure.
+
 ## [0.229.0] - 2026-11-24
 
 ### Added

@@ -5,16 +5,20 @@ import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.QueueRow;
 import dev.friendai.presentation.companion.QueueRows;
 import dev.friendai.presentation.companion.TaskArgs;
+import dev.friendai.presentation.companion.TaskRecordText;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 /**
  * Every queued job drawn as a chain: plans and single tasks as groups, each job a node on a vertical line with its
- * tool, arguments, why it waits and what it depends on; the history of finished tasks follows underneath.
+ * tool, arguments, why it waits and what it depends on; the history of finished tasks follows underneath. A history
+ * row shows its blocker and next step first, marks text it had to drop, and opens in place to the whole stored text.
  */
 final class TasksTab extends StatefulMenuTab {
     private static final int PAD = 8;
@@ -25,16 +29,68 @@ final class TasksTab extends StatefulMenuTab {
 
     private final ScrollView view = new ScrollView(false);
 
-    /** One block of the scrolling content: its height and how to draw it at a position. */
-    private record Block(int height, Painter painter) {}
+    private Host host;
+    /** One focus widget per history row, so Tab reaches every row and the narrator reads it. */
+    private final List<FocusRow> historyRows = new ArrayList<>();
+    /** The rows the focus widgets currently stand for, in history order. */
+    private List<TaskRecord> drawnHistory = List.of();
+    /** The open history row, by job number: a live refresh keeps it open, a row leaving history closes it. */
+    private int openHistoryId = -1;
+
+    private int openLeft;
+    private int openWidth;
+    private int listTop;
+    private int listBottom;
+    private HistoryDetail detail;
+
+    /** One block of the scrolling content: its height, how to draw it and, for a history row, the row it shows. */
+    private record Block(int height, Painter painter, TaskRecord history) {
+        Block(int height, Painter painter) {
+            this(height, painter, null);
+        }
+    }
 
     @FunctionalInterface
     private interface Painter {
         void paint(GuiGraphicsExtractor g, int x, int y, int width);
     }
 
+    /** An opened row's full text, laid out once per width and content and reused while it is unchanged. */
+    private record HistoryDetail(int id, int width, String summary, RowText text) {}
+
     @Override
-    public void init(Host host, int left, int top, int width, int height) {}
+    public void init(Host host, int left, int top, int width, int height) {
+        this.host = host;
+        // A rebuild clears the screen's widgets, so the pool is rebuilt from the rows that still exist.
+        historyRows.clear();
+    }
+
+    @Override
+    public void tick() {
+        if (host == null) {
+            return;
+        }
+        List<TaskRecord> records =
+                state.snapshot().map(CompanionSnapshot::history).orElse(List.of());
+        while (historyRows.size() < records.size()) {
+            int index = historyRows.size();
+            historyRows.add(host.add(new FocusRow(Component.empty(), () -> toggleHistory(index))));
+        }
+        for (int i = 0; i < historyRows.size(); i++) {
+            FocusRow row = historyRows.get(i);
+            boolean used = i < records.size();
+            row.visible = used;
+            row.active = used;
+            if (used) {
+                TaskRecord record = records.get(i);
+                row.setMessage(Component.literal("#" + record.id() + " " + TaskArgs.title(record.toolName())));
+            }
+        }
+        if (records.stream().noneMatch(record -> record.id() == openHistoryId)) {
+            openHistoryId = -1;
+            detail = null;
+        }
+    }
 
     @Override
     public void render(
@@ -49,20 +105,70 @@ final class TasksTab extends StatefulMenuTab {
         blocks.add(summaryBlock(font, s, contentWidth));
         addChain(blocks, font, s.queue(), contentWidth);
         addHistory(blocks, font, s.history(), contentWidth);
+        drawnHistory = s.history();
+        openLeft = left;
+        openWidth = contentWidth;
 
         int total = 0;
         for (Block block : blocks) {
             total += block.height() + GAP;
         }
         view.begin(g, left, top, width, height, total);
+        listTop = top;
+        listBottom = top + height;
         int y = view.top();
+        int historyIndex = 0;
         for (Block block : blocks) {
+            if (block.history() != null) {
+                placeHistoryRow(historyIndex++, y, block.height());
+            }
             if (view.visible(y, block.height())) {
                 block.painter().paint(g, left, y, contentWidth);
             }
             y += block.height() + GAP;
         }
+        reveal(top, top + height);
         view.end(g);
+    }
+
+    private void placeHistoryRow(int index, int y, int height) {
+        if (index < historyRows.size()) {
+            historyRows
+                    .get(index)
+                    .withRingWidth(Math.max(1, openWidth))
+                    .place(openLeft, y, openWidth, height, listTop, listBottom);
+        }
+    }
+
+    /** Keeps a row reached with the keyboard inside the list, so Tab can walk every history row without a wheel. */
+    private void reveal(int viewTop, int viewBottom) {
+        if (host == null || !Minecraft.getInstance().getLastInputType().isKeyboard()) {
+            return;
+        }
+        GuiEventListener focused = host.focused();
+        if (focused == null) {
+            return;
+        }
+        int index = historyRows.indexOf(focused);
+        if (index < 0) {
+            return;
+        }
+        FocusRow row = historyRows.get(index);
+        if (row.rowTop() < viewTop) {
+            view.nudge(row.rowTop() - viewTop);
+        } else if (row.rowHeight() <= viewBottom - viewTop && row.rowBottom() > viewBottom) {
+            view.nudge(row.rowBottom() - viewBottom);
+        }
+    }
+
+    /** Opens one row to its full stored text, or closes it when it is already open. */
+    private void toggleHistory(int index) {
+        if (index >= drawnHistory.size()) {
+            return;
+        }
+        int id = drawnHistory.get(index).id();
+        openHistoryId = openHistoryId == id ? -1 : id;
+        detail = null;
     }
 
     private static Block summaryBlock(Font font, CompanionSnapshot s, int width) {
@@ -212,7 +318,10 @@ final class TasksTab extends StatefulMenuTab {
         return String.join("  ·  ", parts);
     }
 
-    private static void addHistory(List<Block> blocks, Font font, List<TaskRecord> records, int width) {
+    /** One history row's laid-out text and whether more of it was dropped. */
+    private record RowText(int height, List<FormattedCharSequence> lines, boolean more) {}
+
+    private void addHistory(List<Block> blocks, Font font, List<TaskRecord> records, int width) {
         blocks.add(new Block(
                 12, (g, x, y, w) -> Ui.heading(g, font, Component.translatable("friendai.menu.history"), x, y, w)));
         if (records.isEmpty()) {
@@ -222,24 +331,76 @@ final class TasksTab extends StatefulMenuTab {
                             g, font, Component.translatable("friendai.menu.history_empty"), x + 2, y + 2, Ui.DIM)));
             return;
         }
+        int textWidth = width - 2 * PAD - 4;
         for (TaskRecord record : records) {
-            List<FormattedCharSequence> lines = limit(
-                    font.split(Component.literal(TaskChips.humanize(record.summary())), width - 2 * PAD - 4),
-                    MAX_SUMMARY_LINES);
-            int height = 18 + lines.size() * (font.lineHeight + 1) + 3;
-            blocks.add(new Block(height, (g, x, y, w) -> drawRecord(g, font, record, lines, x, y, w, height)));
+            boolean open = record.id() == openHistoryId;
+            RowText text = open ? opened(font, record, textWidth) : folded(font, record, textWidth);
+            blocks.add(new Block(
+                    text.height(),
+                    (g, x, y, w) -> drawRecord(g, font, record, text, open, x, y, w, text.height()),
+                    record));
         }
     }
 
+    /**
+     * The parts of one row in reading order: what stopped it, why, what to do next, then what the task said in words.
+     * A row without a receipt keeps its whole text as the one part.
+     */
+    private static List<String> parts(TaskRecord record) {
+        TaskRecordText text = TaskRecordText.of(record.summary());
+        List<String> parts = new ArrayList<>();
+        text.receipt().ifPresent(receipt -> {
+            if (!receipt.blocker().isBlank()) parts.add(label("friendai.menu.history.blocker") + receipt.blocker());
+            if (!receipt.reason().isBlank()) parts.add(label("friendai.menu.history.reason") + receipt.reason());
+            if (!receipt.nextAction().isBlank()) parts.add(label("friendai.menu.history.next") + receipt.nextAction());
+        });
+        String plain = TaskChips.humanize(text.plain());
+        if (!plain.isBlank()) parts.add(plain);
+        return parts;
+    }
+
+    private static String label(String key) {
+        return Component.translatable(key).getString() + " ";
+    }
+
+    /** At most {@link #MAX_SUMMARY_LINES} lines; anything not shown is reported through {@link RowText#more()}. */
+    private static RowText folded(Font font, TaskRecord record, int width) {
+        List<FormattedCharSequence> lines = new ArrayList<>();
+        boolean more = false;
+        for (String part : parts(record)) {
+            for (FormattedCharSequence line : font.split(Component.literal(part), width)) {
+                if (lines.size() >= MAX_SUMMARY_LINES) {
+                    more = true;
+                    break;
+                }
+                lines.add(line);
+            }
+            if (more) break;
+        }
+        int height = 18 + lines.size() * (font.lineHeight + 1) + (more ? font.lineHeight + 4 : 3);
+        return new RowText(height, List.copyOf(lines), more);
+    }
+
+    /** The complete stored text of the opened row, laid out once per width and content and then reused. */
+    private RowText opened(Font font, TaskRecord record, int width) {
+        if (detail != null
+                && detail.id() == record.id()
+                && detail.width() == width
+                && detail.summary().equals(record.summary())) {
+            return detail.text();
+        }
+        List<FormattedCharSequence> lines = new ArrayList<>();
+        for (String part : parts(record)) {
+            lines.addAll(font.split(Component.literal(part), width));
+        }
+        int height = 18 + lines.size() * (font.lineHeight + 1) + font.lineHeight + 6;
+        RowText text = new RowText(height, List.copyOf(lines), false);
+        detail = new HistoryDetail(record.id(), width, record.summary(), text);
+        return text;
+    }
+
     private static void drawRecord(
-            GuiGraphicsExtractor g,
-            Font font,
-            TaskRecord r,
-            List<FormattedCharSequence> summary,
-            int x,
-            int y,
-            int w,
-            int h) {
+            GuiGraphicsExtractor g, Font font, TaskRecord r, RowText text, boolean open, int x, int y, int w, int h) {
         int color = historyColor(r.status());
         Ui.card(g, x, y, w, h);
         g.fill(x, y, x + 3, y + h, color);
@@ -257,9 +418,13 @@ final class TasksTab extends StatefulMenuTab {
                 y + 5,
                 Ui.TEXT);
         int lineY = y + 18;
-        for (FormattedCharSequence line : summary) {
+        for (FormattedCharSequence line : text.lines()) {
             Ui.text(g, font, line, textX, lineY, Ui.DIM);
             lineY += font.lineHeight + 1;
+        }
+        if (text.more() || open) {
+            Component hint = Component.translatable(open ? "friendai.menu.history.less" : "friendai.menu.history.more");
+            Ui.text(g, font, hint, textX, lineY, Ui.ACCENT);
         }
     }
 
@@ -319,7 +484,7 @@ final class TasksTab extends StatefulMenuTab {
     private static int historyColor(String status) {
         return switch (status) {
             case "SUCCESS" -> Ui.GOOD;
-            case "FAILED" -> Ui.BAD;
+            case "FAILED", "TIMED_OUT" -> Ui.BAD;
             default -> Ui.DIM;
         };
     }
@@ -328,6 +493,7 @@ final class TasksTab extends StatefulMenuTab {
         return switch (status) {
             case "SUCCESS" -> "friendai.menu.status.success";
             case "FAILED" -> "friendai.menu.status.failed";
+            case "TIMED_OUT" -> "friendai.menu.status.timed_out";
             default -> "friendai.menu.status.cancelled";
         };
     }
