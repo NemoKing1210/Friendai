@@ -33,6 +33,7 @@ final class ProtocolHandshakeTest {
         assertEquals(
                 List.of(
                         "friendai:control",
+                        "friendai:control.retry",
                         "friendai:memory",
                         "friendai:places",
                         "friendai:instructions",

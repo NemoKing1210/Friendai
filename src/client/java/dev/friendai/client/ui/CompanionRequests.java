@@ -28,6 +28,12 @@ public final class CompanionRequests {
         return session != null && FriendaiClient.runtime().allowsProtocol(session, ProtocolFamily.CONTROL);
     }
 
+    /** Whether the peer accepts a retry that names the job, not only the last direct one. */
+    public static boolean targetedRetrySupported() {
+        ClientSessionId session = FriendaiClient.runtime().sessionId();
+        return session != null && FriendaiClient.runtime().supportsCapability(session, "friendai:control.retry");
+    }
+
     /** Whether a recognized voice line has an accepted connection that can carry it. */
     public static boolean speechSupported(ClientSessionId expectedSession) {
         return expectedSession != null

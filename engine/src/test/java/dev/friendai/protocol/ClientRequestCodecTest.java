@@ -77,6 +77,23 @@ final class ClientRequestCodecTest {
     }
 
     @Test
+    void roundTripsATargetedRetryBesideTheUntargetedOne() {
+        ControlRequest.RetryJob request = new ControlRequest.RetryJob(42L, "timed_out");
+        DecodeResult<DecodedClientRequest> decoded = ClientRequestCodec.decode(ClientRequestCodec.encode(7, request));
+
+        assertInstanceOf(DecodeResult.Valid.class, decoded);
+        DecodedClientRequest value = ((DecodeResult.Valid<DecodedClientRequest>) decoded).value();
+        assertEquals(7, value.requestId());
+        assertEquals(new ControlRequest.RetryJob(42L, "TIMED_OUT"), value.request());
+        // An old client's empty op-15 body still decodes, and the two operations stay distinct on the wire.
+        assertInstanceOf(
+                DecodeResult.Valid.class,
+                ClientRequestCodec.decode(ClientRequestCodec.encode(8, new ControlRequest.RetryLast())));
+        assertThrows(IllegalArgumentException.class, () -> new ControlRequest.RetryJob(0L, "FAILED"));
+        assertThrows(IllegalArgumentException.class, () -> new ControlRequest.RetryJob(1L, "x".repeat(17)));
+    }
+
+    @Test
     void rejectsNoncanonicalBooleanAndMalformedUtf8BeforeDispatch() {
         byte[] invalidBoolean = {1, 1, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 2};
         byte[] invalidUtf8Rename = {1, 1, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 1, (byte) 0xff};

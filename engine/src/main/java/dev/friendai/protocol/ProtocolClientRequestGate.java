@@ -70,6 +70,11 @@ public final class ProtocolClientRequestGate {
         return session.allowsAppearance();
     }
 
+    /** Whether the accepted peer offers a capability that gates an operation newer clients send selectively. */
+    public boolean supports(String capability) {
+        return session.supports(capability);
+    }
+
     public Optional<EncodedRequest> createRequest(ClientRequest request) {
         Objects.requireNonNull(request, "request");
         if (!session.allowsFamily(request.family())) return Optional.empty();

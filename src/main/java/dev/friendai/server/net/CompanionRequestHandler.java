@@ -14,6 +14,7 @@ import dev.friendai.features.places.PlaceRegistry;
 import dev.friendai.foundation.places.Place;
 import dev.friendai.foundation.places.PlaceLimits;
 import dev.friendai.foundation.places.PlaceNames;
+import dev.friendai.presentation.companion.TaskArgs;
 import dev.friendai.protocol.ClientRequest;
 import dev.friendai.protocol.ProtocolFamily;
 import dev.friendai.protocol.control.ControlRequest;
@@ -23,6 +24,7 @@ import dev.friendai.protocol.memory.MemoryRequest;
 import dev.friendai.protocol.places.PlaceRequest;
 import dev.friendai.server.agent.CompanionSessions;
 import dev.friendai.server.creative.CreativeModeService;
+import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.runtime.ServerRuntime;
 import java.util.ArrayList;
 import java.util.List;
@@ -176,7 +178,9 @@ public final class CompanionRequestHandler {
                 c.executionCoordinator().wakeQueue();
             });
         } else if (request instanceof ControlRequest.RetryLast) {
-            companions.find(owner).ifPresent(c -> c.executionCoordinator().retryLast());
+            companions.find(owner).ifPresent(c -> retry(c, player, 0, ""));
+        } else if (request instanceof ControlRequest.RetryJob retry) {
+            companions.find(owner).ifPresent(c -> retry(c, player, retry.jobId(), retry.expectedStatus()));
         } else if (request instanceof ControlRequest.Stop) {
             companions.find(owner).ifPresent(c -> {
                 brains.freeTime().stop(owner, "stopped from menu");
@@ -232,6 +236,7 @@ public final class CompanionRequestHandler {
         if (request instanceof ControlRequest.Stop
                 || request instanceof ControlRequest.SetPaused
                 || request instanceof ControlRequest.RetryLast
+                || request instanceof ControlRequest.RetryJob
                 || request instanceof ControlRequest.UpdateGoal
                 || request instanceof ControlRequest.QueueEdit) return DebugAccess.Action.STOP;
         if (request instanceof ControlRequest.Teleport) return DebugAccess.Action.TELEPORT;
@@ -252,6 +257,27 @@ public final class CompanionRequestHandler {
         if (request instanceof DebugRequest.PromptGet) return DebugAccess.Action.VIEW_PROMPT;
         if (request instanceof DebugRequest.MovementStreamSet) return DebugAccess.Action.VIEW_MOVEMENT;
         return null;
+    }
+
+    /**
+     * Answers a Retry with one translated line: the queued case is silent because the queue panel already shows the
+     * job, and every refusal says why nothing ran instead of leaving an unexplained click.
+     */
+    private static void retry(
+            dev.friendai.entity.CompanionEntity companion, ServerPlayer player, long jobId, String expectedStatus) {
+        ExecutionCoordinator.RetryAnswer answer =
+                companion.executionCoordinator().retryLast(jobId, expectedStatus);
+        Component message = switch (answer.outcome()) {
+            case QUEUED -> null;
+            case NOTHING -> Component.translatable("friendai.menu.retry.nothing");
+            case STALE -> Component.translatable("friendai.menu.retry.stale");
+            case BUSY -> Component.translatable("friendai.menu.retry.busy");
+            case LIVE -> Component.translatable("friendai.menu.retry.live");
+            case SUCCEEDED -> Component.translatable("friendai.menu.retry.succeeded", TaskArgs.title(answer.tool()));
+            case PARTIAL -> Component.translatable("friendai.menu.retry.partial", TaskArgs.title(answer.tool()));
+            case REFUSED -> Component.translatable("friendai.menu.retry.refused", TaskArgs.title(answer.tool()));
+        };
+        if (message != null) player.sendSystemMessage(message, true);
     }
 
     private static MenuStatus applyMemoryRequest(

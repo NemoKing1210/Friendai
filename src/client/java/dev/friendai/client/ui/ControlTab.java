@@ -1,11 +1,15 @@
 package dev.friendai.client.ui;
 
 import dev.friendai.agent.goal.GoalBoard;
+import dev.friendai.execution.history.TaskRecord;
+import dev.friendai.execution.queue.RetryPolicy;
 import dev.friendai.presentation.companion.CompanionSnapshot;
 import dev.friendai.presentation.companion.CompanionVitals;
+import dev.friendai.presentation.companion.TaskArgs;
 import dev.friendai.protocol.control.ControlRequest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.OptionalLong;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -121,16 +125,15 @@ final class ControlTab extends StatefulMenuTab {
                 workLabel(),
                 Ui.ACCENT,
                 () -> CompanionRequests.send(new ControlRequest.SetPaused(!pausedNow()))));
-        retry = place(
-                host,
-                buttons,
-                columns,
+        int retryIndex = index++;
+        retry = host.add(new FlatButton(
+                x(left, buttonWidth, columns, retryIndex),
+                y(retryIndex, columns),
                 buttonWidth,
-                "friendai.menu.retry",
-                new ControlRequest.RetryLast(),
+                BUTTON_HEIGHT,
+                Component.translatable("friendai.menu.retry"),
                 Ui.ACCENT,
-                left,
-                index++);
+                this::retry));
         planPause = host.add(new FlatButton(
                 x(left, buttonWidth, columns, index),
                 y(index, columns),
@@ -182,6 +185,27 @@ final class ControlTab extends StatefulMenuTab {
         return buttonsTop + (index / columns) * (BUTTON_HEIGHT + GAP);
     }
 
+    /** The newest history row a retry may name: one that ended failed, timed out or cancelled. */
+    private Optional<TaskRecord> retryTarget() {
+        return state.snapshot()
+                .flatMap(snapshot -> snapshot.history().stream()
+                        .filter(record -> RetryPolicy.retryableOutcome(record.status()))
+                        .findFirst());
+    }
+
+    /**
+     * Retries that row by id, so a click cannot replay whatever started last; an older server without the targeted
+     * operation keeps the old untargeted request.
+     */
+    private void retry() {
+        if (!CompanionRequests.targetedRetrySupported()) {
+            CompanionRequests.send(new ControlRequest.RetryLast());
+            return;
+        }
+        retryTarget()
+                .ifPresent(record -> CompanionRequests.send(new ControlRequest.RetryJob(record.id(), record.status())));
+    }
+
     private OptionalLong planId() {
         return state.snapshot()
                 .map(snapshot -> snapshot.queue().stream()
@@ -218,7 +242,12 @@ final class ControlTab extends StatefulMenuTab {
         dismiss.active = connected && present;
         stop.active = connected && present;
         pause.active = connected && present;
-        retry.active = connected && present;
+        boolean targeted = CompanionRequests.targetedRetrySupported();
+        Optional<TaskRecord> target = targeted ? retryTarget() : Optional.empty();
+        retry.active = connected && present && (!targeted || target.isPresent());
+        retry.setMessage(target.map(record ->
+                        Component.translatable("friendai.menu.retry_target", TaskArgs.title(record.toolName())))
+                .orElseGet(() -> Component.translatable("friendai.menu.retry")));
         if (planPause != null) planPause.active = connected && present && planId().isPresent();
         if (planResume != null) planResume.active = connected && present && planId().isPresent();
         if (planDefer != null) planDefer.active = connected && present && planId().isPresent();

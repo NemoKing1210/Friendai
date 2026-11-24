@@ -14,6 +14,7 @@ import dev.friendai.agent.verify.OutcomeChecker;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
@@ -24,6 +25,7 @@ import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.PlanStatus;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.queue.RetryPolicy;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
@@ -41,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -82,6 +85,44 @@ public final class QueueTests {
         @Override
         public String resultSummary() {
             return "unexpected completion";
+        }
+    }
+
+    /** Ends at once with a measured remainder, the shape a delivery that ran short reports. */
+    private static final class PartialWorkTask implements Task {
+        @Override
+        public String type() {
+            return "partial_work";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            return TaskStatus.FAILED;
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+
+        @Override
+        public String describe() {
+            return "partial handover";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "handed over 3 of 8 wheat";
+        }
+
+        @Override
+        public Optional<TaskWorkResult> workResult() {
+            return Optional.of(new TaskWorkResult(
+                    List.of(new TaskWorkResult.Line("minecraft:wheat", 8, 3, TaskWorkResult.Evidence.HANDED_OVER)),
+                    "short_stock",
+                    "",
+                    "hand over the remaining wheat"));
         }
     }
 
@@ -552,6 +593,77 @@ public final class QueueTests {
         h.assertTrue(coordinator.queue().job(retried).isEmpty(), "the retried stay leaves the queue when it ends");
         h.assertValueEqual(coordinator.queue().jobCount(), 0, "the completed retry leaves no job behind");
         h.assertTrue(events.finished.contains("stay:SUCCESS"), "the retry finishes on its own: " + events.finished);
+        h.succeed();
+    }
+
+    /**
+     * One accepted Retry, and the refusals that keep a stale or successful click from doing the work twice.
+     */
+    @GameTest(maxTicks = 300)
+    public void aRetryNamesTheJobAndRefusesWhenReplayingItWouldBeWrong(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+
+        h.assertValueEqual(
+                coordinator.retryLast(7, "FAILED").outcome(),
+                RetryPolicy.Outcome.NOTHING,
+                "nothing was started in this session");
+        long jobId = coordinator.enqueue(stayStep(owner.getUUID()), ctx -> new StayTask(200));
+        for (int i = 0; i < 5; i++) coordinator.tick();
+        coordinator.stop("test");
+        coordinator.tick();
+
+        h.assertValueEqual(
+                coordinator.retryLast(jobId + 1, "FAILED").outcome(),
+                RetryPolicy.Outcome.STALE,
+                "a click for another job cannot replay this one");
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "a stale refusal queues nothing");
+        h.assertTrue(coordinator.retryLast(jobId, "FAILED").queued(), "the failed job itself is queued again");
+        h.assertValueEqual(coordinator.queue().jobCount(), 1, "exactly one job is queued");
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 300)
+    public void retryNeverRepeatsASuccessOrAPartlyDoneStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion =
+                CompanionManager.get(h.getLevel().getServer()).summon(owner);
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+
+        long succeeded = coordinator.enqueue(stayStep(owner.getUUID()), ctx -> new StayTask(1));
+        for (int i = 0; i < 40 && coordinator.queue().job(succeeded).isPresent(); i++) coordinator.tick();
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "the short stay finishes on its own");
+        h.assertValueEqual(
+                coordinator.retryLast(succeeded, "SUCCESS").outcome(),
+                RetryPolicy.Outcome.SUCCEEDED,
+                "a finished job is not run twice");
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "a refused retry queues nothing");
+
+        long partial = coordinator.enqueue(
+                new QueuedStep(
+                        "give_items",
+                        new JsonObject(),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        1,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                ctx -> new PartialWorkTask());
+        for (int i = 0; i < 40 && coordinator.queue().job(partial).isPresent(); i++) coordinator.tick();
+        h.assertValueEqual(
+                coordinator.retryLast(partial, "FAILED").outcome(),
+                RetryPolicy.Outcome.PARTIAL,
+                "a step that measured part of its work is not replayed blindly");
+        h.assertValueEqual(coordinator.queue().jobCount(), 0, "the partial step is not queued again");
         h.succeed();
     }
 

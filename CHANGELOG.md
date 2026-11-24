@@ -6,6 +6,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.229.0] - 2026-11-24
+
 ### Added
 
 - You can ask to see a plan before any work starts ("make a plan for a house, do nothing yet"): the companion shows

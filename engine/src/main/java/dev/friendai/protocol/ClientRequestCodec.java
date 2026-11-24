@@ -466,6 +466,9 @@ public final class ClientRequestCodec {
         } else if (request instanceof ControlRequest.InvokeTool tool) {
             out.writeString(tool.name(), 500);
             out.writeString(tool.argumentsJson(), 2_000);
+        } else if (request instanceof ControlRequest.RetryJob retry) {
+            out.writeLong(retry.jobId());
+            out.writeString(retry.expectedStatus(), ControlRequest.RetryJob.MAX_STATUS_CHARS);
         } else if (!(request instanceof ControlRequest.Subscribe
                 || request instanceof ControlRequest.Unsubscribe
                 || request instanceof ControlRequest.Summon
@@ -504,6 +507,8 @@ public final class ClientRequestCodec {
                 new ControlRequest.QueueEdit(
                         in.readString(8), in.readLong(), in.readLong(), in.readLong(), in.readString(160));
             case 18 -> new ControlRequest.ToggleOutline();
+            case 19 ->
+                new ControlRequest.RetryJob(in.readLong(), in.readString(ControlRequest.RetryJob.MAX_STATUS_CHARS));
             default -> throw new ProtocolDataException(DecodeResult.Reason.UNKNOWN_OPERATION);
         };
         in.requireEnd();

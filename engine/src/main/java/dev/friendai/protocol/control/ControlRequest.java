@@ -2,6 +2,7 @@ package dev.friendai.protocol.control;
 
 import dev.friendai.protocol.ClientRequest;
 import dev.friendai.protocol.ProtocolFamily;
+import java.util.Locale;
 
 public sealed interface ControlRequest extends ClientRequest
         permits ControlRequest.Subscribe,
@@ -20,6 +21,7 @@ public sealed interface ControlRequest extends ClientRequest
                 ControlRequest.InvokeTool,
                 ControlRequest.SetPaused,
                 ControlRequest.RetryLast,
+                ControlRequest.RetryJob,
                 ControlRequest.UpdateGoal,
                 ControlRequest.QueueEdit {
     @Override
@@ -170,6 +172,26 @@ public sealed interface ControlRequest extends ClientRequest
         @Override
         public int operationId() {
             return 15;
+        }
+    }
+
+    /**
+     * The owner retries one named job from the history they are looking at. The status is what that row showed, so a
+     * server with newer state can refuse the click instead of replaying a job that meanwhile succeeded.
+     */
+    record RetryJob(long jobId, String expectedStatus) implements ControlRequest {
+        public static final int MAX_STATUS_CHARS = 16;
+
+        public RetryJob {
+            if (jobId <= 0) throw new IllegalArgumentException("retry needs a job id");
+            expectedStatus =
+                    expectedStatus == null ? "" : expectedStatus.strip().toUpperCase(Locale.ROOT);
+            if (expectedStatus.length() > MAX_STATUS_CHARS) throw new IllegalArgumentException("status is too long");
+        }
+
+        @Override
+        public int operationId() {
+            return 19;
         }
     }
 }
