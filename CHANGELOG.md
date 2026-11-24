@@ -13,6 +13,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- A step that waits for another plan or goal to finish now runs when that plan or goal completes, even after it has
+  left the active list and after a reload, instead of waiting forever at exactly the moment its prerequisite was met.
+  A plan that waits on itself is refused with a clear error.
 - The companion no longer acts on a condition it cannot check yet. If a plan asks "is this block there?" about a
   place that is not loaded, it waits and says so in the task panel instead of taking the opposite branch, skipping the
   step or repeating work; once you load the area it picks the right branch, once.

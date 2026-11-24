@@ -108,4 +108,28 @@ class GoalSaveTest {
                 "",
                 GoalSave.decode(old, 3, 3).orElseThrow().primary().orElseThrow().order());
     }
+
+    @Test
+    void aFinishedGoalIsSavedAndReadBackAsKeptEvidence() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long id = board.set("wood", List.of(), false, 7).value().id();
+        board.finish(id, true, "delivered");
+
+        GoalBoard back = GoalSave.decode(GoalSave.encode(board), 3, 3).orElseThrow();
+        assertTrue(back.all().isEmpty(), "a finished goal is not active after reload");
+        assertEquals(List.of(id), back.finished().stream().map(Goal::id).toList());
+        assertEquals(GoalStatus.DONE, back.finished().getFirst().status());
+        // The id stays spent: a reloaded board must not hand the same number to new work.
+        assertTrue(back.set("next", List.of(), false, 8).value().id() > id);
+    }
+
+    @Test
+    void aRecordWrittenBeforeFinishedGoalsWereKeptStillLoads() {
+        String old = "{\"nextId\":2,\"goals\":["
+                + "{\"id\":1,\"text\":\"wood\",\"status\":\"DONE\",\"plan\":0,\"replans\":0,"
+                + "\"created\":7,\"background\":false,\"lessons\":[],\"criteria\":[{\"text\":\"12 logs\"}]}]}";
+        GoalBoard back = GoalSave.decode(old, 3, 3).orElseThrow();
+        assertTrue(back.all().isEmpty());
+        assertEquals(1, back.finished().size());
+    }
 }

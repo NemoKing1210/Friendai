@@ -4,10 +4,13 @@ import com.google.gson.JsonObject;
 import dev.friendai.foundation.diagnostics.LogContext;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** Mutable owner of immutable queue records; deliberately independent of Minecraft. */
 public final class JobQueue {
@@ -73,7 +76,7 @@ public final class JobQueue {
         queue.nextOrder = Math.max(
                 nextOrder,
                 queue.jobs.values().stream().mapToLong(Job::order).max().orElse(0) + 100);
-        while (queue.archives.size() > queue.limits.maxArchives()) queue.archives.removeFirst();
+        queue.trimArchives();
         return queue;
     }
 
@@ -151,7 +154,7 @@ public final class JobQueue {
     /** Applies current runtime limits without discarding queued work. */
     public void setLimits(QueueLimits limits) {
         this.limits = limits == null ? QueueLimits.DEFAULTS : limits;
-        while (archives.size() > this.limits.maxArchives()) archives.removeFirst();
+        trimArchives();
     }
 
     public long clock() {
@@ -215,7 +218,9 @@ public final class JobQueue {
             for (int after : step.afterSteps())
                 if (after < 1 || after > i) throw new IllegalArgumentException("after may only name an earlier step");
         }
-        long planId = nextPlan++;
+        long planId = nextPlan;
+        for (QueuedStep step : steps) requireNoGuardReference(planId, step.guards());
+        nextPlan++;
         List<PlanNode> nodes = steps.stream()
                 .map(PlanNode.Action::new)
                 .map(PlanNode.class::cast)
@@ -257,7 +262,9 @@ public final class JobQueue {
         validateBudget(worstCase);
         for (QueuedStep step : worstCase)
             if (step.tool().isBlank()) throw new IllegalArgumentException("tool is blank");
-        long planId = nextPlan++;
+        long planId = nextPlan;
+        requireNoSelfReference(planId, definition);
+        nextPlan++;
         plans.put(
                 planId,
                 new PlanRecord(
@@ -443,6 +450,9 @@ public final class JobQueue {
         }
         if (!jobsOfPlan(planId).isEmpty()) {
             return Result.error("a started structured plan cannot be rewritten");
+        }
+        if (definition.referencedPlanIds().contains(planId)) {
+            return Result.error("a plan cannot wait for its own completion");
         }
         plans.put(
                 planId,
@@ -981,7 +991,50 @@ public final class JobQueue {
             jobs.remove(job.id());
             dropJobHold(job.id());
         }
-        while (archives.size() > limits.maxArchives()) archives.removeFirst();
+        trimArchives();
+    }
+
+    /**
+     * Drops the oldest archives down to the limit, but never one a live job guard or plan still asks about: the
+     * evidence must outlive its own plan for as long as a dependency needs it. A referenced archive can therefore
+     * keep the list above the limit, bounded by the number of live references.
+     */
+    private void trimArchives() {
+        if (archives.size() <= limits.maxArchives()) return;
+        Set<Long> referenced = referencedPlanIds();
+        Iterator<PlanArchive> iterator = archives.iterator();
+        while (iterator.hasNext() && archives.size() > limits.maxArchives()) {
+            if (!referenced.contains(iterator.next().id())) iterator.remove();
+        }
+    }
+
+    private Set<Long> referencedPlanIds() {
+        Set<Long> ids = new HashSet<>();
+        for (Job job : jobs.values()) {
+            for (Guard guard : job.guards()) ids.addAll(guard.referencedPlanIds());
+        }
+        for (PlanRecord plan : plans.values()) {
+            if (plan.definition() != null) ids.addAll(plan.definition().referencedPlanIds());
+        }
+        return ids;
+    }
+
+    private static void requireNoSelfReference(long planId, List<QueuedStep> steps) {
+        for (QueuedStep step : steps) requireNoGuardReference(planId, step.guards());
+    }
+
+    private static void requireNoSelfReference(long planId, PlanDefinition definition) {
+        if (definition.referencedPlanIds().contains(planId)) {
+            throw new IllegalArgumentException("a plan cannot wait for its own completion");
+        }
+    }
+
+    private static void requireNoGuardReference(long planId, List<Guard> guards) {
+        for (Guard guard : guards) {
+            if (guard.referencedPlanIds().contains(planId)) {
+                throw new IllegalArgumentException("a plan cannot wait for its own completion");
+            }
+        }
     }
 
     public static boolean terminal(Job j) {

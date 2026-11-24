@@ -75,6 +75,7 @@
 			"dev.friendai.test.SelfCareTests",
 			"dev.friendai.test.QueueTests",
 			"dev.friendai.test.ConditionalPlansTests",
+			"dev.friendai.test.TerminalPrerequisiteTests",
 			"dev.friendai.test.AnimalTests",
 			"dev.friendai.test.FarmingTests",
 			"dev.friendai.test.ObtainTests",

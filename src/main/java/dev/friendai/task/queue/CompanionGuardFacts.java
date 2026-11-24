@@ -1,8 +1,11 @@
 package dev.friendai.task.queue;
 
+import dev.friendai.agent.goal.Goal;
+import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.GuardFacts;
+import dev.friendai.execution.queue.PlanArchive;
 import dev.friendai.execution.queue.PlanStatus;
 import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
@@ -11,6 +14,7 @@ import dev.friendai.world.block.BlockMatcher;
 import dev.friendai.world.block.BlockSearch;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -341,27 +345,43 @@ public final class CompanionGuardFacts implements GuardFacts {
     @Override
     public Boolean planDone(long planId) {
         var queue = companion.executionCoordinator().queue();
-        if (queue.plan(planId).isEmpty()) {
-            return null;
+        var live = queue.plan(planId);
+        if (live.isPresent()) {
+            return queue.planStatus(planId) == PlanStatus.DONE;
         }
-        return queue.planStatus(planId) == PlanStatus.DONE;
+        // A finished plan leaves the queue but is archived: the archive is the record of how it ended.
+        return queue.archives().stream()
+                .filter(archive -> archive.id() == planId)
+                .findFirst()
+                .map(PlanArchive::success)
+                .orElse(null);
     }
 
     @Override
     public Boolean goalMet(long goalId) {
+        GoalBoard board = board();
+        if (board == null) {
+            return null;
+        }
+        Optional<Goal> live = board.find(goalId);
+        if (live.isPresent()) {
+            return live.get().status() == GoalStatus.DONE;
+        }
+        // A finished goal leaves the active list; the kept record still answers the question either way.
+        return board.finished().stream()
+                .filter(goal -> goal.id() == goalId)
+                .findFirst()
+                .map(goal -> goal.status() == GoalStatus.DONE)
+                .orElse(null);
+    }
+
+    private GoalBoard board() {
         if (companion.ownerUuid() == null) {
             return null;
         }
         ServerRuntime runtime =
                 ServerRuntimeRegistry.find(companion.level().getServer()).orElse(null);
-        if (runtime == null) {
-            return null;
-        }
-        return runtime.goals().board(companion.ownerUuid()).all().stream()
-                .filter(goal -> goal.id() == goalId)
-                .findFirst()
-                .map(goal -> goal.status() == GoalStatus.DONE)
-                .orElse(null);
+        return runtime == null ? null : runtime.goals().board(companion.ownerUuid());
     }
 
     @Override

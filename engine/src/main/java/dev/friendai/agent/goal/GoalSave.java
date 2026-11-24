@@ -19,7 +19,11 @@ public final class GoalSave {
         JsonObject root = new JsonObject();
         root.addProperty("nextId", board.nextId());
         JsonArray array = new JsonArray();
-        for (Goal goal : board.all()) {
+        // Live goals first, then the kept finished ones: status already says which is which, so an older build
+        // reading this record simply drops the finished tail it used to drop anyway.
+        List<Goal> saved = new ArrayList<>(board.all());
+        saved.addAll(board.finished());
+        for (Goal goal : saved) {
             JsonObject g = new JsonObject();
             g.addProperty("id", goal.id());
             g.addProperty("text", goal.text());

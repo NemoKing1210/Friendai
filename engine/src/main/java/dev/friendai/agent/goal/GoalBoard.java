@@ -8,8 +8,8 @@ import java.util.Optional;
 
 /**
  * The companion's persistent intentions: at most one primary goal and a few background ones. Pure; the
- * {@link GoalRepository} persists the encoded form ({@link GoalSave}) in an independent goal record. Finished goals
- * leave the board.
+ * {@link GoalRepository} persists the encoded form ({@link GoalSave}) in an independent goal record. A finished goal
+ * leaves the active list but stays readable for a while, because a dependent plan may ask whether it was met.
  */
 public final class GoalBoard {
     public static final int MAX_TEXT = 200;
@@ -18,12 +18,15 @@ public final class GoalBoard {
     public static final int MAX_ORDER = 400;
     public static final int MAX_LESSONS = 5;
     public static final int MAX_LESSON_TEXT = 160;
+    /** How many finished goals stay readable as evidence for dependents. */
+    public static final int MAX_FINISHED = 8;
 
     public record Finished(Goal goal, String reason) {}
 
     private final int maxBackground;
     private final int maxReplans;
     private final List<Goal> goals = new ArrayList<>();
+    private final List<Goal> finished = new ArrayList<>();
     private long nextId = 1;
 
     public GoalBoard(int maxBackground, int maxReplans) {
@@ -35,10 +38,9 @@ public final class GoalBoard {
     static GoalBoard restore(int maxBackground, int maxReplans, long nextId, List<Goal> saved) {
         GoalBoard board = new GoalBoard(maxBackground, maxReplans);
         for (Goal goal : saved) {
-            if (!goal.status().terminal()) {
-                board.goals.add(goal);
-                board.nextId = Math.max(board.nextId, goal.id() + 1);
-            }
+            if (goal.status().terminal()) board.remember(goal);
+            else board.goals.add(goal);
+            board.nextId = Math.max(board.nextId, goal.id() + 1);
         }
         board.nextId = Math.max(board.nextId, nextId);
         return board;
@@ -104,6 +106,11 @@ public final class GoalBoard {
         return List.copyOf(goals);
     }
 
+    /** The most recently finished goals, oldest first, at most {@link #MAX_FINISHED}. */
+    public List<Goal> finished() {
+        return List.copyOf(finished);
+    }
+
     long nextId() {
         return nextId;
     }
@@ -167,7 +174,15 @@ public final class GoalBoard {
         }
         Goal ended = found.get().withStatus(done ? GoalStatus.DONE : GoalStatus.ABANDONED);
         goals.removeIf(g -> g.id() == id);
+        remember(ended);
         return GoalResult.ok(new Finished(ended, reason));
+    }
+
+    /** Keeps a finished goal as evidence for dependents, dropping the oldest beyond {@link #MAX_FINISHED}. */
+    private void remember(Goal ended) {
+        finished.removeIf(g -> g.id() == ended.id());
+        finished.add(ended);
+        while (finished.size() > MAX_FINISHED) finished.removeFirst();
     }
 
     public void linkPlan(long goalId, long planId) {

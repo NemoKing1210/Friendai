@@ -254,4 +254,35 @@ class GoalBoardTest {
         board.update(id, Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(0L));
         assertEquals(0L, board.primary().orElseThrow().deadlineTick());
     }
+
+    @Test
+    void aFinishedGoalStaysReadableWhileItIsKept() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long done = board.set("bring logs", List.of(), false, 10).value().id();
+        long dropped = board.set("dig", List.of(), true, 11).value().id();
+        board.finish(done, true, "delivered");
+        board.finish(dropped, false, "no pickaxe");
+
+        assertTrue(board.all().isEmpty(), "neither goal is active any more");
+        assertTrue(board.find(done).isEmpty());
+        assertEquals(
+                List.of(GoalStatus.DONE, GoalStatus.ABANDONED),
+                board.finished().stream().map(Goal::status).toList());
+        assertTrue(board.set("next", List.of(), false, 12).ok(), "an id is never reissued");
+        assertTrue(
+                board.finished().getFirst().id() < board.primary().orElseThrow().id());
+    }
+
+    @Test
+    void finishedGoalsAreBoundedOldestFirst() {
+        GoalBoard board = new GoalBoard(3, 3);
+        for (int i = 0; i < GoalBoard.MAX_FINISHED + 2; i++) {
+            long id = board.set("g" + i, List.of(), false, i).value().id();
+            board.finish(id, true, "done");
+        }
+        assertEquals(GoalBoard.MAX_FINISHED, board.finished().size());
+        assertEquals("g2", board.finished().getFirst().text());
+        assertEquals(
+                "g" + (GoalBoard.MAX_FINISHED + 1), board.finished().getLast().text());
+    }
 }

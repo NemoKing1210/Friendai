@@ -4,8 +4,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** Closed, serializable tree of conditions used by queued jobs and conditional plans. */
 public sealed interface Guard
@@ -84,6 +86,14 @@ public sealed interface Guard
      */
     default Truth evaluate(GuardFacts facts) {
         return holds(facts) ? Truth.TRUE : Truth.FALSE;
+    }
+
+    /**
+     * Plan ids this guard asks about, so the queue keeps the archive that answers them for as long as the reference
+     * exists. Empty for every guard that names no plan.
+     */
+    default Set<Long> referencedPlanIds() {
+        return Set.of();
     }
 
     String describe();
@@ -485,6 +495,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Set<Long> referencedPlanIds() {
+            Set<Long> ids = new HashSet<>();
+            conditions.forEach(g -> ids.addAll(g.referencedPlanIds()));
+            return Set.copyOf(ids);
+        }
+
+        @Override
         public String describe() {
             return "all of " + conditions.stream().map(Guard::describe).toList();
         }
@@ -508,6 +525,13 @@ public sealed interface Guard
         @Override
         public Truth evaluate(GuardFacts facts) {
             return Truth.any(conditions.stream().map(g -> g.evaluate(facts)).toList());
+        }
+
+        @Override
+        public Set<Long> referencedPlanIds() {
+            Set<Long> ids = new HashSet<>();
+            conditions.forEach(g -> ids.addAll(g.referencedPlanIds()));
+            return Set.copyOf(ids);
         }
 
         @Override
@@ -535,6 +559,11 @@ public sealed interface Guard
         @Override
         public Truth evaluate(GuardFacts facts) {
             return condition.evaluate(facts).negate();
+        }
+
+        @Override
+        public Set<Long> referencedPlanIds() {
+            return condition.referencedPlanIds();
         }
 
         @Override
@@ -1072,6 +1101,11 @@ public sealed interface Guard
         public Truth evaluate(GuardFacts facts) {
             Boolean done = facts.planDone(planId);
             return done == null ? Truth.UNKNOWN : done ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
+        public Set<Long> referencedPlanIds() {
+            return Set.of(planId);
         }
 
         @Override
