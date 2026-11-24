@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.1] - 2026-11-24
+
+### Fixed
+
+- A transfer or a furnace batch that fails partway no longer takes its items twice: its retry continues from what the
+  failed attempt already withdrew or loaded. An attempt that crashed before it could record anything waits for your
+  decision instead of repeating an action that may already have changed the world, and the same progress survives a
+  reload.
+
 ## [0.230.0] - 2026-11-24
 
 ### Added

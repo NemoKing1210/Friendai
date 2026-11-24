@@ -13,6 +13,7 @@ import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.task.TaskState;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SavedExecutionCodecTest {
@@ -43,7 +44,7 @@ class SavedExecutionCodecTest {
         SavedExecution decoded =
                 SavedExecutionCodec.decode(encoded, QueueLimits.DEFAULTS).orElseThrow();
 
-        assertTrue(encoded.contains("\"version\":2"));
+        assertTrue(encoded.contains("\"version\":3"));
         assertFalse(encoded.contains("queue:v1:"));
         assertFalse(encoded.contains("queue:v2:"));
         assertEquals("gather", decoded.queue().queue().plan(plan).orElseThrow().goal());
@@ -63,11 +64,66 @@ class SavedExecutionCodecTest {
         assertEquals(SavedExecution.CURRENT_VERSION, decoded.version());
 
         String legacy = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, false))
-                .replace("\"version\":2", "\"version\":1");
+                .replace("\"version\":3", "\"version\":1");
         SavedExecution older =
                 SavedExecutionCodec.decode(legacy, QueueLimits.DEFAULTS).orElseThrow();
         assertFalse(older.manualPause(), "a document written before the pause existed cannot claim one");
         assertEquals(SavedExecution.CURRENT_VERSION, older.version(), "the older document is read at the new shape");
+    }
+
+    @Test
+    void roundTripsTheProgressARetryResumes() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addPlan(
+                        "gather",
+                        List.of(new QueuedStep(
+                                "move_items",
+                                new JsonObject(),
+                                null,
+                                List.of(),
+                                GuardAction.WAIT,
+                                FailurePolicy.ASK,
+                                2,
+                                List.of())),
+                        dev.friendai.execution.queue.PlanOptions.DEFAULT)
+                .planId();
+        long job = queue.jobsOfPlan(plan).getFirst().id();
+        SavedExecution saved = new SavedExecution(
+                new QueueSave.Decoded(queue, 0),
+                null,
+                false,
+                Map.of(
+                        job,
+                        new dev.friendai.server.execution.RetryCheckpoints.Entry(
+                                "{\"count\":5}", new TaskState("move_items", "STORE"))));
+
+        SavedExecution decoded = SavedExecutionCodec.decode(SavedExecutionCodec.encode(saved), QueueLimits.DEFAULTS)
+                .orElseThrow();
+
+        assertEquals(1, decoded.retryProgress().size());
+        var entry = decoded.retryProgress().get(job);
+        assertEquals("{\"count\":5}", entry.args());
+        assertEquals(new TaskState("move_items", "STORE"), entry.state());
+
+        SavedExecution blocked = new SavedExecution(
+                new QueueSave.Decoded(queue, 0),
+                null,
+                false,
+                Map.of(job, new dev.friendai.server.execution.RetryCheckpoints.Entry("{}", null)));
+        SavedExecution read = SavedExecutionCodec.decode(SavedExecutionCodec.encode(blocked), QueueLimits.DEFAULTS)
+                .orElseThrow();
+        assertFalse(read.retryProgress().get(job).resumable(), "a blocked attempt stays blocked");
+    }
+
+    @Test
+    void aDocumentWithoutRetryProgressStillLoads() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        String versionTwo = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, false))
+                .replace("\"version\":3", "\"version\":2");
+        SavedExecution older =
+                SavedExecutionCodec.decode(versionTwo, QueueLimits.DEFAULTS).orElseThrow();
+        assertTrue(older.retryProgress().isEmpty());
+        assertEquals(SavedExecution.CURRENT_VERSION, older.version());
     }
 
     @Test

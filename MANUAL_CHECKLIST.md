@@ -731,3 +731,10 @@ The automated client suite drove the same paths with fixture audio on a loopback
 - [ ] Switch the language to Russian and English: the labels and the "more"/"less" markers are translated, and the task's own sentence stays in the language the model wrote it in.
 
 The automated suite pins the text split and the layout arithmetic; the click, the wrapping and the keyboard focus need a real window.
+
+## Retry after a partial transfer (TODO 145)
+
+- [ ] Put 5 iron ingots in one chest and ask for a transfer into a second chest you then break (or fill) so the delivery fails: the companion keeps the 5 ingots, waits for the retry, and once the destination is usable again both chests and the companion account for exactly 5 in total, with nothing taken twice.
+- [ ] Let a transfer fail its attempts while the destination is gone: after the last attempt the job stops with its own reason instead of withdrawing again on every retry.
+- [ ] Save and quit during the retry's wait, then reload: the job comes back with the items it had already withdrawn still carried, and finishes without a second withdrawal.
+- [ ] Smelt a batch, break the furnace mid-batch, then restore it: the retry continues the batch it had loaded rather than putting a fresh stack in.

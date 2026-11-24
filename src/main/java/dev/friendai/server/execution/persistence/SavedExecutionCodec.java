@@ -1,13 +1,17 @@
 package dev.friendai.server.execution.persistence;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.server.execution.RetryCheckpoints;
 import dev.friendai.task.TaskState;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** Bounded codec for the single target-format execution document stored by a companion. */
@@ -32,6 +36,20 @@ public final class SavedExecutionCodec {
             task.addProperty("data", saved.activeTask().data());
             root.add("activeTask", task);
         }
+        if (!saved.retryProgress().isEmpty()) {
+            JsonArray retries = new JsonArray();
+            saved.retryProgress().forEach((jobId, entry) -> {
+                JsonObject row = new JsonObject();
+                row.addProperty("job", jobId);
+                row.addProperty("args", entry.args());
+                if (entry.state() != null) {
+                    row.addProperty("type", entry.state().type());
+                    row.addProperty("data", entry.state().data());
+                }
+                retries.add(row);
+            });
+            root.add("retries", retries);
+        }
         String encoded = root.toString();
         if (encoded.getBytes(StandardCharsets.UTF_8).length > MAX_SAVE_BYTES)
             throw new IllegalStateException("execution save exceeds size limit");
@@ -45,9 +63,10 @@ public final class SavedExecutionCodec {
         try {
             JsonObject root = JsonParser.parseString(encoded).getAsJsonObject();
             int version = root.get("version").getAsInt();
-            // An older document predates the saved pause, so it keeps loading with the companion free to work.
-            if (version != SavedExecution.CURRENT_VERSION && version != SavedExecution.LEGACY_VERSION)
-                return Optional.empty();
+            // An older document predates the saved pause or the retry progress, so it loads with the defaults.
+            if (version != SavedExecution.CURRENT_VERSION
+                    && version != SavedExecution.PREVIOUS_VERSION
+                    && version != SavedExecution.LEGACY_VERSION) return Optional.empty();
             var queue = QueueSave.decode(root.getAsJsonObject("queue"), limits);
             if (queue.isEmpty()) return Optional.empty();
             boolean manualPause =
@@ -60,11 +79,37 @@ public final class SavedExecutionCodec {
                 if (data.length() > MAX_TASK_STATE_CHARS) return Optional.empty();
                 activeTask = new TaskState(type, data);
             }
-            return Optional.of(
-                    new SavedExecution(SavedExecution.CURRENT_VERSION, queue.get(), activeTask, manualPause));
+            Map<Long, RetryCheckpoints.Entry> retryProgress = readRetries(root);
+            if (retryProgress == null) return Optional.empty();
+            return Optional.of(new SavedExecution(
+                    SavedExecution.CURRENT_VERSION, queue.get(), activeTask, manualPause, retryProgress));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }
+    }
+
+    /** The saved retry progress, or null when the document carries more of it than a save may hold. */
+    private static Map<Long, RetryCheckpoints.Entry> readRetries(JsonObject root) {
+        if (!root.has("retries")) return Map.of();
+        JsonArray rows = root.getAsJsonArray("retries");
+        if (rows == null || rows.size() > RetryCheckpoints.MAX_ENTRIES) return null;
+        Map<Long, RetryCheckpoints.Entry> progress = new LinkedHashMap<>();
+        for (var element : rows) {
+            JsonObject row = element.getAsJsonObject();
+            long jobId = row.get("job").getAsLong();
+            if (jobId <= 0) continue;
+            String args = row.get("args").getAsString();
+            if (args.length() > RetryCheckpoints.MAX_ARGS_CHARS) return null;
+            TaskState state = null;
+            if (row.has("type") && row.has("data")) {
+                String type = row.get("type").getAsString();
+                String data = row.get("data").getAsString();
+                if (data.length() > MAX_TASK_STATE_CHARS) return null;
+                state = new TaskState(type, data);
+            }
+            progress.put(jobId, new RetryCheckpoints.Entry(args, state));
+        }
+        return progress;
     }
 
     public static List<String> split(String encoded) {

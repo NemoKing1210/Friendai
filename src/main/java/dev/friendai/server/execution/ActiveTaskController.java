@@ -62,12 +62,14 @@ public final class ActiveTaskController {
         int truncated;
     }
 
+    /** One settled task; {@code crashed} marks a throw instead of a reported status. */
     public record Completion(
             ActiveTask active,
             TaskStatus status,
             TaskDisposition disposition,
             String summary,
-            Optional<TaskWorkResult> workResult) {
+            Optional<TaskWorkResult> workResult,
+            boolean crashed) {
         public Completion {
             disposition = disposition == null
                     ? status == TaskStatus.SUCCESS ? TaskDisposition.SUCCESS : TaskDisposition.FAILED
@@ -75,8 +77,17 @@ public final class ActiveTaskController {
             workResult = workResult == null ? Optional.empty() : workResult;
         }
 
+        public Completion(
+                ActiveTask active,
+                TaskStatus status,
+                TaskDisposition disposition,
+                String summary,
+                Optional<TaskWorkResult> workResult) {
+            this(active, status, disposition, summary, workResult, false);
+        }
+
         public Completion(ActiveTask active, TaskStatus status, String summary) {
-            this(active, status, null, summary, Optional.empty());
+            this(active, status, null, summary, Optional.empty(), false);
         }
     }
 
@@ -183,6 +194,7 @@ public final class ActiveTaskController {
         TaskStatus status;
         TaskDisposition disposition = null;
         String summary = null;
+        boolean crashed = false;
         long processingStart = clock.nanoTime();
         try {
             status = active.task().tick(activeContext);
@@ -195,6 +207,7 @@ public final class ActiveTaskController {
                     e);
             status = TaskStatus.FAILED;
             summary = crashSummary(e);
+            crashed = true;
         }
         active.timing().onTick(clock.nanoTime() - processingStart);
         if (current != active) return Optional.empty();
@@ -246,7 +259,7 @@ public final class ActiveTaskController {
                 terminalFacts(active, measured, summary, workResult)));
         current = null;
         release(active.task(), activeContext, "terminal");
-        return Optional.of(new Completion(active, status, disposition, summary, workResult));
+        return Optional.of(new Completion(active, status, disposition, summary, workResult, crashed));
     }
 
     /** Stops the current task and returns its metadata for queue settlement and event publication. */

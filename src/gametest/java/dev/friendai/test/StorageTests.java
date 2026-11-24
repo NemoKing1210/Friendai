@@ -2,8 +2,13 @@ package dev.friendai.test;
 
 import com.google.gson.JsonObject;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.entity.CompanionManager;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.QueueSave;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
@@ -26,6 +31,7 @@ import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
 import dev.friendai.task.interact.MakeRoomTask;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -35,6 +41,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Container;
 import net.minecraft.world.LockCode;
@@ -1616,6 +1623,194 @@ public class StorageTests {
                         .isEmpty(),
                 "malformed data must not restore");
         h.succeed();
+    }
+
+    /** The container positions both retry tests move between, as the tool would have queued them. */
+    private static JsonObject moveArgs(BlockPos from, BlockPos to) {
+        JsonObject args = new JsonObject();
+        args.addProperty("item", "minecraft:iron_ingot");
+        args.addProperty("count", 5);
+        args.addProperty("from_x", from.getX());
+        args.addProperty("from_y", from.getY());
+        args.addProperty("from_z", from.getZ());
+        args.addProperty("to_x", to.getX());
+        args.addProperty("to_y", to.getY());
+        args.addProperty("to_z", to.getZ());
+        return args;
+    }
+
+    /** A companion whose owner is online, with the same session wiring a real summon gets. */
+    private static CompanionEntity wiredCompanion(GameTestHelper h, BlockPos spot, UUID owner) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, spot.getX(), spot.getY(), spot.getZ());
+        companion.setOwner(owner);
+        CompanionManager.get(h.getLevel().getServer()).register(companion);
+        GameTestSupport.runtime(h).sessions().prepareForTaskRestore(companion);
+        return companion;
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1600)
+    public void aFailedTransferResumesItsWithdrawalInsteadOfTakingTwice(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6, 2, 6);
+        CompanionEntity companion = wiredCompanion(h, new BlockPos(6, 2, 6), owner.getUUID());
+        ExecutionCoordinator coordinator = companion.executionCoordinator();
+        coordinator.resume();
+        BlockPos from = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos to = h.absolutePos(new BlockPos(12, 2, 12));
+        long job = coordinator.enqueue(
+                new QueuedStep(
+                        "move_items",
+                        moveArgs(from, to),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        2,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                context -> new MoveItemsTask(matcher("minecraft:iron_ingot"), 5, from, to));
+
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            coordinator.tick();
+            switch (phase[0]) {
+                case 0 -> {
+                    if (carried(companion) == 5) {
+                        h.assertValueEqual(
+                                containerAt(h, 3, 2, 3).countItem(Items.IRON_INGOT),
+                                5,
+                                "the source keeps only the remainder");
+                        // The destination is lost after the withdrawal committed, which makes a repeat destructive.
+                        h.setBlock(12, 2, 12, Blocks.AIR);
+                        phase[0] = 1;
+                    }
+                }
+                case 1 -> {
+                    if (isBackedOff(coordinator, job)) {
+                        h.assertValueEqual(carried(companion), 5, "the withdrawn items are still carried");
+                        h.setBlock(12, 2, 12, Blocks.CHEST);
+                        phase[0] = 2;
+                    }
+                }
+                default -> {}
+            }
+            h.assertTrue(
+                    settled(coordinator, job),
+                    "waiting for the retry to settle: " + coordinator.queue().job(job));
+            h.assertValueEqual(
+                    containerAt(h, 3, 2, 3).countItem(Items.IRON_INGOT), 5, "the source must not be taken twice");
+            h.assertValueEqual(
+                    containerAt(h, 12, 2, 12).countItem(Items.IRON_INGOT), 5, "what was withdrawn must be delivered");
+            h.assertValueEqual(carried(companion), 0, "nothing stays carried");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2400)
+    public void aBackedOffTransferResumesAfterReload(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(3, 2, 3, Blocks.CHEST);
+        containerAt(h, 3, 2, 3).setItem(0, new ItemStack(Items.IRON_INGOT, 10));
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        ServerPlayer owner = GameTestSupport.mockPlayerAt(h, 6, 2, 6);
+        CompanionEntity original = wiredCompanion(h, new BlockPos(6, 2, 6), owner.getUUID());
+        ExecutionCoordinator coordinator = original.executionCoordinator();
+        coordinator.resume();
+        BlockPos from = h.absolutePos(new BlockPos(3, 2, 3));
+        BlockPos to = h.absolutePos(new BlockPos(12, 2, 12));
+        long job = coordinator.enqueue(
+                new QueuedStep(
+                        "move_items",
+                        moveArgs(from, to),
+                        null,
+                        List.of(),
+                        GuardAction.WAIT,
+                        FailurePolicy.ASK,
+                        2,
+                        List.of(),
+                        owner.getUUID(),
+                        false),
+                context -> new MoveItemsTask(matcher("minecraft:iron_ingot"), 5, from, to));
+
+        var persistence = GameTestSupport.runtime(h).taskPersistence();
+        ExecutionCoordinator[] reloaded = new ExecutionCoordinator[1];
+        CompanionEntity[] restoredCompanion = new CompanionEntity[1];
+
+        int[] phase = {0};
+        h.succeedWhen(() -> {
+            if (reloaded[0] == null) coordinator.tick();
+            else reloaded[0].tick();
+            switch (phase[0]) {
+                case 0 -> {
+                    if (carried(original) == 5) {
+                        h.setBlock(12, 2, 12, Blocks.AIR);
+                        phase[0] = 1;
+                    }
+                }
+                case 1 -> {
+                    if (isBackedOff(coordinator, job)) {
+                        h.assertValueEqual(carried(original), 5, "the withdrawn items are still carried");
+                        String stored = persistence.encode(
+                                persistence.capture(coordinator).orElseThrow());
+                        h.assertTrue(
+                                persistence
+                                        .decode(stored)
+                                        .orElseThrow()
+                                        .retryProgress()
+                                        .containsKey(job),
+                                "the save must carry the progress the retry resumes");
+                        coordinator.stop("simulated restart");
+                        original.discard();
+                        h.setBlock(12, 2, 12, Blocks.CHEST);
+                        CompanionEntity again = h.spawn(FriendaiEntities.COMPANION, 6, 2, 6);
+                        again.setOwner(owner.getUUID());
+                        // The saved entity carried what the failed attempt withdrew; a fresh one stands in for it.
+                        again.inventory().addItem(new ItemStack(Items.IRON_INGOT, 5));
+                        CompanionManager.get(h.getLevel().getServer()).register(again);
+                        persistence.restore(again, persistence.decode(stored).orElseThrow());
+                        restoredCompanion[0] = again;
+                        reloaded[0] = again.executionCoordinator();
+                        reloaded[0].resume();
+                        phase[0] = 2;
+                    }
+                }
+                default -> {}
+            }
+            ExecutionCoordinator current = reloaded[0] == null ? coordinator : reloaded[0];
+            h.assertTrue(
+                    settled(current, job),
+                    "waiting for the reloaded retry to settle: "
+                            + current.queue().job(job));
+            h.assertValueEqual(
+                    containerAt(h, 3, 2, 3).countItem(Items.IRON_INGOT), 5, "the source must not be taken twice");
+            h.assertValueEqual(
+                    containerAt(h, 12, 2, 12).countItem(Items.IRON_INGOT), 5, "the withdrawal must be delivered");
+            h.assertValueEqual(
+                    carried(restoredCompanion[0] == null ? original : restoredCompanion[0]),
+                    0,
+                    "nothing stays carried");
+        });
+    }
+
+    private static int carried(CompanionEntity companion) {
+        return companion.inventory().countItem(Items.IRON_INGOT);
+    }
+
+    /** The failed attempt is queued again but not yet eligible: the attempt was recorded and the job is pending. */
+    private static boolean isBackedOff(ExecutionCoordinator coordinator, long job) {
+        return coordinator
+                .queue()
+                .job(job)
+                .filter(queued -> queued.state() == JobState.PENDING && queued.attempts() >= 1)
+                .isPresent();
+    }
+
+    /** A direct job leaves the queue once it settles, so its absence after the retry is what marks success. */
+    private static boolean settled(ExecutionCoordinator coordinator, long job) {
+        return coordinator.queue().job(job).isEmpty();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)

@@ -177,6 +177,11 @@ public final class TaskRestoreRegistry {
         return restore(state, new TaskContext(companion, level));
     }
 
+    /** The same decoders a reload uses, for a retry that continues the progress its failed attempt saved. */
+    public dev.friendai.server.execution.tools.CheckpointRestorer retryRestorer() {
+        return this::restore;
+    }
+
     /** Restores through the contributed decoders; caller and creative authority are checked before activation. */
     public Optional<Task> restore(TaskState state, TaskContext context) {
         if (state == null || context == null) return Optional.empty();

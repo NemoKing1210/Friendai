@@ -1191,6 +1191,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 : dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_FAILURE,
                         text));
         companion.executionCoordinator().setStructureBuilder(new ConstructionStructureBuilder());
+        // A retry continues what its failed attempt committed, through the same decoders a reload uses.
+        TaskRestoreRegistry retryRegistry = taskRestoreRegistry();
+        companion.executionCoordinator().setRetryRestore(retryRegistry.retryRestorer());
+        companion.executionCoordinator().setCommitsWorldEffects(retryRegistry::commitsWorldEffects);
         // A crash summary can reach a prompt or the owner, so it is masked with the same configured secrets.
         companion.executionCoordinator().setRedactor(gateways.redactor());
         companion.executionCoordinator().setRepairFactory((context, args) -> {

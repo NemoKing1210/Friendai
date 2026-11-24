@@ -22,6 +22,7 @@ import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.queue.RetryPolicy;
+import dev.friendai.execution.queue.RetryResume;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
@@ -35,6 +36,7 @@ import dev.friendai.foundation.movement.MovementOrders;
 import dev.friendai.server.configuration.ServerSettings;
 import dev.friendai.server.creative.CreativeModeService;
 import dev.friendai.server.execution.ActiveTaskController.ActiveTask;
+import dev.friendai.server.execution.tools.CheckpointRestorer;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskExecutionPort;
@@ -49,6 +51,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.minecraft.server.level.ServerLevel;
 import org.slf4j.Logger;
@@ -81,6 +84,13 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private final TaskEventDispatcher events = new TaskEventDispatcher();
 
     private java.util.function.BiFunction<TaskContext, JsonObject, Task> repairFactory;
+    /** Rebuilds a task from the checkpoint its failed attempt saved, so a retry continues instead of repeating. */
+    private CheckpointRestorer retryRestore;
+    /** Whether a tool commits world effects before it finishes; the retry policy asks this about a crashed attempt. */
+    private Predicate<String> commitsWorldEffects = tool -> false;
+    /** Progress left by failed attempts, keyed by job and checked against its arguments at the next activation. */
+    private final RetryCheckpoints retryCheckpoints = new RetryCheckpoints();
+
     private dev.friendai.task.structure.StructureBuilder structureBuilder =
             new dev.friendai.features.construction.minecraft.build.ConstructionStructureBuilder();
     private final java.util.Set<String> repairRequests = new java.util.HashSet<>();
@@ -187,6 +197,50 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     public void setRepairFactory(java.util.function.BiFunction<TaskContext, JsonObject, Task> factory) {
         this.repairFactory = factory;
+    }
+
+    /**
+     * Supplies the decoders that rebuild a task from the checkpoint a failed attempt saved. A runner without one can
+     * only restart a job, which is correct for every tool that commits nothing before it finishes.
+     */
+    public void setRetryRestore(CheckpointRestorer restorer) {
+        this.retryRestore = restorer;
+    }
+
+    /** Tells the retry policy which tools may have changed the world before a crash stopped them. */
+    public void setCommitsWorldEffects(Predicate<String> policy) {
+        this.commitsWorldEffects = policy == null ? tool -> false : policy;
+    }
+
+    /** The progress kept for jobs that failed and may run again; the persistence layer saves and restores it. */
+    public RetryCheckpoints retryCheckpoints() {
+        return retryCheckpoints;
+    }
+
+    /** Keeps a failed attempt's checkpoint for a job, so its next attempt resumes rather than repeats. */
+    private void rememberRetry(ActiveTask active, boolean crashed) {
+        String tool = active.toolName();
+        Optional<TaskState> state = crashed ? Optional.empty() : persistenceState(active.task(), "task " + tool);
+        JsonObject args = queueDriver.queue().job(active.jobId()).map(Job::args).orElse(null);
+        if (args == null) {
+            retryCheckpoints.drop(active.jobId());
+            return;
+        }
+        if (RetryResume.decide(state.isPresent(), crashed, commitsWorldEffects.test(tool)) == RetryResume.Action.ASK) {
+            // The attempt may already have changed the world without recording it: the next one waits for the owner.
+            retryCheckpoints.keep(active.jobId(), fingerprint(args), null);
+            return;
+        }
+        if (state.isEmpty()) {
+            retryCheckpoints.drop(active.jobId());
+            return;
+        }
+        retryCheckpoints.keep(active.jobId(), fingerprint(args), state.get());
+    }
+
+    /** The job arguments as saved progress sees them: an edit to them means the checkpoint describes another request. */
+    private static String fingerprint(JsonObject args) {
+        return args == null ? "" : args.toString();
     }
 
     /** Supplies special-structure construction through every task context this coordinator creates. */
@@ -591,6 +645,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             return new RetryAnswer(RetryPolicy.Outcome.NOTHING, tool);
         }
         long newJobId = enqueue(started.step(), started.factory);
+        retryCheckpoints.carry(
+                last.jobId(), newJobId, fingerprint(started.step().args()));
         queueDriver.queue().stampProvenance(newJobId, started.context());
         return new RetryAnswer(RetryPolicy.Outcome.QUEUED, tool);
     }
@@ -1015,7 +1071,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (completion.isPresent()) {
             ActiveTaskController.Completion result = completion.get();
             completeActive(
-                    result.active(), result.status(), result.disposition(), result.summary(), result.workResult());
+                    result.active(),
+                    result.status(),
+                    result.disposition(),
+                    result.summary(),
+                    result.workResult(),
+                    result.crashed());
         } else if (activeTask() == active) maybeNoticeBlocked();
     }
 
@@ -1041,7 +1102,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             TaskStatus status,
             TaskDisposition disposition,
             String summary,
-            Optional<TaskWorkResult> workResult) {
+            Optional<TaskWorkResult> workResult,
+            boolean crashed) {
         String result = summary == null ? active.task().resultSummary() : summary;
         // The face answers what the work cost: a finished job pulses pleased, a failed one displeased. Danger and
         // combat
@@ -1054,6 +1116,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
         if (active.interrupt()) {
             if (active.jobId() > 0 && active.planId() == 0) noteDirectCancelled(active.jobId());
+            retryCheckpoints.drop(active.jobId());
             if (active.emit())
                 emit(sink -> sink.onFinished(
                         active.id(),
@@ -1070,6 +1133,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             boolean retried = false;
             if (status == TaskStatus.SUCCESS) queueDriver.finish(active.jobId(), result);
             else retried = queueDriver.fail(active.jobId(), result).retried();
+            // The failure keeps the job pending only when it may run again: that is the moment its progress matters.
+            if (retried) rememberRetry(active, crashed);
+            else retryCheckpoints.drop(active.jobId());
             if (active.planId() == 0) noteDirectEnded(active.jobId(), status, retried, workResult);
             if (!retried)
                 emit(sink -> sink.onJobFinished(
@@ -1289,10 +1355,30 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
             noteDirectStarted(job.id(), job.tool());
         }
+        // The previous attempt may have committed part of its work: continue from its checkpoint, never repeat it.
+        Optional<RetryCheckpoints.Entry> pending = retryCheckpoints.take(job.id(), fingerprint(job.args()));
+        Task resumed = null;
+        if (pending.isPresent()) {
+            boolean committing = commitsWorldEffects.test(job.tool());
+            if (pending.get().resumable() && retryRestore != null)
+                resumed = retryRestore
+                        .restore(pending.get().state(), authorizationContext)
+                        .orElse(null);
+            if (resumed == null && RetryResume.unreadable(committing) == RetryResume.Action.ASK) {
+                // The saved progress cannot be read, so a repeat could apply its committed effects twice.
+                String blocked = Job.UNREADABLE_PROGRESS_RESULT;
+                queueDriver.cancelJob(job.id(), blocked);
+                refuseActivation(job, blocked, TaskDisposition.CANCELLED);
+                if (isStructuredPlan(job.planId()))
+                    handleStructuredActionFailure(job.planId(), job.id(), blocked, TaskDisposition.CANCELLED);
+                return startNextQueued(settled + 1);
+            }
+        }
         try {
             ServerSettings settings = settingsSupplier.get();
-            Task task = factory.create(
-                    new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings));
+            TaskContext activationContext =
+                    new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings);
+            Task task = resumed != null ? resumed : factory.create(activationContext);
             queueDriver.markRunning(job.id());
             queueDriver.removeAwaitingDecision(job.planId());
             activeTasks.start(
@@ -1309,9 +1395,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             job.planId(),
                             job.creativeSensitive(),
                             settings,
-                            new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
+                            activationContext,
                             job.diagnostic(),
-                            "activation"));
+                            resumed == null ? "activation" : "resume"));
             queueDriver.resetBlockedClock();
             return true;
         } catch (RuntimeException e) {
@@ -1667,15 +1753,28 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask) {
-        inTransition(() -> installRestoredStateActive(decoded, restoredFactories, restoredPlanFactories, restoredTask));
+        installRestoredState(decoded, restoredFactories, restoredPlanFactories, restoredTask, Map.of());
+    }
+
+    /** The same install with the progress saved for jobs that had failed and may run again. */
+    public void installRestoredState(
+            QueueSave.Decoded decoded,
+            Map<Long, StepFactory> restoredFactories,
+            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
+            Task restoredTask,
+            Map<Long, RetryCheckpoints.Entry> retryProgress) {
+        inTransition(() -> installRestoredStateActive(
+                decoded, restoredFactories, restoredPlanFactories, restoredTask, retryProgress));
     }
 
     private void installRestoredStateActive(
             QueueSave.Decoded decoded,
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
-            Task restoredTask) {
+            Task restoredTask,
+            Map<Long, RetryCheckpoints.Entry> retryProgress) {
         syncSettings();
+        retryCheckpoints.restore(retryProgress);
         pendingRestoredTask = null;
         pendingRestoredJobId = 0;
         queueDriver.restore(decoded, restoredFactories, restoredPlanFactories);

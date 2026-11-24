@@ -60,8 +60,13 @@ public final class TaskPersistenceCoordinator {
                 && queue.archives().isEmpty()
                 && activeTask.isEmpty()) return Optional.empty();
         long activeJob = runner.persistenceActiveJobId();
-        return Optional.of(
-                new SavedExecution(new QueueSave.Decoded(queue, activeJob), activeTask.orElse(null), manualPause));
+        // Only progress whose job is still queued is worth saving; a job that settled takes its checkpoint with it.
+        runner.retryCheckpoints().retainOnly(queue.jobs().stream().map(Job::id).toList());
+        return Optional.of(new SavedExecution(
+                new QueueSave.Decoded(queue, activeJob),
+                activeTask.orElse(null),
+                manualPause,
+                runner.retryCheckpoints().snapshot()));
     }
 
     public String encode(SavedExecution saved) {
@@ -224,7 +229,8 @@ public final class TaskPersistenceCoordinator {
                         new QueueSave.Decoded(queue, activeTask == null ? 0 : activeJobId),
                         factories,
                         planFactories,
-                        activeTask);
+                        activeTask,
+                        saved.retryProgress());
         reconcileFreeTimePlan(companion);
         if (creativeRejected)
             companion
