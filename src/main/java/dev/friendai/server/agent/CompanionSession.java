@@ -41,6 +41,16 @@ public final class CompanionSession {
      */
     private final ArrayDeque<dev.friendai.agent.verify.VerifiedEvidence> verifiedFacts = new ArrayDeque<>();
 
+    private final MemoryBook memory;
+    /**
+     * Derived retrieval vectors for this session. It is told about every fact change of the book at the mutation, so
+     * a deleted or edited fact's vectors leave memory before any principal's next prompt.
+     */
+    private final dev.friendai.features.memory.retrieval.RetrievalCache retrievalCache =
+            new dev.friendai.features.memory.retrieval.RetrievalCache();
+
+    private Runnable factsWatch;
+
     private CompanionEntity companion;
     private CompanionBrain brain;
     private LlmGateway gatewayOverride;
@@ -54,8 +64,14 @@ public final class CompanionSession {
 
     public CompanionSession(UUID owner, MemoryBook memory) {
         this.owner = Objects.requireNonNull(owner);
+        this.memory = Objects.requireNonNull(memory);
         this.tradingAuthority = new TradingTurnAuthority(owner);
-        this.profileObserver = new OwnerProfileObserver(owner, Objects.requireNonNull(memory));
+        this.profileObserver = new OwnerProfileObserver(owner, this.memory);
+    }
+
+    /** The retrieval cache this session's prompt path fills; a session belongs to one owner, so slots never cross. */
+    public dev.friendai.features.memory.retrieval.RetrievalCache retrievalCache() {
+        return retrievalCache;
     }
 
     public UUID owner() {
@@ -263,9 +279,19 @@ public final class CompanionSession {
         this.brain = Objects.requireNonNull(brain);
         createdGoalTurn = 0;
         createdGoalId = 0;
+        stopWatchingFacts();
+        factsWatch = memory.onFactsChanged(() -> retrievalCache.discardStale(memory));
+    }
+
+    private void stopWatchingFacts() {
+        if (factsWatch != null) {
+            factsWatch.run();
+            factsWatch = null;
+        }
     }
 
     void invalidateBrain() {
+        stopWatchingFacts();
         CompanionBrain detached = brain;
         brain = null;
         companion = null;

@@ -1025,9 +1025,10 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
         session.logSession(logSession);
         DebugLogObserver debugObserver =
                 new DebugLogObserver(owner, companion.getUUID(), logSession, debug.pipeline(), logSession);
-        // One retrieval cache per companion session. A session belongs to one owner, and a session switch builds a
-        // new cache, so an index built for one principal can never be published into another one.
-        RetrievalCache retrievalCache = new RetrievalCache();
+        // One retrieval cache per companion session, owned there and subscribed to the memory book: a session belongs
+        // to one owner, so a slot built for one principal can never be published into another one, and a fact edit
+        // empties the affected vectors at the mutation instead of on that principal's next prompt.
+        RetrievalCache retrievalCache = session.retrievalCache();
         CompanionBrain brain = new CompanionBrain(
                 () -> new Persona(
                         companion.getName().getString(),

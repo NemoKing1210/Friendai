@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.7] - 2026-11-24
+
+### Fixed
+
+- When you edit or delete a remembered fact, the companion's search data for it is dropped at that moment instead of lingering until each speaker's next message, so one player's views never keep words from a fact that no longer exists while another speaker asks something.
+- A fact cleared in bulk, or replaced while the companion was still preparing a search, is never listed back from memory.
+
 ## [0.232.6] - 2026-11-24
 
 ### Fixed

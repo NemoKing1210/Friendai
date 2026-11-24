@@ -405,4 +405,60 @@ class MemoryBookTest {
         assertTrue(loaded.ownerLanguage(A).isEmpty());
         assertEquals(new PlayerRecord(A, "Bob", false, 0), loaded.player(A).orElseThrow());
     }
+
+    @Test
+    void everyFactMutationTellsTheDerivedIndexesAndAnUnsubscribeStopsIt() {
+        var b = new MemoryBook();
+        int[] seen = {0};
+        Runnable watch = b.onFactsChanged(() -> seen[0]++);
+        Fact first = b.addFact(Subject.player(A), Category.NOTE, "likes oak", A, "Ann", 1, L);
+        b.addFact(Subject.player(A), Category.NOTE, "likes oak", A, "Ann", 2, L);
+        b.editFact(first.id(), Category.NOTE, "likes birch", A, "Ann", 3, L);
+        b.clearFacts(Subject.player(B));
+        assertEquals(3, seen[0], "add, duplicate replace and edit each notify once; an empty clear is no change");
+
+        b.removeFact(first.id());
+        b.addFact(Subject.WORLD, Category.NOTE, "the river bends east", A, "Ann", 4, L);
+        b.clearAllFacts();
+        assertEquals(6, seen[0]);
+
+        watch.run();
+        b.addFact(Subject.WORLD, Category.NOTE, "the hill rises west", A, "Ann", 5, L);
+        assertEquals(6, seen[0], "a released listener is never called again");
+    }
+
+    @Test
+    void aFactChangeDropsThePersistedIndexAtTheMutation() {
+        var b = new MemoryBook();
+        Fact first = b.addFact(Subject.WORLD, Category.PLACE, "the lake is north", A, "Ann", 1, L);
+        assertTrue(b.putRetrievalIndex(A, proofIndex(b)));
+
+        b.editFact(first.id(), Category.PLACE, "the lake is south", A, "Ann", 2, L);
+
+        assertTrue(b.retrievalIndex(A).isEmpty(), "an edited fact leaves no persisted vectors to write out");
+    }
+
+    /** The smallest index that covers the current facts, so a mutation has something to invalidate. */
+    private static dev.friendai.features.memory.retrieval.RetrievalIndex proofIndex(MemoryBook book) {
+        java.util.List<dev.friendai.features.memory.retrieval.RetrievalIndex.Source> sources =
+                new java.util.ArrayList<>();
+        for (Fact fact : book.allFacts()) {
+            sources.add(new dev.friendai.features.memory.retrieval.RetrievalIndex.Source(fact.id(), fact.text()));
+        }
+        java.util.List<dev.friendai.features.memory.retrieval.RetrievalIndex.Entry> entries =
+                new java.util.ArrayList<>();
+        for (var source : sources) {
+            entries.add(new dev.friendai.features.memory.retrieval.RetrievalIndex.Entry(
+                    source.id(),
+                    dev.friendai.features.memory.retrieval.RetrievalIndex.revision(source.text()),
+                    new float[] {1f}));
+        }
+        return new dev.friendai.features.memory.retrieval.RetrievalIndex(
+                dev.friendai.features.memory.retrieval.RetrievalIndex.FORMAT_VERSION,
+                "test",
+                1,
+                dev.friendai.features.memory.retrieval.RetrievalIndex.digest(sources),
+                dev.friendai.features.memory.retrieval.RetrievalDigest.of(java.util.List.of()),
+                entries);
+    }
 }

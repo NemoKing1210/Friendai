@@ -42,6 +42,8 @@ public final class MemoryBook {
     private int nextId = 1;
     private long revision;
     private boolean dirty;
+    /** Derived indexes are notified at the mutation itself, so erased text leaves memory before the next prompt. */
+    private final List<Runnable> factsChanged = new ArrayList<>(1);
 
     /** Changes on every mutation; the menu compares it with the last revision it sent. Not persisted. */
     public long revision() {
@@ -375,6 +377,7 @@ public final class MemoryBook {
             facts.put(old.id(), updated);
             dirty = true;
             revision++;
+            factsMutated();
             return updated;
         }
         int max = subject instanceof Subject.World ? limits.maxWorldFacts() : limits.maxFactsPerPlayer();
@@ -388,6 +391,7 @@ public final class MemoryBook {
         facts.put(fact.id(), fact);
         dirty = true;
         revision++;
+        factsMutated();
         return fact;
     }
 
@@ -420,6 +424,7 @@ public final class MemoryBook {
         facts.put(id, updated);
         dirty = true;
         revision++;
+        factsMutated();
         return updated;
     }
 
@@ -448,6 +453,7 @@ public final class MemoryBook {
         forgetLanguageIfMirrored(removed);
         dirty = true;
         revision++;
+        factsMutated();
         return true;
     }
 
@@ -459,6 +465,7 @@ public final class MemoryBook {
         if (!matching.isEmpty() || languageCleared) {
             dirty = true;
             revision++;
+            if (!matching.isEmpty()) factsMutated();
         }
         return matching.size();
     }
@@ -482,6 +489,7 @@ public final class MemoryBook {
         if (removed > 0 || languageCleared) {
             dirty = true;
             revision++;
+            if (removed > 0) factsMutated();
         }
         return removed;
     }
@@ -512,6 +520,30 @@ public final class MemoryBook {
                 .map(PlayerRecord::lastName)
                 .filter(name -> name != null && !name.isBlank())
                 .orElse("unknown player");
+    }
+
+    /**
+     * Subscribes a derived index to fact changes; the returned handle unsubscribes and may be run twice. A listener
+     * must not mutate this book.
+     */
+    public Runnable onFactsChanged(Runnable listener) {
+        Objects.requireNonNull(listener);
+        factsChanged.add(listener);
+        return () -> factsChanged.remove(listener);
+    }
+
+    /**
+     * Runs after a fact was added, edited, removed or cleared. The persisted derived index is dropped here rather than
+     * on the next read, and every subscriber drops what its own facts no longer cover.
+     */
+    private void factsMutated() {
+        retrievalIndexes.clear();
+        if (factsChanged.isEmpty()) {
+            return;
+        }
+        for (Runnable listener : List.copyOf(factsChanged)) {
+            listener.run();
+        }
     }
 
     public boolean isDirty() {

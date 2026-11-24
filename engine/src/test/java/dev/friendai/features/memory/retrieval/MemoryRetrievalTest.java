@@ -255,6 +255,96 @@ class MemoryRetrievalTest {
     }
 
     @Test
+    void anEditedFactLeavesTheCacheAtTheMutationNotOnTheNextPrompt() {
+        MemoryBook book = bookWithFacts();
+        RetrievalCache cache = new RetrievalCache();
+        Runnable watch = book.onFactsChanged(() -> cache.discardStale(book));
+        String first = MemoryRetrieval.prompt(book, OWNER, owner(), "where is the lake", settings(3), cache, null);
+        assertTrue(first.contains("The lake is north"), first);
+        String guestBlock = MemoryRetrieval.prompt(book, OWNER, guest(), "stone axes", settings(4), cache, null);
+        assertTrue(guestBlock.contains("Likes stone axes"), guestBlock);
+        assertEquals(2, cache.size(), "the owner's partition and the guest's are cached side by side");
+
+        Fact lake = book.allFacts().stream()
+                .filter(fact -> fact.text().startsWith("The lake"))
+                .findFirst()
+                .orElseThrow();
+        book.editFact(lake.id(), Category.PLACE, "The lake is south of the base", OWNER, "Ann", 1, LIMITS);
+
+        assertEquals(1, cache.size(), "the partition covering the edited fact is gone before any prompt runs");
+        String after = MemoryRetrieval.prompt(book, OWNER, owner(), "where is the lake", settings(3), cache, null);
+        assertTrue(after.contains("south"), after);
+        assertFalse(after.contains("north"), after);
+        watch.run();
+    }
+
+    @Test
+    void aGuestIndexThatNeverCoveredTheEditedFactKeepsItsVectors() {
+        MemoryBook book = bookWithFacts();
+        RetrievalCache cache = new RetrievalCache();
+        Runnable watch = book.onFactsChanged(() -> cache.discardStale(book));
+        String guestBlock = MemoryRetrieval.prompt(book, OWNER, guest(), "stone axes", settings(4), cache, null);
+        assertTrue(guestBlock.contains("Likes stone axes"), guestBlock);
+        assertEquals(1, cache.size());
+
+        Fact lake = book.allFacts().stream()
+                .filter(fact -> fact.text().startsWith("The lake"))
+                .findFirst()
+                .orElseThrow();
+        book.editFact(lake.id(), Category.PLACE, "The lake is south of the base", OWNER, "Ann", 1, LIMITS);
+
+        assertEquals(1, cache.size(), "a fact the guest's partition never covered does not evict its vectors");
+        Counting counting = new Counting();
+        String again = MemoryRetrieval.prompt(book, OWNER, guest(), "stone axes", settings(4), cache, null, counting);
+        assertTrue(again.contains("Likes stone axes"), again);
+        assertEquals(1, counting.calls, "only the query is embedded: the guest's index was reused");
+        watch.run();
+    }
+
+    @Test
+    void aBuildThatStartedBeforeAFactChangeIsNotPublishedOrPersisted() {
+        MemoryBook book = bookWithFacts();
+        Fact lake = book.allFacts().stream()
+                .filter(fact -> fact.text().startsWith("The lake"))
+                .findFirst()
+                .orElseThrow();
+        RetrievalCache cache = new RetrievalCache();
+        Runnable watch = book.onFactsChanged(() -> cache.discardStale(book));
+
+        String block = MemoryRetrieval.prompt(
+                book,
+                OWNER,
+                owner(),
+                "where is the lake",
+                settings(3),
+                cache,
+                null,
+                new Hooking(() -> book.editFact(
+                        lake.id(), Category.PLACE, "The lake is south of the base", OWNER, "Ann", 1, LIMITS)));
+
+        assertEquals("", block, "an index built from the replaced text is never shown");
+        assertEquals(0, cache.size());
+        assertTrue(book.retrievalIndex(OWNER).isEmpty(), "and never written to the book");
+        watch.run();
+    }
+
+    @Test
+    void clearingEveryFactEmptiesTheCacheImmediately() {
+        MemoryBook book = bookWithFacts();
+        RetrievalCache cache = new RetrievalCache();
+        Runnable watch = book.onFactsChanged(() -> cache.discardStale(book));
+        MemoryRetrieval.prompt(book, OWNER, owner(), "where is the lake", settings(3), cache, null);
+        MemoryRetrieval.prompt(book, OWNER, guest(), "stone axes", settings(4), cache, null);
+        assertEquals(2, cache.size());
+
+        book.clearAllFacts();
+
+        assertEquals(0, cache.size(), "every partition covered facts that no longer exist");
+        assertTrue(book.retrievalIndex(OWNER).isEmpty());
+        watch.run();
+    }
+
+    @Test
     void aChangedRedactionRebuildsTheIndexInsteadOfReusingTheOldVectors() {
         MemoryBook book = new MemoryBook();
         book.addFact(Subject.WORLD, Category.NOTE, "The vault code is hunter2", OWNER, "Ann", 0, LIMITS);

@@ -839,3 +839,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Remove the wall (or let the companion mine it) and send it again: the same site is visited and mined normally.
 - [ ] Remember a deposit far outside the companion's sight range, send it there once: the visit ends without settling
       anything and `known_resources` still lists the block.
+
+## Edited facts leave retrieval at once (TODO 161)
+
+- [ ] With retrieval enabled and two players talking to the companion (the owner and a guest), ask the owner about a
+      remembered fact so both prompts build their search data, then edit that fact in the memory menu. Ask the guest
+      something else without mentioning the fact: the reply never quotes the old wording.
+- [ ] Delete the fact in the menu and ask the owner about it: the companion says nothing is remembered, not the
+      removed line.
+

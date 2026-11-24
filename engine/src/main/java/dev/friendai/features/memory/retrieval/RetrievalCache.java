@@ -1,5 +1,7 @@
 package dev.friendai.features.memory.retrieval;
 
+import dev.friendai.features.memory.Fact;
+import dev.friendai.features.memory.MemoryBook;
 import java.util.LinkedHashMap;
 import java.util.Optional;
 
@@ -86,6 +88,37 @@ public final class RetrievalCache {
                 .removeIf(slot -> slot.owner().equals(ownerKey)
                         && slot.partition().equals(partitionKey)
                         && (slot.facts() != facts || slot.masked() != masked));
+    }
+
+    /**
+     * Drops every slot that covers a fact this book no longer holds with the same text — an edit, a forget or a group
+     * clear — and moves the epoch, so a build that started before the change cannot be published. A partition whose
+     * visible facts did not change keeps its vectors and does not rebuild, which is why this is called at the
+     * mutation rather than on the next prompt of each principal.
+     *
+     * @return how many slots were dropped
+     */
+    public int discardStale(MemoryBook book) {
+        if (book == null || slots.isEmpty()) {
+            return 0;
+        }
+        int before = slots.size();
+        slots.values().removeIf(slot -> coversChangedFact(book, slot));
+        int dropped = before - slots.size();
+        if (dropped > 0) {
+            epoch++;
+        }
+        return dropped;
+    }
+
+    private static boolean coversChangedFact(MemoryBook book, Slot slot) {
+        for (RetrievalIndex.Entry entry : slot.index().entries()) {
+            Fact fact = book.fact(entry.id()).orElse(null);
+            if (fact == null || RetrievalIndex.revision(fact.text()) != entry.revision()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Drops every slot and moves the epoch: an owner or session switch, or a backend change. */
