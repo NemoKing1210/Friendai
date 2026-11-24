@@ -24,6 +24,7 @@ class GuardTruthTest {
         Boolean canHarvest;
         Boolean planDone;
         Boolean goalMet;
+        Boolean blocksWithin;
         int food = -1;
         int xp = -1;
 
@@ -50,6 +51,11 @@ class GuardTruthTest {
         @Override
         public int countBlocks(String idOrTag, int radius) {
             return 0;
+        }
+
+        @Override
+        public Boolean hasBlocksOrNull(String idOrTag, int radius, int count) {
+            return blocksWithin;
         }
 
         @Override
@@ -337,5 +343,30 @@ class GuardTruthTest {
     private static PlanNode.Action action(String tool) {
         return new PlanNode.Action(
                 new QueuedStep(tool, new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of()));
+    }
+
+    @Test
+    void anUnsurveyedBlockAreaIsUnknownAndNeverSatisfiesASkip() {
+        Facts facts = new Facts();
+        Guard.BlockWithin guard = new Guard.BlockWithin("minecraft:stone", 8, 4);
+        assertEquals(Guard.Truth.UNKNOWN, guard.evaluate(facts));
+        assertFalse(guard.holds(facts), "an unobserved area never claims the blocks are there");
+
+        facts.blocksWithin = Boolean.TRUE;
+        assertEquals(Guard.Truth.TRUE, guard.evaluate(facts));
+        facts.blocksWithin = Boolean.FALSE;
+        assertEquals(Guard.Truth.FALSE, guard.evaluate(facts));
+
+        facts.blocksWithin = null;
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long id = queue.addDirect(new QueuedStep(
+                        "mine", new JsonObject(), null, List.of(guard), GuardAction.SKIP, null, 1, List.of()))
+                .id();
+        Job job = queue.job(id).orElseThrow();
+        assertFalse(QueuePolicy.guardConfirmedUnmet(job, facts));
+        assertEquals("cannot tell yet whether " + guard.describe(), QueuePolicy.notReadyReason(queue, job, facts));
+
+        facts.blocksWithin = Boolean.FALSE;
+        assertTrue(QueuePolicy.guardConfirmedUnmet(job, facts));
     }
 }

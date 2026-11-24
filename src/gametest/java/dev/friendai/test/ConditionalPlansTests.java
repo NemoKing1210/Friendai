@@ -541,6 +541,75 @@ public final class ConditionalPlansTests {
         h.succeed();
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void blockEvidenceBelongsToTheAreaItWasMeasuredIn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        BlockPos tree = companion.blockPosition().above(2);
+        Guard logNearby = new Guard.BlockWithin("minecraft:oak_log", 4, 1);
+        h.getLevel().setBlock(tree, Blocks.OAK_LOG.defaultBlockState(), 3);
+        enqueueLogBranch(runner, started, logNearby);
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertValueEqual(started, List.of("then"), "the log is there: " + started);
+
+        // Breaking the last matching block flips the answer without waiting for a timer.
+        h.getLevel().setBlock(tree, Blocks.AIR.defaultBlockState(), 3);
+        enqueueLogBranch(runner, started, logNearby);
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertValueEqual(started, List.of("then", "else"), "a broken block cannot carry the old answer: " + started);
+
+        // Walking away leaves the square the answer describes, even though the log did not move.
+        double homeX = companion.getX(), homeY = companion.getY(), homeZ = companion.getZ();
+        h.getLevel().setBlock(tree, Blocks.OAK_LOG.defaultBlockState(), 3);
+        companion.snapTo(homeX + 12, homeY, homeZ);
+        enqueueLogBranch(runner, started, logNearby);
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertValueEqual(
+                started,
+                List.of("then", "else", "else"),
+                "the old area's answer must not follow the companion: " + started);
+
+        // Coming back scans the square again, so the block placed while it was out of range is seen.
+        companion.snapTo(homeX, homeY, homeZ);
+        enqueueLogBranch(runner, started, logNearby);
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertValueEqual(
+                started,
+                List.of("then", "else", "else", "then"),
+                "the area is measured again after the companion returns: " + started);
+        h.succeed();
+    }
+
+    @GameTest(maxTicks = 120)
+    public void aBlockSurveyOverUnloadedGroundWaitsInsteadOfClaimingAbsence(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        runner.enqueuePlan(
+                "look far around",
+                conditional(new Guard.BlockWithin("minecraft:diamond_block", 32, 1)),
+                PlanOptions.DEFAULT,
+                Map.of("then_action", recorder("then", started), "else_action", recorder("else", started)));
+        // A radius-32 cube needs several budgeted passes and reaches chunks this test never loads.
+        for (int i = 0; i < 20; i++) runner.tick();
+
+        h.assertTrue(started.isEmpty(), "an unobserved area runs no branch: " + started);
+        String shown = QueueText.show(runner.queue(), new CompanionGuardFacts(companion), null, 10, false);
+        h.assertTrue(shown.contains("cannot tell yet whether"), "the plan row names the missing fact: " + shown);
+        h.succeed();
+    }
+
+    private static void enqueueLogBranch(ExecutionCoordinator runner, List<String> started, Guard logNearby) {
+        runner.enqueuePlan(
+                "is a log nearby",
+                conditional(logNearby),
+                PlanOptions.DEFAULT,
+                Map.of("then_action", recorder("then", started), "else_action", recorder("else", started)));
+    }
+
     private static Guard.BlockAt stoneAt(BlockPos pos) {
         return new Guard.BlockAt("minecraft:stone", pos.getX(), pos.getY(), pos.getZ());
     }

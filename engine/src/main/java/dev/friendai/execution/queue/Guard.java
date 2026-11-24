@@ -431,7 +431,13 @@ public sealed interface Guard
 
         @Override
         public boolean holds(GuardFacts facts) {
-            return facts.hasBlocks(block, radius, count);
+            return Truth.TRUE == evaluate(facts);
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts) {
+            Boolean found = facts.hasBlocksOrNull(block, radius, count);
+            return found == null ? Truth.UNKNOWN : found ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override

@@ -43,6 +43,15 @@ public interface GuardFacts {
         return countBlocks(idOrTag, radius) >= count;
     }
 
+    /**
+     * Whether at least {@code count} matching blocks are within {@code radius}, or {@code null} when the area has not
+     * been fully observed yet. A caller that can only scan part of the area spends its budget and answers
+     * {@code null} rather than guessing absence.
+     */
+    default Boolean hasBlocksOrNull(String idOrTag, int radius, int count) {
+        return hasBlocks(idOrTag, radius, count);
+    }
+
     /** Items of this kind in the owner's inventory, or 0 when the owner cannot be read. */
     default int ownerCountItems(String idOrTag) {
         return 0;

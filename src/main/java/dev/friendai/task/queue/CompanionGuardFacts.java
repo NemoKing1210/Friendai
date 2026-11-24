@@ -4,6 +4,7 @@ import dev.friendai.agent.goal.Goal;
 import dev.friendai.agent.goal.GoalBoard;
 import dev.friendai.agent.goal.GoalStatus;
 import dev.friendai.entity.CompanionEntity;
+import dev.friendai.execution.queue.BlockSurvey;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.PlanArchive;
 import dev.friendai.execution.queue.PlanStatus;
@@ -31,7 +32,7 @@ public final class CompanionGuardFacts implements GuardFacts {
     private final Map<String, Integer> ownerOwnedCounts = new HashMap<>();
     private final Map<String, Integer> handedOverCounts = new HashMap<>();
     private final Map<String, Integer> pickedUpCounts = new HashMap<>();
-    private final Map<String, Boolean> blockFacts = new HashMap<>();
+    private final Map<String, Survey> blockSurveys = new HashMap<>();
     private Integer emptySlots, ownerDistance;
     private Float healthFraction;
     private String dimension;
@@ -42,8 +43,15 @@ public final class CompanionGuardFacts implements GuardFacts {
     private long planStartDistance;
     private long elapsedTicks;
     private int travelledBlocks;
-    private long blockStamp = Long.MIN_VALUE;
-    private static final long BLOCK_TTL_TICKS = 40;
+    private String surveyScope = "";
+    private int surveyBudget = BLOCK_BUDGET_CELLS;
+    private long surveyBudgetTick = Long.MIN_VALUE;
+    /** How many cells one facts pass may inspect before it must answer "cannot tell yet". */
+    private static final int BLOCK_BUDGET_CELLS = 40_000;
+    /** How long a completed negative answer is trusted, scoped to the area it was measured in. */
+    private static final long BLOCK_TTL_TICKS = 10;
+
+    private static final int MAX_BLOCK_SURVEYS = 8;
 
     public CompanionGuardFacts(CompanionEntity companion) {
         this.companion = companion;
@@ -76,9 +84,23 @@ public final class CompanionGuardFacts implements GuardFacts {
         elapsedTicks = Math.max(0, now - planStartTick);
         travelledBlocks =
                 (int) Math.clamp((long) Math.floor(totalDistance - planStartDistance / 1000.0), 0, Integer.MAX_VALUE);
-        if (now - blockStamp >= BLOCK_TTL_TICKS || now < blockStamp) {
-            blockFacts.clear();
-            blockStamp = now;
+        refreshSurveys();
+    }
+
+    /**
+     * Starts a facts pass for block surveys: the budget is per pass, and evidence from another dimension or another
+     * origin describes a different square, so it is dropped rather than carried along.
+     */
+    private void refreshSurveys() {
+        String scope = dimension() + "@" + companion.blockPosition().asLong();
+        if (!scope.equals(surveyScope)) {
+            blockSurveys.clear();
+            surveyScope = scope;
+        }
+        long now = companion.level().getGameTime();
+        if (now != surveyBudgetTick) {
+            surveyBudget = BLOCK_BUDGET_CELLS;
+            surveyBudgetTick = now;
         }
     }
     /** Cumulative horizontal distance in milli-blocks, retaining a plan's fractional baseline. */
@@ -386,24 +408,61 @@ public final class CompanionGuardFacts implements GuardFacts {
 
     @Override
     public boolean hasBlocks(String id, int radius, int count) {
-        String key = id + ":" + radius + ":" + count;
-        if (blockFacts.containsKey(key)) return blockFacts.get(key);
+        return Boolean.TRUE.equals(hasBlocksOrNull(id, radius, count));
+    }
+
+    @Override
+    public Boolean hasBlocksOrNull(String id, int radius, int count) {
         var matcher = BlockMatcher.parse(id).orElse(null);
-        if (matcher == null) return false;
-        int found = 0;
-        BlockPos p = companion.blockPosition();
-        for (int x = -radius; x <= radius; x++)
-            for (int y = -radius; y <= radius; y++)
-                for (int z = -radius; z <= radius; z++) {
-                    BlockPos at = p.offset(x, y, z);
-                    if (companion.level().hasChunkAt(at)
-                            && matcher.test(companion.level().getBlockState(at))
-                            && ++found >= count) {
-                        blockFacts.put(key, true);
-                        return true;
-                    }
+        if (matcher == null || radius < 1 || radius > 32 || count < 1 || count > 256) return null;
+        String key = id + ":" + radius + ":" + count;
+        Survey survey = blockSurveys.get(key);
+        if (survey == null) {
+            if (blockSurveys.size() >= MAX_BLOCK_SURVEYS) blockSurveys.clear();
+            BlockPos origin = companion.blockPosition().immutable();
+            survey = new Survey(new BlockSurvey(origin.getX(), origin.getY(), origin.getZ(), radius, count), matcher);
+            blockSurveys.put(key, survey);
+        }
+        if (survey.shape.complete()) {
+            if (survey.shape.stillMatches(survey.cells)) return true;
+            // Positive evidence that no longer holds describes the past, not the world in front of the companion.
+            survey.shape.reset();
+        }
+        long now = companion.level().getGameTime();
+        if (survey.decidedTick >= 0 && now >= survey.decidedTick && now - survey.decidedTick < BLOCK_TTL_TICKS) {
+            return false;
+        }
+        BlockSurvey.Result result = survey.shape.advance(survey.cells, Math.max(0, surveyBudget));
+        surveyBudget = Math.max(0, surveyBudget - result.inspected());
+        return switch (result.outcome()) {
+            case MATCHED -> true;
+            case ABSENT -> {
+                survey.decidedTick = now;
+                yield false;
+            }
+            case INCOMPLETE -> null;
+        };
+    }
+
+    /** One scoped survey and the world it reads: the survey itself stays pure and the cells come from the level. */
+    private final class Survey {
+        private final BlockSurvey shape;
+        private final BlockSurvey.Cells cells;
+        private long decidedTick = -1;
+
+        private Survey(BlockSurvey shape, BlockMatcher matcher) {
+            this.shape = shape;
+            this.cells = new BlockSurvey.Cells() {
+                @Override
+                public boolean loaded(int x, int y, int z) {
+                    return companion.level().hasChunkAt(new BlockPos(x, y, z));
                 }
-        blockFacts.put(key, false);
-        return false;
+
+                @Override
+                public boolean matches(int x, int y, int z) {
+                    return matcher.test(companion.level().getBlockState(new BlockPos(x, y, z)));
+                }
+            };
+        }
     }
 }

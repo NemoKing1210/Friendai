@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- A condition about nearby blocks now answers about the place the companion actually stands in: walking away, changing
+  dimension, breaking the last matching block or placing a new one changes the answer at once instead of reusing a
+  stale one for a few seconds. A large search that cannot cover the whole area in one tick waits and says it cannot
+  tell yet rather than claiming nothing is there.
 - A step that waits for another plan or goal to finish now runs when that plan or goal completes, even after it has
   left the active list and after a reload, instead of waiting forever at exactly the moment its prerequisite was met.
   A plan that waits on itself is refused with a clear error.

@@ -657,3 +657,12 @@ These need a live world with both dimensions; the automated suite used a telepor
 - [ ] With the owner in another dimension, ask about "the block I'm looking at": the refusal names the dimension instead of answering from the companion's feet.
 
 These need two players and a live world; the automated suite used a mock guest and a logged-out player list.
+
+## Proximity conditions (TODO 119)
+
+- [ ] Build a two-room base with a chest of planks in one room, stand in the other, and put a conditional order on `block_within` for the planks: it takes the "not here" branch, and walking into the room makes the next evaluation take the other one.
+- [ ] Break the last matching block while a repeat depends on it: the next check flips within a second instead of holding the old answer.
+- [ ] Step through a nether portal with the same order queued: nothing is judged from the old world's blocks, and the panel says it cannot tell until the new area is loaded.
+- [ ] In a large open area ask for "more than 32 stone within 32 blocks" and watch the tick time in the debug overlay: the first checks answer "cannot tell yet" and the answer appears within a few seconds, with no single-tick stall.
+
+These need a live world with two dimensions; the automated suite used a fixed platform and a teleported companion.
