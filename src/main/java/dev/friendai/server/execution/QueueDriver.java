@@ -288,11 +288,23 @@ public final class QueueDriver {
         return QueuePolicy.next(queue, facts);
     }
 
+    /**
+     * One dispatch boundary for every kind of queued work: a ready job and a structured plan that can still emit an
+     * action are compared by the same priority rule, so a conditional order is not held behind lower-priority ready
+     * jobs merely because it has no materialized job yet. A plan advances only when it wins, at most one interpreter
+     * step per dispatch, and its emitted action joins the ordinary ready set; if that action cannot run, the work
+     * that was already ready keeps the body. An explicit interruption is not part of this comparison: a direct task
+     * and an owner stop take the body at their own safe boundary.
+     */
     Optional<Job> nextReady() {
-        skipUnmet(coordinator.facts());
-        Optional<Job> candidate = next(coordinator.facts());
-        if (candidate.isEmpty() && advanceNextStructuredPlan()) candidate = next(coordinator.facts());
-        return candidate;
+        GuardFacts facts = coordinator.facts();
+        skipUnmet(facts);
+        Optional<Job> ready = next(facts);
+        PlanRecord plan = nextStructuredPlan().orElse(null);
+        if (plan == null || (ready.isPresent() && plan.priority() <= ready.get().priority())) return ready;
+        advanceStructuredPlan(plan.id(), new PlanInterpreter.ActionResult.None());
+        skipUnmet(facts);
+        return next(facts);
     }
 
     public Job nextGuardSkip(GuardFacts facts) {
@@ -345,13 +357,6 @@ public final class QueueDriver {
         return queue.plan(planId)
                 .map(plan -> plan.definition() != null && plan.cursor() != null)
                 .orElse(false);
-    }
-
-    boolean advanceNextStructuredPlan() {
-        PlanRecord selected = nextStructuredPlan().orElse(null);
-        if (selected == null) return false;
-        advanceStructuredPlan(selected.id(), new PlanInterpreter.ActionResult.None());
-        return true;
     }
 
     void advanceStructuredPlan(long planId, PlanInterpreter.ActionResult result) {

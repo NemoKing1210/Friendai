@@ -616,35 +616,34 @@ public class ActiveTaskLifecycleTests {
 
         runner.queue().release(HoldKey.job(directId));
         runner.wakeQueue();
-        h.succeedWhen(() -> {
-            runner.tick();
-            if (runner.current().isEmpty()) return;
-            h.assertValueEqual(
-                    runner.queue().active().map(Job::id).orElse(0L),
-                    directId,
-                    "the resumed job runs, not the held plan");
-            h.assertTrue(
-                    runner.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the job resume");
-            h.assertTrue(runner.queue().jobsOfPlan(planId).isEmpty(), "the held plan emitted no step");
+        for (int i = 0; i < 5 && runner.current().isEmpty(); i++) runner.tick();
+        h.assertTrue(!runner.current().isEmpty(), "releasing the job hold starts the job");
+        h.assertValueEqual(
+                runner.queue().active().map(Job::id).orElse(0L), directId, "the resumed job runs, not the held plan");
+        h.assertTrue(runner.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the job resume");
+        h.assertTrue(runner.queue().jobsOfPlan(planId).isEmpty(), "the held plan emitted no step");
 
-            // Reload: each hold keeps its own scope, and resuming one leaves the other where it was.
-            QueueSave.Decoded saved = new QueueSave.Decoded(
-                    runner.queue(), runner.queue().active().map(Job::id).orElse(0L));
-            runner.stop("simulated restart");
-            CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
-            ExecutionCoordinator again = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
-            again.installRestoredState(
-                    saved, java.util.Map.of(directId, context -> new WaitTask(20)), java.util.Map.of(), null);
-            h.assertTrue(again.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the reload");
-            h.assertTrue(again.queue().hold(HoldKey.job(directId)).isEmpty(), "the resumed job was not re-held");
-            again.queue().release(HoldKey.plan(planId));
-            again.wakeQueue();
-            for (int i = 0; i < 5 && again.current().isEmpty(); i++) again.tick();
-            h.assertTrue(!again.queue().jobsOfPlan(planId).isEmpty(), "the resumed plan emits its step after reload");
-            again.stop("test cleanup");
-            runner.stop("test cleanup");
-            h.succeed();
-        });
+        // Reload: each hold keeps its own scope, and resuming one leaves the other where it was.
+        QueueSave.Decoded saved = new QueueSave.Decoded(
+                runner.queue(), runner.queue().active().map(Job::id).orElse(0L));
+        runner.stop("simulated restart");
+        CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        ExecutionCoordinator again = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
+        again.installRestoredState(
+                saved,
+                java.util.Map.of(directId, context -> new WaitTask(20)),
+                java.util.Map.of(planId, java.util.Map.of("wait", (context, step) -> new WaitTask(20))),
+                null);
+        h.assertTrue(again.queue().hold(HoldKey.plan(planId)).isPresent(), "the plan hold survives the reload");
+        h.assertTrue(again.queue().hold(HoldKey.job(directId)).isEmpty(), "the resumed job was not re-held");
+        again.queue().release(HoldKey.plan(planId));
+        again.wakeQueue();
+        // The requeued direct job takes the body first and runs its twenty ticks; the plan emits once it is free.
+        for (int i = 0; i < 30 && again.queue().jobsOfPlan(planId).isEmpty(); i++) again.tick();
+        h.assertTrue(!again.queue().jobsOfPlan(planId).isEmpty(), "the resumed plan emits its step after reload");
+        again.stop("test cleanup");
+        runner.stop("test cleanup");
+        h.succeed();
     }
 
     @GameTest(maxTicks = 40)

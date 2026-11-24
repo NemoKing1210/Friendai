@@ -13,6 +13,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- An urgent conditional order such as "if I have diamonds, make a pickaxe, otherwise keep tidying" now starts as
+  soon as it is the most important work at hand, instead of waiting behind every queued chore that can already run.
+  While its condition cannot be met yet, those chores still go ahead.
 - Pausing a plan or a single step now stops the action that is already under way at the next tick, so the companion
   no longer says it paused and then places another block or moves another stack. Other ready work can go ahead while
   the paused action keeps its place, and it continues from where it stopped when you resume it. A deferred conditional
