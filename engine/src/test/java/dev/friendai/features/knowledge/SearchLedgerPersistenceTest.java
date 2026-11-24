@@ -17,7 +17,8 @@ class SearchLedgerPersistenceTest {
         UUID owner = UUID.randomUUID();
         ResourceKnowledge original = new ResourceKnowledge(KnowledgeLimits.DEFAULTS);
         var session = original.searchLedger()
-                .acquire(owner, "minecraft:overworld", "iron", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(2, 64, 3));
+                .acquire(owner, "minecraft:overworld", "iron", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(2, 64, 3))
+                .session();
         session.advance(new SearchSession.Input(
                 110,
                 "minecraft:overworld",
@@ -50,10 +51,17 @@ class SearchLedgerPersistenceTest {
         assertEquals(
                 java.util.List.of(new Pos(0, 64, 0), new Pos(8, 64, 0)),
                 restored.trails().route("minecraft:overworld", new Pos(0, 64, 0), new Pos(8, 64, 0)));
-        var resumed = restored.searchLedger()
+        // The restored trip is an interrupted one the loader marked resumable; a request from another base is not a
+        // continuation of it, so the ordinary budget is not inherited.
+        var elsewhere = restored.searchLedger()
                 .acquire(owner, "minecraft:overworld", "iron", 120, SearchLedger.LOCAL_DEFAULTS, new Pos(0, 0, 0));
-        assertEquals(1, resumed.snapshot().spentTicks());
-        assertEquals(SearchSession.Phase.CHOOSE_FRONTIER, resumed.snapshot().phase());
+        org.junit.jupiter.api.Assertions.assertFalse(elsewhere.resumed());
+        var continued = restored.searchLedger()
+                .acquire(owner, "minecraft:overworld", "iron", 120, SearchLedger.LOCAL_DEFAULTS, new Pos(2, 64, 3));
+        assertEquals(1, continued.session().snapshot().spentTicks());
+        assertEquals(
+                SearchSession.Phase.CHOOSE_FRONTIER,
+                continued.session().snapshot().phase());
     }
 
     @Test
@@ -88,7 +96,9 @@ class SearchLedgerPersistenceTest {
         assertTrue(book.revision() > before, "ask-once must dirty the book");
 
         before = book.revision();
-        var session = book.searchLedger().acquire(owner, "minecraft:overworld", "iron", 1, SearchLedger.LOCAL_DEFAULTS);
+        var session = book.searchLedger()
+                .acquire(owner, "minecraft:overworld", "iron", 1, SearchLedger.LOCAL_DEFAULTS)
+                .session();
         assertTrue(book.revision() > before, "a new session must dirty the book");
 
         before = book.revision();

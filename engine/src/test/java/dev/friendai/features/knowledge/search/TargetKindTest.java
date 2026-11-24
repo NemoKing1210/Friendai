@@ -2,6 +2,7 @@ package dev.friendai.features.knowledge.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -36,6 +37,26 @@ class TargetKindTest {
         assertTrue(logs().matches(facts(Set.of("minecraft:oak_log"), Set.of(), Set.of(), Set.of(), "")));
         assertTrue(logs().matches(facts(Set.of(), Set.of("minecraft:birch_log"), Set.of(), Set.of(), "")));
         assertFalse(logs().matches(facts(Set.of("minecraft:stone"), Set.of(), Set.of(), Set.of(), "")));
+    }
+
+    @Test
+    void blockSetsWithinOneFamilyKeepSeparateIdentities() {
+        var oak = new TargetKind.BlockFamily("#minecraft:logs", Set.of("minecraft:oak_log"), logs().profile());
+
+        assertEquals(logs().coverageKey(), oak.coverageKey());
+        assertEquals(logs().identity(), logs().identity());
+        assertNotEquals(logs().identity(), oak.identity());
+        assertNotEquals(
+                new TargetKind.BlockFamily("#minecraft:logs", Set.of(), logs().profile()).identity(),
+                logs().identity());
+    }
+
+    @Test
+    void otherKindsTakeTheirCoverageKeyAsIdentity() {
+        var forest = new TargetKind.Biome("minecraft:forest", 64);
+        assertEquals(forest.coverageKey(), forest.identity());
+        var home = new TargetKind.Place("Home", "minecraft:overworld", 64);
+        assertEquals(home.coverageKey(), home.identity());
     }
 
     @Test

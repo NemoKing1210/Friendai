@@ -2,6 +2,7 @@ package dev.friendai.features.knowledge.search;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -14,119 +15,140 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class SearchLedgerTest {
+    private static final Pos BASE = new Pos(4, 64, 8);
+    private static final String DIMENSION = "minecraft:overworld";
+
     @Test
-    void sameGoalRetryWithinCooldownReusesSpentBudget() {
+    void anInterruptedTripFromTheSameOriginKeepsItsSpentBudget() {
         SearchLedger ledger = new SearchLedger();
         UUID owner = UUID.randomUUID();
-        var first = ledger.acquire(
-                owner, "minecraft:overworld", "  Iron  Ore ", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(4, 64, 8));
-        first.advance(new SearchSession.Input(
-                110,
-                "minecraft:overworld",
-                new Pos(4, 64, 8),
-                true,
-                false,
-                SearchSession.LegOutcome.NONE,
-                null,
-                0,
-                0,
-                0,
-                0));
-        var retry = ledger.acquire(
-                owner,
-                "minecraft:overworld",
-                "iron ore",
-                120,
-                new SearchSession.Limits(512, 2_048, 12_000, 128),
-                new Pos(40, 64, 80));
-        assertSame(first, retry);
-        assertEquals(1, retry.snapshot().spentTicks());
-        assertEquals(SearchLedger.LOCAL_DEFAULTS, retry.snapshot().limits());
+        var first = ledger.acquire(owner, DIMENSION, "  Iron  Ore ", 100, SearchLedger.LOCAL_DEFAULTS, BASE);
+        assertFalse(first.resumed());
+        step(first.session(), 110, BASE);
+        ledger.interruptActive();
+
+        var retry = ledger.acquire(owner, DIMENSION, "iron ore", 120, SearchLedger.LOCAL_DEFAULTS, BASE);
+
+        assertTrue(retry.resumed());
+        assertSame(first.session(), retry.session());
+        assertEquals(1, retry.session().snapshot().spentTicks());
+        assertEquals(SearchLedger.LOCAL_DEFAULTS, retry.session().snapshot().limits());
+        assertEquals(BASE, retry.session().snapshot().origin());
     }
 
     @Test
-    void ledgerSnapshotRetainsActiveSessionBudget() {
+    void aRequestFromANewBaseStartsWithAFreshSession() {
+        SearchLedger ledger = new SearchLedger();
+        UUID owner = UUID.randomUUID();
+        var done = ledger.acquire(owner, DIMENSION, "iron", 100, SearchLedger.LOCAL_DEFAULTS, BASE);
+        step(done.session(), 110, BASE);
+        finish(done.session(), 120, BASE);
+        assertEquals(SearchSession.Phase.COMPLETE, done.session().snapshot().phase());
+
+        var moved = ledger.acquire(owner, DIMENSION, "iron", 130, SearchLedger.LOCAL_DEFAULTS, new Pos(40, 64, 80));
+
+        assertFalse(moved.resumed());
+        assertNotEquals(
+                done.session().snapshot().id(), moved.session().snapshot().id());
+        assertEquals(SearchSession.Phase.PREPARE, moved.session().snapshot().phase());
+        assertEquals(0, moved.session().snapshot().spentTicks());
+        assertEquals(new Pos(40, 64, 80), moved.session().snapshot().origin());
+    }
+
+    @Test
+    void aWiderAuthorizedScopeStartsANewSearch() {
+        SearchLedger ledger = new SearchLedger();
+        UUID owner = UUID.randomUUID();
+        var local = ledger.acquire(owner, DIMENSION, "iron", 100, SearchLedger.LOCAL_DEFAULTS, BASE);
+        step(local.session(), 110, BASE);
+        ledger.interruptActive();
+
+        var expedition =
+                ledger.acquire(owner, DIMENSION, "iron", 120, new SearchSession.Limits(512, 2_048, 12_000, 128), BASE);
+
+        assertFalse(expedition.resumed());
+        assertNotEquals(
+                local.session().snapshot().id(), expedition.session().snapshot().id());
+        assertEquals(0, expedition.session().snapshot().spentTicks());
+        assertEquals(512, expedition.session().snapshot().limits().radius());
+    }
+
+    @Test
+    void differentTargetSetsWithinOneFamilyDoNotShareASession() {
+        SearchLedger ledger = new SearchLedger();
+        UUID owner = UUID.randomUUID();
+        var logs = ledger.acquire(
+                owner,
+                DIMENSION,
+                "wood{minecraft:birch_log,minecraft:oak_log}",
+                100,
+                SearchLedger.LOCAL_DEFAULTS,
+                BASE);
+        step(logs.session(), 110, BASE);
+        ledger.interruptActive();
+
+        var oak = ledger.acquire(owner, DIMENSION, "wood{minecraft:oak_log}", 120, SearchLedger.LOCAL_DEFAULTS, BASE);
+
+        assertFalse(oak.resumed());
+        assertNotEquals(logs.session().snapshot().id(), oak.session().snapshot().id());
+    }
+
+    @Test
+    void ledgerSnapshotRetainsAnInterruptedBudgetForTheSameOrigin() {
         SearchLedger original = new SearchLedger();
         UUID owner = UUID.randomUUID();
-        var session = original.acquire(
-                owner, "minecraft:overworld", "iron", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(4, 64, 8));
-        session.advance(new SearchSession.Input(
-                110,
-                "minecraft:overworld",
-                new Pos(4, 64, 8),
-                true,
-                false,
-                SearchSession.LegOutcome.NONE,
-                null,
-                0,
-                0,
-                0,
-                0));
+        var session = original.acquire(owner, DIMENSION, "iron", 100, SearchLedger.LOCAL_DEFAULTS, BASE);
+        step(session.session(), 110, BASE);
+        original.interruptActive();
         SearchLedger restored = new SearchLedger();
         restored.restore(original.toJson());
-        assertEquals(
-                1,
-                restored.acquire(
-                                owner,
-                                "minecraft:overworld",
-                                "iron",
-                                120,
-                                SearchLedger.LOCAL_DEFAULTS,
-                                new Pos(0, 64, 0))
-                        .snapshot()
-                        .spentTicks());
+
+        var retry = restored.acquire(owner, DIMENSION, "iron", 120, SearchLedger.LOCAL_DEFAULTS, BASE);
+
+        assertTrue(retry.resumed());
+        assertEquals(1, retry.session().snapshot().spentTicks());
     }
 
     @Test
     void resumeByIdKeepsTheSpentBudgetAndTheReturnPhase() {
         SearchLedger ledger = new SearchLedger();
         UUID owner = UUID.randomUUID();
-        var session = ledger.acquire(
-                owner, "minecraft:overworld", "iron", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(4, 64, 8));
+        var session = ledger.acquire(owner, DIMENSION, "iron", 100, SearchLedger.LOCAL_DEFAULTS, BASE)
+                .session();
         session.advance(new SearchSession.Input(
-                110,
-                "minecraft:overworld",
-                new Pos(40, 64, 8),
-                true,
-                true,
-                SearchSession.LegOutcome.NONE,
-                null,
-                0,
-                0,
-                0,
-                0));
+                110, DIMENSION, new Pos(40, 64, 8), true, true, SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
         long spentTicks = session.snapshot().spentTicks();
         long spentTravel = Math.round(session.snapshot().spentTravelBlocks());
         ledger.interruptActive();
 
-        var resumed = ledger.resume(session.snapshot().id(), owner, "minecraft:overworld", "  Iron ", 200);
+        var resumed = ledger.resume(session.snapshot().id(), owner, DIMENSION, "  Iron ", 200);
 
         assertSame(session, resumed);
         assertEquals(SearchSession.Phase.RETURN, resumed.snapshot().phase());
         assertTrue(resumed.snapshot().discovered());
         assertEquals(spentTicks, resumed.snapshot().spentTicks());
         assertEquals(spentTravel, Math.round(resumed.snapshot().spentTravelBlocks()));
-        assertEquals(new Pos(4, 64, 8), resumed.snapshot().origin());
+        assertEquals(BASE, resumed.snapshot().origin());
     }
 
     @Test
     void resumeRefusesAnotherGoalOwnerOrADeliberatelyStoppedSession() {
         SearchLedger ledger = new SearchLedger();
         UUID owner = UUID.randomUUID();
-        var session = ledger.acquire(
-                owner, "minecraft:overworld", "iron", 100, SearchLedger.LOCAL_DEFAULTS, new Pos(4, 64, 8));
+        var session = ledger.acquire(owner, DIMENSION, "iron", 100, SearchLedger.LOCAL_DEFAULTS, BASE)
+                .session();
         ledger.interruptActive();
         UUID id = session.snapshot().id();
 
-        assertNull(ledger.resume(id, owner, "minecraft:overworld", "copper", 120));
-        assertNull(ledger.resume(id, UUID.randomUUID(), "minecraft:overworld", "iron", 120));
-        assertNull(ledger.resume(UUID.randomUUID(), owner, "minecraft:overworld", "iron", 120));
+        assertNull(ledger.resume(id, owner, DIMENSION, "copper", 120));
+        assertNull(ledger.resume(id, UUID.randomUUID(), DIMENSION, "iron", 120));
+        assertNull(ledger.resume(UUID.randomUUID(), owner, DIMENSION, "iron", 120));
 
-        SearchSession stopped = ledger.acquire(
-                owner, "minecraft:overworld", "gold", 110, SearchLedger.LOCAL_DEFAULTS, new Pos(0, 64, 0));
+        SearchSession stopped = ledger.acquire(owner, DIMENSION, "gold", 110, SearchLedger.LOCAL_DEFAULTS, BASE)
+                .session();
         stopped.interrupt();
         assertFalse(stopped.resumable());
-        assertNull(ledger.resume(stopped.snapshot().id(), owner, "minecraft:overworld", "gold", 120));
+        assertNull(ledger.resume(stopped.snapshot().id(), owner, DIMENSION, "gold", 120));
     }
 
     @Test
@@ -135,7 +157,7 @@ class SearchLedgerTest {
         UUID id = UUID.randomUUID();
         JsonObject row = new JsonObject();
         row.addProperty("owner", owner.toString());
-        row.addProperty("dimension", "minecraft:overworld");
+        row.addProperty("dimension", DIMENSION);
         row.addProperty("goal", "iron");
         row.addProperty("id", id.toString());
         row.addProperty("x", 4);
@@ -161,17 +183,25 @@ class SearchLedgerTest {
         assertEquals(SearchSession.Phase.INTERRUPTED, session.snapshot().phase());
         assertFalse(session.snapshot().discovered());
         assertFalse(session.resumable());
-        assertNull(restored.resume(id, owner, "minecraft:overworld", "iron", 200));
-        assertEquals(
-                7,
-                restored.acquire(
-                                owner,
-                                "minecraft:overworld",
-                                "iron",
-                                200,
-                                SearchLedger.LOCAL_DEFAULTS,
-                                new Pos(0, 64, 0))
-                        .snapshot()
-                        .spentTicks());
+        assertNull(restored.resume(id, owner, DIMENSION, "iron", 200));
+        // A row this version cannot resume is spent work, not a session a new order may continue.
+        SearchLedger.Admission fresh =
+                restored.acquire(owner, DIMENSION, "iron", 200, SearchLedger.LOCAL_DEFAULTS, BASE);
+        assertFalse(fresh.resumed());
+        assertNotEquals(id, fresh.session().snapshot().id());
+        assertEquals(0, fresh.session().snapshot().spentTicks());
+    }
+
+    private static void step(SearchSession session, long tick, Pos position) {
+        session.advance(new SearchSession.Input(
+                tick, DIMENSION, position, true, false, SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+    }
+
+    private static void finish(SearchSession session, long tick, Pos origin) {
+        session.advance(new SearchSession.Input(
+                tick, DIMENSION, origin, true, true, SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+        session.advance(new SearchSession.Input(
+                tick + 1, DIMENSION, origin, true, false, SearchSession.LegOutcome.NONE, null, 0, 0, 0, 0));
+        assertTrue(session.terminal(), "the trip reaches a terminal phase at its origin");
     }
 }

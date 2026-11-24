@@ -12,7 +12,8 @@ public final class SearchLedger {
     public static final SearchSession.Limits LOCAL_DEFAULTS = new SearchSession.Limits(64, 256, 2_400, 128);
     private static final long REUSE_TICKS = 6_000;
     private static final int MAX_ASKED = 512;
-    private final Map<Key, SearchSession> sessions = new LinkedHashMap<>();
+    private static final int MAX_SESSIONS = 2_048;
+    private final Map<UUID, Entry> sessions = new LinkedHashMap<>();
     private final SearchStats stats = new SearchStats();
     private final java.util.LinkedHashSet<String> askedGoals = new java.util.LinkedHashSet<>();
     private Runnable onChange;
@@ -58,36 +59,93 @@ public final class SearchLedger {
         return owner + "|" + dimension + "|" + normalize(goal);
     }
 
-    public synchronized SearchSession acquire(
+    public synchronized Admission acquire(
             UUID owner, String dimension, String goal, long now, SearchSession.Limits requested) {
         return acquire(owner, dimension, goal, now, requested, new Pos(0, 0, 0));
     }
 
-    public synchronized SearchSession acquire(
+    /**
+     * The session an order runs under. Only an interrupted trip that was cut short from the same origin under a
+     * scope this request still fits is continued with its spent budget; every other order — a new base, a wider
+     * authorized scope, a finished or deliberately stopped trip — gets its own session, so a later search never
+     * inherits a terminal phase, a depleted budget or another origin.
+     */
+    public synchronized Admission acquire(
             UUID owner, String dimension, String goal, long now, SearchSession.Limits requested, Pos origin) {
         Objects.requireNonNull(owner);
         Objects.requireNonNull(origin);
         Objects.requireNonNull(requested);
         String normalized = normalize(goal);
-        Key key = new Key(owner, dimension, normalized);
-        SearchSession prior = sessions.get(key);
-        if (prior != null
-                && now >= prior.snapshot().lastTick()
-                && now - prior.snapshot().lastTick() <= REUSE_TICKS) {
-            prior.resumeForNewRequest(now);
-            return prior;
+        SearchSession interrupted = interrupted(owner, dimension, normalized, now, requested, origin);
+        if (interrupted != null) {
+            interrupted.resumeForNewRequest(now);
+            changed();
+            return new Admission(interrupted, true);
         }
         SearchSession created = new SearchSession(UUID.randomUUID(), dimension, normalized, origin, requested, now);
         created.onChange(this::changed);
-        sessions.put(key, created);
+        sessions.put(created.snapshot().id(), new Entry(owner, dimension, normalized, created));
+        pruned(owner, dimension, normalized);
         changed();
-        while (sessions.size() > 2_048)
+        return new Admission(created, false);
+    }
+
+    /** The most recently interrupted compatible trip, or null when this order is a new one. */
+    private SearchSession interrupted(
+            UUID owner, String dimension, String goal, long now, SearchSession.Limits requested, Pos origin) {
+        SearchSession best = null;
+        for (Entry entry : sessions.values()) {
+            if (!entry.owner().equals(owner)
+                    || !entry.dimension().equals(dimension)
+                    || !entry.goal().equals(goal)) {
+                continue;
+            }
+            SearchSession candidate = entry.session();
+            SearchSession.Snapshot snapshot = candidate.snapshot();
+            if (!candidate.resumable()
+                    || now < snapshot.lastTick()
+                    || now - snapshot.lastTick() > REUSE_TICKS
+                    || !snapshot.origin().equals(origin)
+                    || !within(requested, snapshot.limits())) {
+                continue;
+            }
+            if (best == null || snapshot.lastTick() > best.snapshot().lastTick()) best = candidate;
+        }
+        return best;
+    }
+
+    /** A request is a continuation only while every limit it asks for fits the scope the interrupted trip was granted. */
+    private static boolean within(SearchSession.Limits requested, SearchSession.Limits granted) {
+        return requested.radius() <= granted.radius()
+                && requested.travelBlocks() <= granted.travelBlocks()
+                && requested.ticks() <= granted.ticks()
+                && requested.excavationBlocks() <= granted.excavationBlocks();
+    }
+
+    /**
+     * Drops the finished and deliberately stopped rows of one goal once a new order takes over its key. A
+     * resumable trip is kept, because a pending checkpoint may still name it.
+     */
+    private void pruned(UUID owner, String dimension, String goal) {
+        java.util.List<UUID> gone = new java.util.ArrayList<>();
+        for (Map.Entry<UUID, Entry> row : sessions.entrySet()) {
+            Entry entry = row.getValue();
+            if (entry.owner().equals(owner)
+                    && entry.dimension().equals(dimension)
+                    && entry.goal().equals(goal)
+                    && entry.session().terminal()
+                    && !entry.session().resumable()) {
+                gone.add(row.getKey());
+            }
+        }
+        gone.forEach(sessions::remove);
+        while (sessions.size() > MAX_SESSIONS) {
             sessions.remove(sessions.keySet().iterator().next());
-        return created;
+        }
     }
 
     public synchronized void removeOwner(UUID owner) {
-        sessions.entrySet().removeIf(entry -> entry.getKey().owner().equals(owner));
+        sessions.values().removeIf(entry -> entry.owner().equals(owner));
     }
 
     public synchronized int size() {
@@ -95,19 +153,23 @@ public final class SearchLedger {
     }
 
     public synchronized java.util.List<SearchSession.Snapshot> snapshot() {
-        return sessions.values().stream().map(SearchSession::snapshot).toList();
+        return sessions.values().stream()
+                .map(entry -> entry.session().snapshot())
+                .toList();
     }
 
     public synchronized void interrupt(UUID sessionId) {
-        sessions.values().stream()
-                .filter(session -> session.snapshot().id().equals(sessionId))
-                .forEach(SearchSession::interrupt);
+        Entry entry = sessionId == null ? null : sessions.get(sessionId);
+        if (entry != null) entry.session().interrupt();
         changed();
     }
 
     /** Marks the sessions a reload interrupted, keeping the phase each one must resume from. */
     public synchronized void interruptActive() {
-        sessions.values().stream().filter(session -> !session.terminal()).forEach(SearchSession::interruptForReload);
+        sessions.values().stream()
+                .map(Entry::session)
+                .filter(session -> !session.terminal())
+                .forEach(SearchSession::interruptForReload);
         changed();
     }
 
@@ -118,8 +180,15 @@ public final class SearchLedger {
      */
     public synchronized SearchSession resume(UUID sessionId, UUID owner, String dimension, String goal, long now) {
         if (sessionId == null || owner == null || dimension == null || goal == null || goal.isBlank()) return null;
-        SearchSession session = sessions.get(new Key(owner, dimension, normalize(goal)));
-        if (session == null || !session.snapshot().id().equals(sessionId) || !session.resumable()) return null;
+        Entry entry = sessions.get(sessionId);
+        if (entry == null
+                || !entry.owner().equals(owner)
+                || !entry.dimension().equals(dimension)
+                || !entry.goal().equals(normalize(goal))) {
+            return null;
+        }
+        SearchSession session = entry.session();
+        if (!session.resumable()) return null;
         session.resumeAfterReload(now);
         changed();
         return session;
@@ -127,19 +196,19 @@ public final class SearchLedger {
 
     public synchronized long logicalTick() {
         return sessions.values().stream()
-                .mapToLong(session -> session.snapshot().lastTick())
+                .mapToLong(entry -> entry.session().snapshot().lastTick())
                 .max()
                 .orElse(0);
     }
 
     public synchronized java.util.List<JsonObject> toJson() {
-        return sessions.entrySet().stream()
+        return sessions.values().stream()
                 .map(entry -> {
-                    SearchSession.Snapshot s = entry.getValue().snapshot();
+                    SearchSession.Snapshot s = entry.session().snapshot();
                     JsonObject row = new JsonObject();
-                    row.addProperty("owner", entry.getKey().owner().toString());
-                    row.addProperty("dimension", entry.getKey().dimension());
-                    row.addProperty("goal", entry.getKey().goal());
+                    row.addProperty("owner", entry.owner().toString());
+                    row.addProperty("dimension", entry.dimension());
+                    row.addProperty("goal", entry.goal());
                     row.addProperty("id", s.id().toString());
                     row.addProperty("x", s.origin().x());
                     row.addProperty("y", s.origin().y());
@@ -164,11 +233,8 @@ public final class SearchLedger {
     }
 
     public synchronized SearchSession session(UUID sessionId) {
-        if (sessionId == null) return null;
-        return sessions.values().stream()
-                .filter(session -> session.snapshot().id().equals(sessionId))
-                .findFirst()
-                .orElse(null);
+        Entry entry = sessionId == null ? null : sessions.get(sessionId);
+        return entry == null ? null : entry.session();
     }
 
     /** Stats and ask-once marks, stored beside the session rows in the knowledge file. */
@@ -229,7 +295,7 @@ public final class SearchLedger {
                     interruptedFrom(row));
             SearchSession session = SearchSession.restore(snapshot);
             session.onChange(this::changed);
-            sessions.put(new Key(owner, dimension, goal), session);
+            sessions.put(snapshot.id(), new Entry(owner, dimension, goal, session));
         }
     }
 
@@ -247,5 +313,8 @@ public final class SearchLedger {
         return goal.strip().toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
     }
 
-    private record Key(UUID owner, String dimension, String goal) {}
+    /** The session an order was admitted under, and whether it continued an interrupted trip with its spend. */
+    public record Admission(SearchSession session, boolean resumed) {}
+
+    private record Entry(UUID owner, String dimension, String goal, SearchSession session) {}
 }

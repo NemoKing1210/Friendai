@@ -10,6 +10,7 @@ import dev.friendai.features.knowledge.search.AbandonPolicy;
 import dev.friendai.features.knowledge.search.EscortPolicy;
 import dev.friendai.features.knowledge.search.ResourceSearchProfile;
 import dev.friendai.features.knowledge.search.SearchHint;
+import dev.friendai.features.knowledge.search.SearchLedger;
 import dev.friendai.features.knowledge.search.SearchPlanner;
 import dev.friendai.features.knowledge.search.SearchSession;
 import dev.friendai.features.knowledge.search.TargetKind;
@@ -203,18 +204,20 @@ public final class SearchResourceTask implements Task {
         long now = context.level().getServer().overworld().getGameTime();
         SearchSession resumed = restoreSessionId == null
                 ? null
-                : ledger.resume(restoreSessionId, owner, dimension, target.coverageKey(), now);
+                : ledger.resume(restoreSessionId, owner, dimension, target.identity(), now);
         String recoveryNote;
         if (resumed != null) {
             session = resumed;
             session.clampLimits(requested);
             recoveryNote = "resumed after restart with its spent budget";
         } else {
-            session = ledger.acquire(owner, dimension, target.coverageKey(), now, requested, here);
+            SearchLedger.Admission admission =
+                    ledger.acquire(owner, dimension, target.identity(), now, requested, here);
+            session = admission.session();
             session.clampLimits(requested);
-            recoveryNote = restoreSessionId == null
-                    ? ""
-                    : "the interrupted search could not be resumed exactly; continuing under the ordinary budget";
+            recoveryNote = restoreSessionId != null
+                    ? "the interrupted search could not be resumed exactly; continuing under the ordinary budget"
+                    : admission.resumed() ? "continuing the interrupted trip with its spent budget" : "";
         }
         // A resumed trip returns to the base it started from, not to wherever the restart put the companion.
         Pos base = resumed == null ? null : session.snapshot().origin();
@@ -284,7 +287,7 @@ public final class SearchResourceTask implements Task {
                 ownerOnline ? owner.position().distanceTo(context.companion().position()) : Double.MAX_VALUE;
         String dimension = context.level().dimension().identifier().toString();
         var ledger = context.ownerKnowledge().searchLedger();
-        boolean asked = ledger.asked(ownerId, dimension, target.coverageKey());
+        boolean asked = ledger.asked(ownerId, dimension, target.identity());
         if (!ownerOnline && autonomous && !asked) {
             askOnce(context, "free time: searching for " + target.label() + " on its own", dimension);
         }
@@ -429,8 +432,8 @@ public final class SearchResourceTask implements Task {
     private void askOnce(TaskContext context, String message, String dimension) {
         if (message == null || message.isBlank()) return;
         var ledger = context.ownerKnowledge().searchLedger();
-        if (ledger.asked(ownerId, dimension, target.coverageKey())) return;
-        ledger.markAsked(ownerId, dimension, target.coverageKey());
+        if (ledger.asked(ownerId, dimension, target.identity())) return;
+        ledger.markAsked(ownerId, dimension, target.identity());
         context.postWorldNotice(ownerId, message);
     }
 

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.15] - 2026-11-24
+
+### Fixed
+
+- A new search order no longer continues the previous trip's budget or its walk home: a search started from a different place, or for a different set of blocks, begins on its own, while an interrupted trip from the same place still keeps what it already spent.
+
 ## [0.233.14] - 2026-11-24
 
 ### Fixed

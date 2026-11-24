@@ -28,8 +28,16 @@ public sealed interface TargetKind
     /** How far from the origin a find is still believable. */
     int plausibleRadius();
 
-    /** Stable key for coverage, ledger dedupe and per-kind statistics. */
+    /** Stable key for coverage and per-kind statistics. */
     String coverageKey();
+
+    /**
+     * The identity an admission compares: two requests with the same identity may continue one search session. It
+     * is {@link #coverageKey()} unless the kind has exact target constraints a family name does not carry.
+     */
+    default String identity() {
+        return coverageKey();
+    }
 
     /** Dimensions this target can be found in; empty means every dimension. */
     Set<String> dimensions();
@@ -102,6 +110,14 @@ public sealed interface TargetKind
         @Override
         public String coverageKey() {
             return family;
+        }
+
+        /** The exact block set: two requests for one family but different blocks are different searches. */
+        @Override
+        public String identity() {
+            if (blockIds.isEmpty()) return coverageKey();
+            return coverageKey() + "{"
+                    + String.join(",", blockIds.stream().sorted().toList()) + "}";
         }
 
         @Override

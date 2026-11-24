@@ -558,7 +558,7 @@ public final class ResourceSearchTests {
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 100)
-    public void restartRetriesASearchSavedWithoutACheckpoint(GameTestHelper h) {
+    public void aCheckpointlessRetryFromANewBaseStartsItsOwnSearch(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
         var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
         CompanionEntity original = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
@@ -599,12 +599,26 @@ public final class ResourceSearchTests {
                 job.state() == dev.friendai.execution.queue.JobState.RUNNING,
                 "a search job without a checkpoint must be retried, not cancelled");
         var resumed = restored.executionCoordinator().current().orElseThrow();
-        SearchSession.Snapshot after = ledger.snapshot().getFirst();
-        h.assertTrue(after.id().equals(before.id()), "the retry must reuse the interrupted session");
+        // Without a checkpoint the retry starts from wherever the companion is now. That is a different origin,
+        // so it must not borrow the interrupted trip's budget and must not inherit its phase.
+        var retrySession = ledger.snapshot().stream()
+                .filter(session -> !session.id().equals(before.id()))
+                .findFirst();
+        h.assertTrue(retrySession.isPresent(), "the retry did not start its own session: " + ledger.snapshot());
+        SearchSession.Snapshot after = retrySession.orElse(before);
+        var at = restored.blockPosition();
         h.assertTrue(
-                after.spentTicks() >= before.spentTicks(),
-                "the retry must keep the spent budget instead of starting again: before=" + before.spentTicks()
-                        + " after=" + after.spentTicks());
+                after.origin().equals(new Pos(at.getX(), at.getY(), at.getZ())),
+                "a new leg must use one origin: " + after.origin() + " at " + at);
+        h.assertTrue(after.phase() != SearchSession.Phase.INTERRUPTED, "the new search must not inherit a phase");
+        SearchSession.Snapshot kept = ledger.snapshot().stream()
+                .filter(session -> session.id().equals(before.id()))
+                .findFirst()
+                .orElse(before);
+        h.assertTrue(
+                kept.spentTicks() >= before.spentTicks(),
+                "the interrupted trip keeps its own spent budget: before=" + before.spentTicks() + " after="
+                        + kept.spentTicks());
         h.assertTrue(
                 report.restored().stream().anyMatch(line -> line.contains("retried after restart")),
                 report.restored().toString());
