@@ -5,6 +5,7 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.features.acquisition.AcquisitionAttempts;
+import dev.friendai.features.acquisition.NeedAllocation;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.ObtainStep;
@@ -228,7 +229,8 @@ public final class BatchObtainTask implements Task {
                                         book,
                                         DropIndex.of(level));
                             }
-                            candidate = choose(inventory, search, liveNeed, true);
+                            List<NeedAllocation.Leg> legs = allocate(inventory, search, liveNeed);
+                            candidate = legs.isEmpty() ? null : legs.get(0).item();
                         }
                         if (candidate != null) {
                             needs.merge(candidate, remainingCount, Integer::sum);
@@ -374,7 +376,7 @@ public final class BatchObtainTask implements Task {
                     book,
                     DropIndex.of(level));
             StationFallback.Decision decision = StationFallback.decide(
-                    window, demand, inventory, book, stations, need -> choose(inventory, search, need, false));
+                    window, demand, inventory, book, stations, need -> executable(inventory, search, need));
             if (decision instanceof StationFallback.Blocked blocked) {
                 String text = "station " + blocked.stationId() + " is required and cannot be made here; "
                         + progress(companion);
@@ -384,27 +386,36 @@ public final class BatchObtainTask implements Task {
                 return fail(text);
             }
             if (decision instanceof StationFallback.Next next) {
-                String candidate = next.candidate();
-                if (candidate == null) {
-                    candidate = choose(inventory, search, next.need(), true);
-                    if (candidate == null) {
-                        String text = limitedPlan != null
-                                ? ObtainText.failureText(
-                                        limitedPlan,
-                                        next.need().label(),
-                                        next.need().count(),
-                                        !explore)
-                                : "couldn't get " + next.need().count() + " "
-                                        + next.need().label() + " for "
-                                        + remaining.get(0).item();
-                        if (!lastGatherSummary.isBlank()) {
-                            text += ": " + lastGatherSummary;
-                        }
-                        return fail(text);
+                List<NeedAllocation.Leg> legs;
+                if (next.candidate() != null) {
+                    legs = List.of(
+                            new NeedAllocation.Leg(next.candidate(), next.need().count()));
+                } else {
+                    // The family is ranked as for any need; the first leg is gathered now and the next pass
+                    // decides the rest from what is then still missing.
+                    legs = allocate(inventory, search, next.need());
+                    if (legs.isEmpty()) {
+                        NeedAllocation.Leg fallback = fallback(next.need());
+                        legs = fallback == null ? List.of() : List.of(fallback);
                     }
                 }
+                if (legs.isEmpty()) {
+                    String text = limitedPlan != null
+                            ? ObtainText.failureText(
+                                    limitedPlan,
+                                    next.need().label(),
+                                    next.need().count(),
+                                    !explore)
+                            : "couldn't get " + next.need().count() + " "
+                                    + next.need().label() + " for "
+                                    + remaining.get(0).item();
+                    if (!lastGatherSummary.isBlank()) {
+                        text += ": " + lastGatherSummary;
+                    }
+                    return fail(text);
+                }
                 return gather(
-                        c, companion, next.need(), candidate, remaining.get(0).item());
+                        c, companion, next.need(), legs.get(0), remaining.get(0).item());
             }
         }
         CraftPlanner.Target target = remaining.get(0);
@@ -439,32 +450,64 @@ public final class BatchObtainTask implements Task {
     private record Search(WorldFacts facts, RecipeIndex book, DropIndex drops) {}
 
     /**
-     * The first candidate that can actually be obtained here, otherwise, when {@code fallbackToFirst} is set, the
-     * first one nobody has failed yet: an unobtainable plan is still tried once, because its failure text is what the
-     * owner then reads. A station is looked up with the fallback off, so an impossible one is recognized instead of
-     * starting a gather child that is bound to fail.
-     *
-     * <p>A candidate whose plan stopped at the planner's work limit is not unobtainable, only unsettled: it is skipped
-     * like an obtainable one and remembered in {@link #limitedPlan}, and the next candidate is tried instead.
+     * The ways to meet one need here, ranked by {@link NeedAllocation}: the whole candidate family is planned once, so
+     * a source that can only cover part of the deficit still contributes its part and a speculative route cannot win
+     * over supply already at hand. A candidate whose plan stopped at the planner's work limit is unsettled rather
+     * than unobtainable: it is remembered in {@link #limitedPlan} and never contributes.
      */
-    private String choose(
-            Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need, boolean fallbackToFirst) {
-        List<String> candidates = candidates(need);
-        if (candidates.isEmpty()) {
-            return null;
-        }
+    private List<NeedAllocation.Leg> allocate(
+            Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need) {
         limitedPlan = null;
-        for (String candidate : candidates) {
+        List<NeedAllocation.Candidate> plans = new ArrayList<>();
+        List<String> candidates = candidates(need);
+        for (int preference = 0; preference < candidates.size(); preference++) {
+            String candidate = candidates.get(preference);
             ObtainPlan plan = ObtainPlanner.plan(
                     candidate, need.count(), inventory, search.book(), search.drops(), search.facts(), tradingContext);
-            if (plan.actionable()) {
-                return candidate;
-            }
             if (plan.limited()) {
                 limitedPlan = plan;
             }
+            plans.add(new NeedAllocation.Candidate(candidate, plan, preference));
         }
-        return limitedPlan != null || !fallbackToFirst ? null : candidates.get(0);
+        return NeedAllocation.allocate(need.count(), plans);
+    }
+
+    /**
+     * The first candidate with a complete plan for the need, for a station lookup that must recognize an impossible
+     * one instead of starting a child bound to fail. A partial plan is not enough here: a station either works or it
+     * does not.
+     */
+    private String executable(Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need) {
+        List<NeedAllocation.Candidate> plans = new ArrayList<>();
+        List<String> candidates = candidates(need);
+        for (int preference = 0; preference < candidates.size(); preference++) {
+            String candidate = candidates.get(preference);
+            ObtainPlan plan = ObtainPlanner.plan(
+                    candidate, need.count(), inventory, search.book(), search.drops(), search.facts(), tradingContext);
+            if (plan.limited()) {
+                limitedPlan = plan;
+            }
+            plans.add(new NeedAllocation.Candidate(candidate, plan, preference));
+        }
+        for (NeedAllocation.Candidate candidate : NeedAllocation.rank(plans)) {
+            if (candidate.plan().actionable()) {
+                return candidate.item();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The leg to try when nothing here supplies anything: the preferred candidate once, because its failure text is
+     * what the owner then reads. Null when no candidate is left or the pass was work-limited, which is not evidence
+     * that the material is absent.
+     */
+    private NeedAllocation.Leg fallback(CraftPlanner.RawNeed need) {
+        List<String> candidates = candidates(need);
+        if (candidates.isEmpty() || limitedPlan != null) {
+            return null;
+        }
+        return new NeedAllocation.Leg(candidates.get(0), need.count());
     }
 
     /** The need's candidates nobody has failed yet, in preference order. */
@@ -482,12 +525,16 @@ public final class BatchObtainTask implements Task {
     }
 
     private TaskStatus gather(
-            TaskContext c, CompanionEntity companion, CraftPlanner.RawNeed need, String candidate, String target) {
-        // The need is what the shared material plan is still short of; the child asks for that plus what the bag
-        // already holds, because an ObtainTask succeeds once the total it was sent for is in the inventory.
-        int wanted = need.count() + AcquiredItems.have(companion, candidate);
+            TaskContext c,
+            CompanionEntity companion,
+            CraftPlanner.RawNeed need,
+            NeedAllocation.Leg leg,
+            String target) {
+        // A leg is the part of the shared material need this source can cover; the child asks for that plus what
+        // the bag already holds, because an ObtainTask succeeds once the total it was sent for is in the inventory.
+        int wanted = leg.count() + AcquiredItems.have(companion, leg.item());
         return startChild(
-                c, obtain(candidate, wanted), ChildKind.GATHER, need.label() + "|" + candidate, need.label(), target);
+                c, obtain(leg.item(), wanted), ChildKind.GATHER, need.label() + "|" + leg.item(), need.label(), target);
     }
 
     /** The craft planner accepts at most eight targets per demand; the rest are planned on the next tick. */

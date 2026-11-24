@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.0] - 2026-11-24
+
+### Changed
+
+- A batch that needs a material several recipes accept, such as the stone for a tool set, now gathers it from the best sources it can reach and spreads the amount across several sources when one cannot cover it. Stone in a chest nearby is used before a trip that would have to search for more, and a source that holds only part of the amount is no longer skipped.
+
 ## [0.231.2] - 2026-11-24
 
 ### Fixed

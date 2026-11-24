@@ -290,6 +290,7 @@ class ObtainPlannerTest {
         assertTrue(plan.actionable());
         assertEquals(Map.of(OAK_LOG, 1), plan.missing());
         assertEquals(List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", OAK_LOG)), plan.steps());
+        assertEquals(1, plan.supplied(), "a conditional pass claims the count its child replans for");
     }
 
     @Test

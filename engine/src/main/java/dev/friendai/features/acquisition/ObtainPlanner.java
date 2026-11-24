@@ -129,13 +129,17 @@ public final class ObtainPlanner {
         Search search = new Search(recipes, sources, world, trading, maxEvaluations, maxCopies);
         Attempt attempt = search.need(target, count, 0, new LinkedHashSet<>(), sim, true);
         List<ObtainStep> steps = merge(attempt.steps);
+        // A conditional pass has not resolved its source yet, so it claims the whole count its child will replan for;
+        // otherwise the covered part is what the target's own residual in {@code missing} does not account for.
+        int supplied = attempt.conditional ? count : Math.max(0, count - attempt.missing.getOrDefault(target, 0));
         return new ObtainPlan(
                 steps,
                 attempt.missing,
                 steps.size(),
                 attempt.conditional,
                 new ObtainPlan.Work(search.evaluations, search.copies),
-                search.limited);
+                search.limited,
+                supplied);
     }
 
     /** Merges consecutive steps that do the same thing. */

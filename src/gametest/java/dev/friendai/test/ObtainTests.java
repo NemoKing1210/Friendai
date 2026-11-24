@@ -1724,6 +1724,97 @@ public class ObtainTests {
         });
     }
 
+    /**
+     * A stone-tool batch whose stone is split across two visible sources takes from both. The need accepts any member
+     * of the stone-tool material family, so a source that covers only part of the deficit contributes its part instead
+     * of being skipped, and blackstone, which is nowhere here, is never asked for.
+     */
+    @GameTest(maxTicks = 9600, structure = GameTestArenas.ARENA_16)
+    public void aBatchSplitsItsStoneDemandAcrossAccessibleSources(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos table = new BlockPos(4, 2, 2);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+        BlockPos firstPos = new BlockPos(5, 2, 3);
+        BlockPos secondPos = new BlockPos(5, 2, 5);
+        h.setBlock(firstPos, Blocks.CHEST);
+        h.setBlock(secondPos, Blocks.CHEST);
+        Container first = (Container) h.getLevel().getBlockEntity(h.absolutePos(firstPos));
+        Container second = (Container) h.getLevel().getBlockEntity(h.absolutePos(secondPos));
+        h.assertTrue(first != null, "the first chest has no block entity");
+        h.assertTrue(second != null, "the second chest has no block entity");
+        first.setItem(0, new ItemStack(Items.COBBLED_DEEPSLATE, 6));
+        second.setItem(0, new ItemStack(Items.COBBLESTONE, 6));
+        first.setChanged();
+        second.setChanged();
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        c.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        c.inventory().setItem(1, new ItemStack(Items.STICK, 16));
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "crafting table should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(firstPos)), "first chest should be visible");
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(secondPos)), "second chest should be visible");
+        var caller =
+                new Caller(owner.getUUID(), owner.getName().getString(), dev.friendai.execution.tool.AccessLevel.OWNER);
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 9600, () -> false);
+        runner.setEventSink(result);
+        runner.start(new CheckContainerTask(h.absolutePos(firstPos)), "check_container");
+        BatchObtainTask[] batch = {null};
+        // 0: first chest, 1: second chest, 2: the batch. Every phase before the last one throws on purpose,
+        // because succeedWhen stops the test the first time its body returns without an exception.
+        int[] phase = {0};
+        TaskTrace.of(h, runner, c).succeedWhen(() -> {
+            if (phase[0] == 0) {
+                runner.tick();
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        "the first chest was not checked: " + result.status + " " + result.summary);
+                result.status = null;
+                result.summary = null;
+                runner.start(new CheckContainerTask(h.absolutePos(secondPos)), "check_container");
+                phase[0] = 1;
+                h.assertTrue(false, "the first chest is checked");
+                return;
+            }
+            if (phase[0] == 1) {
+                runner.tick();
+                h.assertTrue(
+                        result.status == TaskStatus.SUCCESS,
+                        "the second chest was not checked: " + result.status + " " + result.summary);
+                result.status = null;
+                result.summary = null;
+                batch[0] = new BatchObtainTask(
+                        List.of(
+                                new CraftPlanner.Target("minecraft:stone_pickaxe", 2),
+                                new CraftPlanner.Target("minecraft:stone_axe", 2)),
+                        true,
+                        false,
+                        64,
+                        9000,
+                        64,
+                        128,
+                        6000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory());
+                runner.start(batch[0], "obtain_items");
+                phase[0] = 2;
+                h.assertTrue(false, "the second chest is checked");
+                return;
+            }
+            GameTestSupport.observeVisible(h, c, h.absolutePos(table));
+            runner.tick();
+            h.assertTrue(result.status != null, "the batch should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.status + ": " + result.summary);
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_PICKAXE), 2, "stone pickaxes");
+            h.assertValueEqual(c.inventory().countItem(Items.STONE_AXE), 2, "stone axes");
+            h.assertTrue(first.getItem(0).isEmpty(), "the deepslate source was used: " + first.getItem(0));
+            h.assertTrue(second.getItem(0).isEmpty(), "the cobblestone source was used: " + second.getItem(0));
+        });
+    }
+
     @GameTest(maxTicks = 800, structure = GameTestArenas.ARENA_16)
     public void fullBagReportsTheUncollectedBatchRemainder(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

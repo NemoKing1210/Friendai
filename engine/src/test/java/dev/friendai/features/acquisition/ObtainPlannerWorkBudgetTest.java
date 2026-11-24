@@ -46,6 +46,25 @@ class ObtainPlannerWorkBudgetTest {
         assertTrue(plan.work().copies() > 0, "the pass counted the inventories it copied");
         assertTrue(plan.work().evaluations() < 100, plan.work().toString());
         assertTrue(plan.work().copies() < 100, plan.work().toString());
+        assertEquals(1, plan.supplied(), "a complete plan supplies the whole count");
+    }
+
+    @Test
+    void a_partial_plan_reports_only_the_part_it_can_supply() {
+        // Two oak logs are at hand and exploring is off; the third one has no source here.
+        ObtainPlan plan = ObtainPlanner.plan(
+                OAK_LOG,
+                3,
+                Map.of(),
+                new FakeRecipeBook(),
+                FakeSourceBook.vanillaLike(),
+                world(Map.of(OAK_LOG, 2)),
+                null);
+
+        assertFalse(plan.ok());
+        assertFalse(plan.limited());
+        assertEquals(2, plan.supplied(), plan.steps().toString());
+        assertEquals(Map.of(OAK_LOG, 1), plan.missing());
     }
 
     @Test

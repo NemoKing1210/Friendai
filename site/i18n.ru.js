@@ -249,8 +249,8 @@ const RU = {
     "Получить предмет любым способом, используя свободное место в уже переносимых стопках и открывая настоящий сундук, когда сумка полна; древесину добывает, свалив деревья целиком.",
   "Gather every material for a set of items once, then craft them all; accepts the item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
     "Собрать все материалы для набора предметов один раз, а потом создать их все; принимает псевдонимы item/count; добывает предмет, который можно добыть, вместо крафта из более редкого; древесину добывает, свалив деревья целиком.",
-  "Gather shared materials once for a set of items, then craft them all; accepts item/count aliases; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
-    "Один раз собрать общие материалы для набора предметов, а затем создать их все; принимает псевдонимы item/count; добывает доступный материал вместо крафта из более редкого; древесину добывает, свалив деревья целиком.",
+  "Gather shared materials once for a set of items, then craft them all; accepts item/count aliases; draws each material from the best sources it can reach and splits the amount across several when one cannot cover it; mines a mineable item instead of crafting it from a rarer one; wood is felled as whole trees.":
+    "Один раз собрать общие материалы для набора предметов, а затем создать их все; принимает псевдонимы item/count; каждый материал берёт из лучших доступных источников и при нехватке одного делит количество между несколькими; добывает доступный материал вместо крафта из более редкого; древесину добывает, свалив деревья целиком.",
   "Show the plan without doing it.": "Показать план, не выполняя его.",
   "Explore to find a resource when nothing is visible or remembered; read-only questions use find_blocks or known_resources.": "Отправиться на поиск ресурса, когда рядом ничего не видно и не запомнено; для вопроса без похода есть find_blocks и known_resources.",
   "What it already knows about.": "Что ему уже известно.",
