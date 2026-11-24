@@ -291,6 +291,188 @@ public final class ResourceJourneyTests {
         });
     }
 
+    /**
+     * One completed ray proves one removed member, while a wall hides its neighbour: only the visible block is
+     * forgotten, the hidden one survives, and opening the sightline lets the same site prove itself present again.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void aHiddenMemberOfAPartlyMinedSiteSurvivesTheVisit(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        dev.friendai.entity.CompanionManager.get(server).register(companion);
+        state.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+
+        BlockPos visible = h.absolutePos(new BlockPos(6, 2, 2));
+        BlockPos hidden = h.absolutePos(new BlockPos(6, 2, 3));
+        BlockPos approach = h.absolutePos(new BlockPos(2, 2, 2));
+        h.setBlock(new BlockPos(6, 2, 2), Blocks.COAL_ORE);
+        h.setBlock(new BlockPos(6, 2, 3), Blocks.COAL_ORE);
+        // One block of stone sits squarely on the line to the second member and clear of the first.
+        h.setBlock(new BlockPos(4, 3, 3), Blocks.STONE);
+        long observed = Math.max(0, h.getLevel().getGameTime() - 1);
+        var book = state.knowledge().book(owner.getUUID());
+        long siteId = book.observe(
+                new ResourceObservation(
+                        "minecraft:coal_ore",
+                        new ResourceObservation.Location(
+                                dimension, new Pos(visible.getX(), visible.getY(), visible.getZ())),
+                        new Pos(approach.getX(), approach.getY(), approach.getZ()),
+                        observed),
+                "minecraft:coal_ore");
+        long hiddenSite = book.observe(
+                new ResourceObservation(
+                        "minecraft:coal_ore",
+                        new ResourceObservation.Location(
+                                dimension, new Pos(hidden.getX(), hidden.getY(), hidden.getZ())),
+                        new Pos(approach.getX(), approach.getY(), approach.getZ()),
+                        observed),
+                "minecraft:coal_ore");
+        h.assertTrue(
+                siteId == hiddenSite,
+                "the two neighbouring blocks must be one remembered site, got " + siteId + " and " + hiddenSite);
+        // The visible member is gone from the world: a completed ray will prove that removal.
+        h.setBlock(new BlockPos(6, 2, 2), Blocks.AIR);
+
+        h.assertTrue(
+                book.site(siteId, h.getLevel().getGameTime() + 1)
+                        .orElseThrow()
+                        .members()
+                        .contains(new Pos(visible.getX(), visible.getY(), visible.getZ())),
+                "the fixture must remember both members before the visit");
+        VisitResourceTask[] visits = {
+            new VisitResourceTask(siteId, dimension, 400),
+            new VisitResourceTask(siteId, dimension, 400),
+            new VisitResourceTask(siteId, dimension, 400)
+        };
+        Result[] results = {new Result(), new Result(), new Result()};
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        runner.setEventSink(results[0]);
+        runner.start(visits[0], "visit_resource");
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(finished(results[0]), "waiting for the visit to finish: " + results[0].summary);
+                })
+                .thenExecute(() -> {
+                    h.assertTrue(
+                            results[0].status == TaskStatus.FAILED,
+                            "the visible member is gone, so the visit fails: " + results[0].status + " / "
+                                    + results[0].summary);
+                    var site = book.site(siteId, h.getLevel().getGameTime() + 1).orElseThrow();
+                    h.assertTrue(
+                            !site.members().contains(new Pos(visible.getX(), visible.getY(), visible.getZ())),
+                            "the removed member must be forgotten: " + site.members() + " / " + results[0].summary);
+                    h.assertTrue(
+                            site.members().contains(new Pos(hidden.getX(), hidden.getY(), hidden.getZ())),
+                            "a member no ray settled must survive the visit: " + site.members() + " / "
+                                    + results[0].summary);
+                    // The stance that already failed to see the hidden member is not inspected again at once.
+                    runner.setEventSink(results[1]);
+                    runner.start(visits[1], "visit_resource");
+                })
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(finished(results[1]), "waiting for the repeated visit: " + results[1].summary);
+                })
+                .thenExecute(() -> {
+                    h.assertTrue(
+                            results[1].status == TaskStatus.FAILED,
+                            "the same stance must not prove the hidden member present: " + results[1].status);
+                    h.assertTrue(
+                            visits[1].report().members().isEmpty(),
+                            "a bound recheck takes no new member results: "
+                                    + visits[1].report().members());
+                    h.assertTrue(
+                            book.site(siteId, h.getLevel().getGameTime() + 1)
+                                    .orElseThrow()
+                                    .members()
+                                    .contains(new Pos(hidden.getX(), hidden.getY(), hidden.getZ())),
+                            "a refused recheck must keep the hidden member");
+                    // Opening the sightline is new evidence, so the same site is inspectable again.
+                    h.setBlock(new BlockPos(4, 3, 3), Blocks.AIR);
+                    state.resourceCandidates().ownBreak(companion, h.absolutePos(new BlockPos(4, 3, 3)));
+                    runner.setEventSink(results[2]);
+                    runner.start(visits[2], "visit_resource");
+                })
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(finished(results[2]), "waiting for the opened visit: " + results[2].summary);
+                })
+                .thenExecute(() -> h.assertTrue(
+                        results[2].status == TaskStatus.SUCCESS,
+                        "the opened sightline must let the same site prove itself present: " + results[2].status + " / "
+                                + results[2].summary))
+                .thenSucceed();
+    }
+
+    /**
+     * A stance that cannot check a remembered member settles nothing: the visit runs out of its sight budget, no
+     * member is forgotten, and the site stays in the book for a later attempt.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_64, maxTicks = 600)
+    public void aVisitThatSettlesNothingKeepsEveryMember(GameTestHelper h) {
+        GameTestSupport.platform(h, 64);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.setOwner(owner.getUUID());
+        var server = h.getLevel().getServer();
+        var state = GameTestSupport.runtime(server);
+        dev.friendai.entity.CompanionManager.get(server).register(companion);
+        state.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+
+        // The member lies beyond the observation reach of the reached approach, so no check can settle it.
+        BlockPos member = h.absolutePos(new BlockPos(62, 2, 62));
+        BlockPos approach = h.absolutePos(new BlockPos(2, 2, 2));
+        h.setBlock(new BlockPos(62, 2, 62), Blocks.COAL_ORE);
+        var book = state.knowledge().book(owner.getUUID());
+        long siteId = book.observe(
+                new ResourceObservation(
+                        "minecraft:coal_ore",
+                        new ResourceObservation.Location(
+                                dimension, new Pos(member.getX(), member.getY(), member.getZ())),
+                        new Pos(approach.getX(), approach.getY(), approach.getZ()),
+                        Math.max(0, h.getLevel().getGameTime() - 1)),
+                "minecraft:coal_ore");
+        Pos recorded = new Pos(member.getX(), member.getY(), member.getZ());
+
+        Result result = new Result();
+        VisitResourceTask visit = new VisitResourceTask(siteId, dimension, 400);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        runner.setEventSink(result);
+        runner.start(visit, "visit_resource");
+        h.startSequence()
+                .thenWaitUntil(() -> {
+                    runner.tick();
+                    h.assertTrue(finished(result), "waiting for the visit to finish: " + result.summary);
+                })
+                .thenExecute(() -> {
+                    h.assertTrue(
+                            result.summary.contains("result=timed_out"),
+                            "the sight budget must run out rather than prove anything: " + result.summary);
+                    h.assertTrue(
+                            visit.report().removed().isEmpty(),
+                            "an unsettled visit forgets nothing: "
+                                    + visit.report().removed());
+                    h.assertTrue(
+                            book.site(siteId, h.getLevel().getGameTime() + 1)
+                                    .orElseThrow()
+                                    .members()
+                                    .contains(recorded),
+                            "the unchecked member must stay remembered");
+                })
+                .thenSucceed();
+    }
+
+    private static boolean finished(Result result) {
+        return result.status != null && result.status != TaskStatus.RUNNING;
+    }
+
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;

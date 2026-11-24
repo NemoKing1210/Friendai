@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.6] - 2026-11-24
+
+### Fixed
+
+- A visit to a remembered deposit no longer erases it when the companion cannot see it: only a block a fresh, complete look proved gone or replaced is forgotten, while a block hidden behind a wall, in an unloaded chunk or still being checked stays known.
+- A spot the companion already failed to see the deposit from is not checked again right away, and opening the sightline lets the same place be used again.
+
 ## [0.232.5] - 2026-11-24
 
 ### Fixed

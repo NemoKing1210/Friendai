@@ -16,6 +16,7 @@ public final class VisitResourceTask implements Task {
     private final int maxTicks;
     private ResourceJourney journey;
     private ResourceCandidates.VerificationTicket verification;
+    private ResourceCandidates.VerificationReport report;
     private ResourceCandidates.Verification result = ResourceCandidates.Verification.PENDING;
     private int ticks;
     private int waiting;
@@ -31,6 +32,11 @@ public final class VisitResourceTask implements Task {
         return result;
     }
 
+    /** What each inspected member settled, so only a proven removal is ever forgotten. */
+    public ResourceCandidates.VerificationReport report() {
+        return report;
+    }
+
     @Override
     public String type() {
         return "visit_resource";
@@ -43,6 +49,7 @@ public final class VisitResourceTask implements Task {
         result = ResourceCandidates.Verification.PENDING;
         observing = false;
         verification = null;
+        report = null;
         String currentDimension = c.level().dimension().identifier().toString();
         if (!dimension.equals(currentDimension)) {
             result = ResourceCandidates.Verification.UNLOADED;
@@ -84,7 +91,8 @@ public final class VisitResourceTask implements Task {
         }
         // The ticket keeps one direct result per exact member. A moved companion causes the observer
         // to re-aim that request; only completed rays from the reached viewpoint can settle the site.
-        result = candidates.verification(c.companion(), verification);
+        report = candidates.verificationReport(c.companion(), verification);
+        result = report.verdict();
         if (result == ResourceCandidates.Verification.PRESENT) {
             return TaskStatus.SUCCESS;
         }
@@ -92,6 +100,7 @@ public final class VisitResourceTask implements Task {
                 || result == ResourceCandidates.Verification.OCCLUDED
                 || result == ResourceCandidates.Verification.UNLOADED) return TaskStatus.FAILED;
         if (++waiting >= SIGHT_BUDGET_TICKS) {
+            // A budget that ran out is not evidence of an empty site: keep the members nothing settled.
             result = ResourceCandidates.Verification.TIMED_OUT;
             return TaskStatus.FAILED;
         }
@@ -104,18 +113,17 @@ public final class VisitResourceTask implements Task {
     }
 
     /**
-     * A visit exists to prove the remembered blocks are still there. Only a site the companion reached and
-     * inspected can prove the opposite: a blocked path or a chunk that failed to load proves nothing about the
-     * blocks, so forgetting the site then would delete real knowledge.
+     * A visit exists to prove the remembered blocks are still there. Only a completed ray can prove the opposite,
+     * member by member: a blocked path, a chunk that failed to load or a sight budget that ran out proves nothing,
+     * so forgetting a block then would delete real knowledge. A hidden member of a site with one visible removal
+     * therefore survives, and the same viewpoint is not inspected again at once.
      */
-    static boolean provesSiteEmpty(boolean observing, ResourceCandidates.Verification result) {
-        return observing && result == ResourceCandidates.Verification.ABSENT;
-    }
-
     @Override
     public void onTerminal(TaskContext c) {
-        if (provesSiteEmpty(observing, result)) {
-            c.resources().confirmAbsent(c.companion(), verification);
+        if (!observing || report == null) return;
+        c.resources().confirmAbsent(c.companion(), report);
+        if (report.verdict() != ResourceCandidates.Verification.PRESENT && report.blockedSightline()) {
+            c.resources().noteOcclusion(c.companion(), verification);
         }
     }
 
@@ -129,7 +137,10 @@ public final class VisitResourceTask implements Task {
         String value = "site=" + siteId + "; phase=" + (observing ? "inspect" : "travel")
                 + "; result=" + result.name().toLowerCase(java.util.Locale.ROOT)
                 + "; ticks=" + ticks + "/" + maxTicks
-                + (observing ? "; sight_wait=" + waiting + "/" + SIGHT_BUDGET_TICKS : "");
+                + (observing ? "; sight_wait=" + waiting + "/" + SIGHT_BUDGET_TICKS : "")
+                + (report == null || report.removed().isEmpty()
+                        ? ""
+                        : "; removed=" + report.removed().size());
         return value.length() <= 600 ? value : value.substring(0, 597) + "...";
     }
 }

@@ -40,6 +40,11 @@ public final class ResourceCandidates {
     public static final long RECENT_EVIDENCE_TICKS = 200;
 
     private static final int MAX_RECENT_OBSERVATIONS = 2_048;
+    /** How long a blocked sightline from one viewpoint stops the same site being rechecked from it. */
+    static final long OCCLUSION_TTL_TICKS = 2_400;
+
+    private static final int MAX_OCCLUDED_SITES = 16;
+    private static final double SAME_VIEWPOINT_SQR = 16.0;
     /** Bounds the transient books even when an unload callback is missed; least recently seen companions go first. */
     private static final int MAX_TRANSIENT_COMPANIONS = 32;
 
@@ -53,11 +58,73 @@ public final class ResourceCandidates {
     }
 
     /** The exact remembered member checks launched from one reached viewpoint. */
-    public record VerificationTicket(long siteId, Map<Pos, Long> requests) {
+    public record VerificationTicket(long siteId, Map<Pos, Long> requests, boolean blockedViewpoint) {
         public VerificationTicket {
             requests = requests == null ? Map.of() : Map.copyOf(requests);
         }
+
+        public VerificationTicket(long siteId, Map<Pos, Long> requests) {
+            this(siteId, requests, false);
+        }
     }
+
+    /** What one completed direct check settled for one remembered member; only {@link #REMOVED} forgets it. */
+    public enum MemberResult {
+        PRESENT,
+        REMOVED,
+        OCCLUDED,
+        UNLOADED,
+        PENDING
+    }
+
+    /**
+     * The per-member settlement of one inspection. The verdict summarises the visit, while the members keep what each
+     * completed ray actually proved, so a hidden block is never dropped because another one was gone.
+     */
+    public record VerificationReport(Verification verdict, Map<Pos, MemberResult> members) {
+        public VerificationReport {
+            members = members == null ? Map.of() : Map.copyOf(members);
+        }
+
+        public static VerificationReport blockedViewpoint() {
+            return new VerificationReport(Verification.OCCLUDED, Map.of());
+        }
+
+        /** The members a completed ray proved gone or replaced. */
+        public java.util.Set<Pos> removed() {
+            java.util.Set<Pos> gone = new java.util.LinkedHashSet<>();
+            members.forEach((pos, result) -> {
+                if (result == MemberResult.REMOVED) gone.add(pos);
+            });
+            return gone;
+        }
+
+        /** True when a completed sightline was blocked, so the same viewpoint must not be retried at once. */
+        public boolean blockedSightline() {
+            return members.containsValue(MemberResult.OCCLUDED);
+        }
+
+        /** Summarises per-member results; a fresh sight of any member keeps the site present. */
+        public static VerificationReport of(Map<Pos, MemberResult> members, boolean visible) {
+            Verification verdict;
+            if (visible || members.containsValue(MemberResult.PRESENT)) {
+                verdict = Verification.PRESENT;
+            } else if (members.isEmpty() || members.containsValue(MemberResult.PENDING)) {
+                // A member still being checked may yet prove a removal, so a blocked neighbour does not end the visit.
+                verdict = Verification.PENDING;
+            } else if (members.containsValue(MemberResult.UNLOADED)) {
+                verdict = Verification.UNLOADED;
+            } else if (members.containsValue(MemberResult.OCCLUDED)) {
+                verdict = Verification.OCCLUDED;
+            } else {
+                verdict = Verification.ABSENT;
+            }
+            return new VerificationReport(verdict, members);
+        }
+    }
+
+    /** Where a site was last seen through a blocked sightline, so one position is not retried every visit. */
+    public record Occlusion(Pos viewpoint, long tick) {}
 
     /** Where a listed block came from: this session's revalidated sight, or the durable owner book. */
     public enum Evidence {
@@ -80,6 +147,9 @@ public final class ResourceCandidates {
     private final TransientBook<List<ScopedCaveEntrance>> observedCaveEntrances =
             new TransientBook<>(MAX_TRANSIENT_COMPANIONS);
 
+    /** Per companion and site, the viewpoint that already failed to see a member. */
+    private final TransientBook<Map<Long, Occlusion>> occlusions = new TransientBook<>(MAX_TRANSIENT_COMPANIONS);
+
     private ObservationScheduler observations;
 
     public ResourceCandidates(KnowledgeStore knowledge) {
@@ -98,6 +168,7 @@ public final class ResourceCandidates {
         if (companion == null) return;
         recent.forget(companion.getUUID());
         observedCaveEntrances.forget(companion.getUUID());
+        occlusions.forget(companion.getUUID());
     }
 
     public void observe(CompanionEntity companion, ResourceObservation observation) {
@@ -510,6 +581,7 @@ public final class ResourceCandidates {
     public VerificationTicket beginVerification(CompanionEntity companion, long siteId) {
         java.util.Optional<ResourceSite> found = site(companion, siteId);
         if (found.isEmpty()) return new VerificationTicket(siteId, Map.of());
+        if (blockedFromHere(companion, siteId)) return new VerificationTicket(siteId, Map.of(), true);
         ResourceObserver observer = observations.observer(companion);
         Map<Pos, Long> requests = new LinkedHashMap<>();
         for (Pos member : found.get().members()) {
@@ -519,43 +591,85 @@ public final class ResourceCandidates {
         return new VerificationTicket(siteId, requests);
     }
 
-    /** Reads only the completed direct checks from a ticket; a blocked or unloaded ray is inconclusive. */
-    public Verification verification(CompanionEntity companion, VerificationTicket ticket) {
+    /**
+     * Reads only the completed direct checks from a ticket; a blocked or unloaded ray is inconclusive. The member
+     * results are kept apart so a removal proven by one ray is recorded even while another member stays hidden.
+     */
+    public VerificationReport verificationReport(CompanionEntity companion, VerificationTicket ticket) {
         if (ticket == null || companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel))
-            return Verification.UNLOADED;
+            return new VerificationReport(Verification.UNLOADED, Map.of());
+        if (ticket.blockedViewpoint()) return VerificationReport.blockedViewpoint();
         ResourceSite site = site(companion, ticket.siteId()).orElse(null);
-        if (site == null) return Verification.ABSENT;
-        if (siteVisible(companion, ticket.siteId())) return Verification.PRESENT;
-        if (ticket.requests().isEmpty()) return Verification.PENDING;
+        if (site == null) return new VerificationReport(Verification.ABSENT, Map.of());
+        boolean visible = siteVisible(companion, ticket.siteId());
+        if (ticket.requests().isEmpty()) return VerificationReport.of(Map.of(), visible);
         ResourceObserver observer = observations.observer(companion);
+        Map<Pos, MemberResult> members = new LinkedHashMap<>();
         for (Map.Entry<Pos, Long> request : ticket.requests().entrySet()) {
-            if (request.getValue() <= 0) return Verification.PENDING;
-            ResourceObserver.TargetResult result = observer.targetResult(request.getValue());
-            if (result == null || result.outcome() == ResourceSight.Outcome.PENDING) return Verification.PENDING;
-            if (result.outcome() == ResourceSight.Outcome.UNLOADED) return Verification.UNLOADED;
-            if (result.outcome() == ResourceSight.Outcome.OCCLUDED) return Verification.OCCLUDED;
-            if (result.outcome() == ResourceSight.Outcome.VISIBLE
-                    && site.family().equals(result.blockId())) return Verification.PRESENT;
-            if (result.outcome() != ResourceSight.Outcome.ABSENT && result.outcome() != ResourceSight.Outcome.VISIBLE)
-                return Verification.PENDING;
+            members.put(request.getKey(), settle(observer, request.getValue(), site.family()));
         }
-        return Verification.ABSENT;
+        return VerificationReport.of(members, visible);
+    }
+
+    private static MemberResult settle(ResourceObserver observer, long request, String family) {
+        if (request <= 0) return MemberResult.PENDING;
+        ResourceObserver.TargetResult result = observer.targetResult(request);
+        if (result == null) return MemberResult.PENDING;
+        return switch (result.outcome()) {
+            case PENDING -> MemberResult.PENDING;
+            case UNLOADED -> MemberResult.UNLOADED;
+            case OCCLUDED -> MemberResult.OCCLUDED;
+            case ABSENT -> MemberResult.REMOVED;
+            case VISIBLE -> family.equals(result.blockId()) ? MemberResult.PRESENT : MemberResult.REMOVED;
+        };
     }
 
     /**
-     * Forgets a site's exact members after a visit proved the blocks are no longer there. The site and any
-     * remaining members stay in the book, so a partly mined outcrop keeps the blocks that were not checked.
+     * Forgets only the members a completed check proved gone or replaced. The site and every unproven member stay in
+     * the book, so a blocked sightline or a partly mined outcrop keeps what was never actually inspected.
      */
-    public void confirmAbsent(CompanionEntity companion, VerificationTicket ticket) {
-        if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
-        ResourceKnowledge book = knowledge.book(companion.ownerUuid());
-        ResourceSite site = book.site(ticket.siteId(), logicalTick(level)).orElse(null);
-        if (site == null) return;
+    public void confirmAbsent(CompanionEntity companion, VerificationReport report) {
+        if (report == null || companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
+            return;
+        java.util.Set<Pos> removed = report.removed();
+        if (removed.isEmpty()) return;
         long tick = logicalTick(level);
         String dimension = level.dimension().identifier().toString();
-        site.members().stream()
-                .filter(ticket.requests()::containsKey)
-                .forEach(pos -> book.confirmAbsent(new ResourceObservation.Location(dimension, pos), tick));
+        ResourceKnowledge book = knowledge.book(companion.ownerUuid());
+        for (Pos pos : removed) {
+            book.confirmAbsent(new ResourceObservation.Location(dimension, pos), tick);
+        }
+    }
+
+    /** Remembers that a site was hidden from where the companion stands now, so one spot is not retried. */
+    public void noteOcclusion(CompanionEntity companion, VerificationTicket ticket) {
+        if (ticket == null || companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level))
+            return;
+        long now = logicalTick(level);
+        BlockPos at = companion.blockPosition();
+        Map<Long, Occlusion> sites = occlusions.computeIfAbsent(companion.getUUID(), LinkedHashMap::new);
+        sites.entrySet().removeIf(entry -> now - entry.getValue().tick() > OCCLUSION_TTL_TICKS);
+        sites.remove(ticket.siteId());
+        sites.put(ticket.siteId(), new Occlusion(new Pos(at.getX(), at.getY(), at.getZ()), now));
+        while (sites.size() > MAX_OCCLUDED_SITES) {
+            sites.remove(sites.keySet().iterator().next());
+        }
+    }
+
+    /** Whether this site already failed to be seen from a viewpoint the companion still stands at. */
+    private boolean blockedFromHere(CompanionEntity companion, long siteId) {
+        if (!(companion.level() instanceof ServerLevel level)) return false;
+        Map<Long, Occlusion> sites = occlusions.get(companion.getUUID());
+        if (sites == null) return false;
+        Occlusion occlusion = sites.get(siteId);
+        if (occlusion == null) return false;
+        if (logicalTick(level) - occlusion.tick() > OCCLUSION_TTL_TICKS) return false;
+        BlockPos at = companion.blockPosition();
+        Pos viewpoint = occlusion.viewpoint();
+        double dx = viewpoint.x() - at.getX();
+        double dy = viewpoint.y() - at.getY();
+        double dz = viewpoint.z() - at.getZ();
+        return dx * dx + dy * dy + dz * dz <= SAME_VIEWPOINT_SQR;
     }
 
     public java.util.Optional<ResourceSite> site(CompanionEntity companion, long siteId) {
@@ -591,6 +705,9 @@ public final class ResourceCandidates {
     /** Records loaded face neighbors of this companion's confirmed successful break and schedules sight checks. */
     public void ownBreak(CompanionEntity companion, BlockPos pos) {
         if (companion.ownerUuid() == null || !(companion.level() instanceof ServerLevel level)) return;
+        // Opening a block changes what this companion can see, so a blocked-sightline notice it earned before is
+        // stale: the site must be inspectable again from the very stance the visit failed from.
+        occlusions.forget(companion.getUUID());
         BlockPos broken = pos.immutable();
         ResourceObservation.Location location = new ResourceObservation.Location(
                 level.dimension().identifier().toString(), new Pos(broken.getX(), broken.getY(), broken.getZ()));

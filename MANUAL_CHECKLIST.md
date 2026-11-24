@@ -830,3 +830,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       partial delivery it verified, and a new order for something unrelated cites nothing.
 - [ ] Ask a trusted player to do the same: the trusted planner request may cite the receipt; a guest's request never
       does.
+
+## Remembered deposits survive a blocked look (TODO 160)
+
+- [ ] Remember a coal outcrop with two blocks, mine one of them, and build a wall in front of the other. Send the
+      companion to that deposit: it reports the trip as failed, keeps the hidden block in `known_resources`, and does
+      not tour that spot again when sent right away.
+- [ ] Remove the wall (or let the companion mine it) and send it again: the same site is visited and mined normally.
+- [ ] Remember a deposit far outside the companion's sight range, send it there once: the visit ends without settling
+      anything and `known_resources` still lists the block.
