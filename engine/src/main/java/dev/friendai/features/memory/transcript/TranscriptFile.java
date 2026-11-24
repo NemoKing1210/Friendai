@@ -47,8 +47,17 @@ public final class TranscriptFile {
         return GSON.toJson(this);
     }
 
-    /** Decodes one file, keeping every well-formed entry and repairing the next id. */
+    /** Decodes one file with the current clock, keeping every well-formed entry and repairing the next id. */
     public static TranscriptBook decode(String json, TranscriptLimits limits) {
+        return decode(json, limits, System.currentTimeMillis());
+    }
+
+    /**
+     * Decodes one file, keeping every well-formed entry and repairing the next id. Both the age and the count bound
+     * apply at load, so a file written long ago never shows expired lines and the next flush rewrites the trimmed
+     * book. The next id stays at least one past every stored id, so pagination cursors remain monotonic.
+     */
+    public static TranscriptBook decode(String json, TranscriptLimits limits, long now) {
         TranscriptFile file;
         try {
             file = GSON.fromJson(json, TranscriptFile.class);
@@ -78,7 +87,7 @@ public final class TranscriptFile {
             }
         }
         book.restoreNextId(Math.max(file.nextId, maxId + 1));
-        book.trimToLimits();
+        book.prune(now);
         return book;
     }
 

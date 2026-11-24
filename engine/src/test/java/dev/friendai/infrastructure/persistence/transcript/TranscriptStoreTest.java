@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,11 +42,12 @@ class TranscriptStoreTest {
     void transcriptSurvivesARestart() {
         Path dir = temp.resolve("transcript");
         UUID owner = UUID.randomUUID();
-        try (TranscriptStore store = new TranscriptStore(dir, TranscriptLimits.DEFAULTS)) {
+        // Fixture lines are stamped at 1_000; the clock keeps them inside the default seven-day window.
+        try (TranscriptStore store = new TranscriptStore(dir, () -> TranscriptLimits.DEFAULTS, () -> 2_000)) {
             say(store, owner, "hello");
             store.flushAll();
         }
-        try (TranscriptStore store = new TranscriptStore(dir, TranscriptLimits.DEFAULTS)) {
+        try (TranscriptStore store = new TranscriptStore(dir, () -> TranscriptLimits.DEFAULTS, () -> 2_000)) {
             assertEquals(
                     List.of("hello"),
                     store.book(owner).snapshot().stream()
@@ -140,7 +142,8 @@ class TranscriptStoreTest {
                     live.add(owner, "Alex", Speaker.PLAYER, "next", 2_500).id());
             store.flushAll();
         }
-        try (TranscriptStore store = new TranscriptStore(dir, new TranscriptLimits(3, 5, 10_000, 2L * 1024 * 1024))) {
+        TranscriptLimits reloaded = new TranscriptLimits(3, 5, 10_000, 2L * 1024 * 1024);
+        try (TranscriptStore store = new TranscriptStore(dir, () -> reloaded, () -> 3_000)) {
             assertEquals(
                     List.of(5L, 6L, 7L),
                     store.book(owner).snapshot().stream()
@@ -164,6 +167,75 @@ class TranscriptStoreTest {
             assertEquals(StoreFailureKind.WRITE_FAILED, store.status(owner).failure());
             assertTrue(store.dirty(owner), "the unwritten revision stays dirty");
             assertEquals("hello", store.book(owner).snapshot().getFirst().text());
+        }
+    }
+
+    @Test
+    void anIdleBookExpiresLinesWithoutAWriteAndTheFlushRewritesTheFile() throws IOException {
+        Path dir = temp.resolve("transcript");
+        UUID owner = UUID.randomUUID();
+        AtomicLong clock = new AtomicLong(1_000);
+        TranscriptLimits limits = new TranscriptLimits(10, 40, 5_000, 2L * 1024 * 1024);
+        try (TranscriptStore store = new TranscriptStore(dir, () -> limits, clock::get)) {
+            store.book(owner).add(owner, "Alex", Speaker.PLAYER, "hello", clock.get());
+            store.flushAll();
+            long revision = store.book(owner).revision();
+
+            clock.set(7_000);
+            store.maintain(clock.get());
+
+            assertTrue(store.book(owner).snapshot().isEmpty(), "the aged line is gone without a new message");
+            assertTrue(store.book(owner).revision() > revision, "an open panel sees a new revision");
+            assertTrue(store.dirty(owner), "the removal waits for the next flush");
+            store.flushAll();
+            assertEquals(0, store.book(owner).snapshot().size());
+        }
+        try (TranscriptStore store = new TranscriptStore(dir, () -> limits, clock::get)) {
+            assertTrue(store.book(owner).snapshot().isEmpty(), "the flushed file no longer holds the line");
+        }
+    }
+
+    @Test
+    void aFileLoadedAfterOfflineTimeDropsTheExpiredPartBeforeTheFirstRead() {
+        Path dir = temp.resolve("transcript");
+        UUID owner = UUID.randomUUID();
+        TranscriptLimits limits = new TranscriptLimits(10, 40, 5_000, 2L * 1024 * 1024);
+        AtomicLong clock = new AtomicLong(1_000);
+        try (TranscriptStore store = new TranscriptStore(dir, () -> limits, clock::get)) {
+            store.book(owner).add(owner, "Alex", Speaker.PLAYER, "old", 1_000);
+            store.book(owner).add(owner, "Alex", Speaker.PLAYER, "new", 4_500);
+            store.flushAll();
+        }
+        clock.set(9_000);
+        try (TranscriptStore store = new TranscriptStore(dir, () -> limits, clock::get)) {
+            assertEquals(
+                    List.of("new"),
+                    store.book(owner).snapshot().stream()
+                            .map(TranscriptEntry::text)
+                            .toList());
+            assertEquals(2L, store.book(owner).snapshot().getFirst().id(), "ids of kept entries never move");
+        }
+    }
+
+    @Test
+    void aLoweredRetentionAppliesToALoadedBook() {
+        Path dir = temp.resolve("transcript");
+        UUID owner = UUID.randomUUID();
+        AtomicLong clock = new AtomicLong(1_000);
+        AtomicReference<TranscriptLimits> limits =
+                new AtomicReference<>(new TranscriptLimits(10, 40, 0, 2L * 1024 * 1024));
+        try (TranscriptStore store = new TranscriptStore(dir, limits::get, clock::get)) {
+            store.book(owner).add(owner, "Alex", Speaker.PLAYER, "early", 1_000);
+            store.book(owner).add(owner, "Alex", Speaker.PLAYER, "late", 9_000);
+
+            limits.set(new TranscriptLimits(10, 40, 5_000, 2L * 1024 * 1024));
+            store.applyLimits(10_000);
+
+            assertEquals(
+                    List.of("late"),
+                    store.book(owner).snapshot().stream()
+                            .map(TranscriptEntry::text)
+                            .toList());
         }
     }
 

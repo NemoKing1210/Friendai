@@ -100,7 +100,7 @@ class TranscriptBookTest {
         book.add(ALEX, "Alex", Speaker.COMPANION, "hi", 2_000);
         String json = TranscriptFile.encode(book).toJson();
 
-        TranscriptBook loaded = TranscriptFile.decode(json, LIMITS);
+        TranscriptBook loaded = TranscriptFile.decode(json, LIMITS, 3_000);
         assertEquals(2, loaded.snapshot().size());
         assertEquals(3, loaded.nextId());
         assertEquals("hi", loaded.snapshot().get(1).text());
@@ -130,7 +130,7 @@ class TranscriptBookTest {
                 + "\"playerName\":\"Alex\",\"speaker\":\"GHOST\",\"text\":\"bad speaker\"},"
                 + "{\"id\":4,\"atMillis\":1000,\"playerUuid\":\"00000000-0000-0000-0000-0000000000a1\","
                 + "\"playerName\":\"Alex\",\"speaker\":\"PLAYER\",\"text\":\"also kept\"}]}";
-        TranscriptBook book = TranscriptFile.decode(json, LIMITS);
+        TranscriptBook book = TranscriptFile.decode(json, LIMITS, 2_000);
         assertEquals(
                 List.of("kept", "also kept"),
                 book.snapshot().stream().map(TranscriptEntry::text).toList());
@@ -146,10 +146,36 @@ class TranscriptBookTest {
                 + "\"playerName\":\"Alex\",\"speaker\":\"PLAYER\",\"text\":\"two\"},"
                 + "{\"id\":3,\"atMillis\":3000,\"playerUuid\":\"00000000-0000-0000-0000-0000000000a1\","
                 + "\"playerName\":\"Alex\",\"speaker\":\"PLAYER\",\"text\":\"three\"}]}";
-        TranscriptBook book = TranscriptFile.decode(json, new TranscriptLimits(2, 40, 10_000, 64 * 1024));
+        TranscriptBook book = TranscriptFile.decode(json, new TranscriptLimits(2, 40, 10_000, 64 * 1024), 4_000);
         assertEquals(
                 List.of("two", "three"),
                 book.snapshot().stream().map(TranscriptEntry::text).toList());
+    }
+
+    @Test
+    void aReadAppliesTheAgeWindowWithoutWaitingForAPrune() {
+        TranscriptBook book = new TranscriptBook(new TranscriptLimits(10, 40, 1_000, 64 * 1024));
+        book.add(ALEX, "Alex", Speaker.PLAYER, "old", 10_000);
+        book.add(ALEX, "Alex", Speaker.COMPANION, "new", 10_800);
+
+        assertEquals(List.of("new", "old"), texts(book.all(10, 10_800)), "both are inside the window");
+        assertEquals(List.of("new"), texts(book.all(10, 11_100)), "the old line aged out at 11_100");
+        assertEquals(2, book.snapshot().size(), "a read does not mutate the stored book");
+        assertEquals(List.of("new"), texts(book.all(1, 10_800)), "the count cap applies after the age window");
+    }
+
+    @Test
+    void anAgeOutOfTheStoredFileIsDroppedAtLoadAndNextIdStaysMonotonic() {
+        String json = "{\"version\":1,\"nextId\":1,\"entries\":["
+                + "{\"id\":1,\"atMillis\":1000,\"playerUuid\":\"00000000-0000-0000-0000-0000000000a1\","
+                + "\"playerName\":\"Alex\",\"speaker\":\"PLAYER\",\"text\":\"old\"},"
+                + "{\"id\":2,\"atMillis\":2000,\"playerUuid\":\"00000000-0000-0000-0000-0000000000a1\","
+                + "\"playerName\":\"Alex\",\"speaker\":\"PLAYER\",\"text\":\"new\"}]}";
+
+        TranscriptBook book = TranscriptFile.decode(json, new TranscriptLimits(10, 40, 1_000, 64 * 1024), 2_500);
+
+        assertEquals(List.of("new"), texts(book.snapshot()), "a line older than the window never loads");
+        assertEquals(3, book.nextId(), "ids stay monotonic for pagination");
     }
 
     @Test

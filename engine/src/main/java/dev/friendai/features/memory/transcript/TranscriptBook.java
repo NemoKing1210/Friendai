@@ -120,14 +120,32 @@ public final class TranscriptBook {
         return List.copyOf(matching);
     }
 
-    /** The newest {@code limit} entries across every player, newest first. */
-    public synchronized List<TranscriptEntry> all(int limit) {
-        List<TranscriptEntry> all = new ArrayList<>(entries.values());
-        if (all.size() > Math.max(0, limit)) {
-            all = new ArrayList<>(all.subList(all.size() - Math.max(0, limit), all.size()));
+    /**
+     * The oldest timestamp a retained entry may carry at {@code now}; {@link Long#MIN_VALUE} when age never expires.
+     * Every reader uses this one cutoff, so {@code recent_chat}, the memory panel and diagnostics agree.
+     */
+    public long retentionCutoff(long now) {
+        return limits.cutoff(now);
+    }
+
+    /**
+     * The newest {@code limit} entries inside the retention window at {@code now}, newest first. An entry that has
+     * aged out is not returned even when no write or prune has removed it yet; the book itself is untouched.
+     */
+    public synchronized List<TranscriptEntry> all(int limit, long now) {
+        long cutoff = retentionCutoff(now);
+        List<TranscriptEntry> matching = new ArrayList<>();
+        for (TranscriptEntry entry : entries.values()) {
+            if (entry.atMillis() >= cutoff) {
+                matching.add(entry);
+            }
         }
-        all.sort(Comparator.comparingLong(TranscriptEntry::id).reversed());
-        return List.copyOf(all);
+        int cap = Math.max(0, limit);
+        if (matching.size() > cap) {
+            matching = new ArrayList<>(matching.subList(matching.size() - cap, matching.size()));
+        }
+        matching.sort(Comparator.comparingLong(TranscriptEntry::id).reversed());
+        return List.copyOf(matching);
     }
 
     public synchronized List<TranscriptEntry> snapshot() {
@@ -182,12 +200,6 @@ public final class TranscriptBook {
 
     synchronized void restoreNextId(long value) {
         nextId = Math.max(nextId, value);
-    }
-
-    synchronized void trimToLimits() {
-        while (entries.size() > limits.maxEntries()) {
-            entries.pollFirstEntry();
-        }
     }
 
     private String normalize(String text) {

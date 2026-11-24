@@ -10,6 +10,7 @@ import dev.friendai.infrastructure.persistence.OwnerFileStore;
 import dev.friendai.infrastructure.persistence.OwnerStoreWriter;
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -23,27 +24,38 @@ public final class TranscriptStore implements AutoCloseable {
 
     private final OwnerFileStore<TranscriptBook> store;
     private final Supplier<TranscriptLimits> limits;
+    private final LongSupplier clock;
 
     public TranscriptStore(Path dir, TranscriptLimits limits) {
-        this(dir, () -> limits);
+        this(dir, () -> limits, System::currentTimeMillis);
     }
 
     public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits) {
-        this(dir, limits, new OwnerStoreWriter(), OwnerFileStore.WriterOwnership.OWNED);
+        this(dir, limits, System::currentTimeMillis);
+    }
+
+    public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits, LongSupplier clock) {
+        this(dir, limits, clock, new OwnerStoreWriter(), OwnerFileStore.WriterOwnership.OWNED);
     }
 
     /** Production stores borrow the runtime writer; closing this store never closes it. */
     public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits, OwnerStoreWriter writer) {
-        this(dir, limits, writer, OwnerFileStore.WriterOwnership.BORROWED);
+        this(dir, limits, System::currentTimeMillis, writer);
+    }
+
+    public TranscriptStore(Path dir, Supplier<TranscriptLimits> limits, LongSupplier clock, OwnerStoreWriter writer) {
+        this(dir, limits, clock, writer, OwnerFileStore.WriterOwnership.BORROWED);
     }
 
     private TranscriptStore(
             Path dir,
             Supplier<TranscriptLimits> limits,
+            LongSupplier clock,
             OwnerStoreWriter writer,
             OwnerFileStore.WriterOwnership ownership) {
         this.limits = limits;
-        this.store = new OwnerFileStore<>(dir, new Codec(limits), writer, ownership, new Policy());
+        this.clock = clock;
+        this.store = new OwnerFileStore<>(dir, new Codec(limits, clock), writer, ownership, new Policy());
     }
 
     /** Loads lazily; a missing file creates an empty in-memory book without touching disk. */
@@ -65,6 +77,20 @@ public final class TranscriptStore implements AutoCloseable {
      * reaches a live transcript instead of waiting for a restart. Call on the owning server thread; nothing is
      * written and a protected original stays read-only.
      */
+    /** The store's clock: the one time source reads, load and maintenance share. */
+    public long now() {
+        return clock.getAsLong();
+    }
+
+    /**
+     * Expires aged-out lines in every book this store already loaded, bounded by the loaded set and each book's
+     * head entry. A real removal bumps the book revision, so an open panel refreshes and the next flush rewrites
+     * the file; an idle session therefore cannot keep expired lines alive without a write or a config reload.
+     */
+    public void maintain(long nowMillis) {
+        store.forEachLoaded((owner, book) -> book.prune(nowMillis));
+    }
+
     public void applyLimits(long nowMillis) {
         TranscriptLimits current = limits.get();
         if (current == null) {
@@ -107,14 +133,18 @@ public final class TranscriptStore implements AutoCloseable {
 
     private static final class Codec implements StoreCodec<TranscriptBook> {
         private final Supplier<TranscriptLimits> limits;
+        private final LongSupplier clock;
 
-        Codec(Supplier<TranscriptLimits> limits) {
+        Codec(Supplier<TranscriptLimits> limits, LongSupplier clock) {
             this.limits = limits;
+            this.clock = clock;
         }
 
         @Override
         public TranscriptBook load(String json) {
-            return json == null ? new TranscriptBook(limits.get()) : TranscriptFile.decode(json, limits.get());
+            return json == null
+                    ? new TranscriptBook(limits.get())
+                    : TranscriptFile.decode(json, limits.get(), clock.getAsLong());
         }
 
         @Override

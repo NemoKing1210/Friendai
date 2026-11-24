@@ -86,8 +86,8 @@ public final class TranscriptActions {
             label = nameOf(book, player);
         }
         int capped = Math.max(1, Math.min(50, limit));
-        long retention = activeLimits.retentionMillis();
-        long window = retention > 0 ? Math.max(0, now - retention) : 0;
+        long cutoff = activeLimits.cutoff(now);
+        long window = cutoff == Long.MIN_VALUE ? 0 : Math.max(0, cutoff);
         if (minutes > 0) {
             window = Math.max(window, now - minutes * 60_000L);
         }

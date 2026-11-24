@@ -132,11 +132,16 @@ public final class MemoryViewStream {
                 + runtime.transcripts().book(uuid).revision();
     }
 
-    /** The newest transcript lines of the viewer's own conversations; the codec caps them again on the wire. */
+    /**
+     * The newest transcript lines of the viewer's own conversations, inside the configured retention window; the
+     * codec caps them again on the wire. An entry that aged out while the panel was open disappears on the next
+     * revision push even when nobody wrote anything.
+     */
     private static List<MemoryView.TranscriptRow> transcriptRows(ServerRuntime runtime, UUID owner) {
         UnaryOperator<String> redact = runtime.sessions().redactor();
         List<MemoryView.TranscriptRow> rows = new ArrayList<>();
-        for (TranscriptEntry entry : runtime.transcripts().book(owner).all(TRANSCRIPT_ROWS)) {
+        long now = System.currentTimeMillis();
+        for (TranscriptEntry entry : runtime.transcripts().book(owner).all(TRANSCRIPT_ROWS, now)) {
             rows.add(new MemoryView.TranscriptRow(
                     entry.id(),
                     entry.playerUuid().toString(),

@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.1] - 2026-11-24
+
+### Fixed
+
+- Conversation lines older than the configured retention period now disappear everywhere at once: from the companion's `recent_chat` answers, from an open memory panel and from a new diagnostic export, and the next save rewrites the transcript file without them, even when nobody has spoken since the window passed.
+- A transcript loaded after a long break, or after you shortened the retention setting, no longer shows exchanges that already expired; the lines that remain keep their numbering.
+
 ## [0.233.0] - 2026-11-24
 
 ### Added

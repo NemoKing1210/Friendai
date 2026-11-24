@@ -857,3 +857,14 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       reports the shortfall and the pickaxe it needs instead of breaking the tool on the first blocks.
 - [ ] Carry no pickaxe and point the companion at stone: it refuses to break it (no destroyed drops) and names the
       tool it needs.
+
+## Conversation retention expires without a new message (TODO 163)
+
+- [ ] With a short retention (for example one day) and an existing conversation, skip a day without talking to the
+      companion: ask it to read the recent chat and confirm the old exchange is gone.
+- [ ] Open the memory panel on that same world before the window passes, leave it open while you advance the save's
+      clock past the window, and confirm the old rows disappear from the panel without a reload.
+- [ ] Export diagnostics after the window passed and confirm the expired exchange is not in the export, then check
+      that the transcript file under `<world>/friendai/transcript/` no longer holds it after the next save.
+- [ ] Shorten the retention setting while a world is running, then read the recent chat and open the panel: the
+      now-out-of-window lines are gone; the lines inside the new window keep their numbering.

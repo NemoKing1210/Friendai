@@ -157,7 +157,7 @@ public final class DiagnosticCollector {
 
     private static String chat(ServerRuntime runtime, ServerPlayer owner) {
         List<TranscriptEntry> entries =
-                runtime.transcripts().book(owner.getUUID()).all(CHAT_LIMIT);
+                runtime.transcripts().book(owner.getUUID()).all(CHAT_LIMIT, System.currentTimeMillis());
         return entries.stream()
                 .filter(entry -> owner.getUUID().equals(entry.playerUuid()))
                 .map(entry -> entry.atMillis() + " " + entry.speaker() + ": " + entry.text())

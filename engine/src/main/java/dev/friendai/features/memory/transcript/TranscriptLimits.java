@@ -31,4 +31,12 @@ public record TranscriptLimits(int maxEntries, int maxTextChars, long retentionM
         long bytes = Math.min(8L * 1024 * 1024, Math.max(2L * 1024 * 1024, derived));
         return new TranscriptLimits(entries, chars, Math.max(0, retentionDays) * 24L * 60 * 60 * 1000, bytes);
     }
+
+    /**
+     * The oldest timestamp a transcript line may carry at {@code now}: the one age rule behind the book, the
+     * {@code recent_chat} window, the memory panel and diagnostics.
+     */
+    public long cutoff(long now) {
+        return retentionMillis > 0 ? now - retentionMillis : Long.MIN_VALUE;
+    }
 }
