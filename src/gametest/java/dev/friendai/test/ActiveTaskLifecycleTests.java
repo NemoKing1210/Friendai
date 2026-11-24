@@ -1644,6 +1644,193 @@ public class ActiveTaskLifecycleTests {
         });
     }
 
+    /**
+     * Two nominal sources can lead to the same blocked way. The first refusal is charged and the next source is
+     * eligible; when that one is refused for the same typed reason, the order stops and reports the blocker instead of
+     * spending its step budget alternating between them.
+     */
+    @GameTest(maxTicks = 1200)
+    public void twoRoutesBlockedTheSameWayStopTheObtainWithTheBlocker(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 3);
+        BlockedRouteFactory factory = new BlockedRouteFactory();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(factory), "obtain_blocked_routes");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the obtain to settle");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(),
+                    TaskDisposition.FAILED,
+                    "a third remembered source must not be tried after the same blocker");
+            h.assertValueEqual(factory.children.size(), 2, "the second route refused the same way must stop the order");
+            String summary = events.finishedSummaries.getFirst();
+            h.assertTrue(
+                    summary.contains("return-route-obstructed"), "the stop must name the typed blocker: " + summary);
+        });
+    }
+
+    /**
+     * The bound must not condemn an order after a single blocked route: the next plan runs against the live world, so
+     * a reachable log still supplies the acquisition.
+     */
+    @GameTest(maxTicks = 1200)
+    public void oneBlockedRouteDoesNotCondemnTheObtain(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.setBlock(4, 2, 2, Blocks.OAK_LOG);
+        h.setBlock(2, 2, 4, Blocks.OAK_LOG);
+        h.assertTrue(seenByCompanion(h, companion, 4, 2), "the first log must be directly visible");
+        h.assertTrue(seenByCompanion(h, companion, 2, 4), "the second log must be directly visible");
+        FirstRouteBlockedFactory factory = new FirstRouteBlockedFactory();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(factory), "obtain_after_blocked_route");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(factory.stubbed, 1, "the fixture blocks only the first route");
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the obtain to settle");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(),
+                    TaskDisposition.SUCCESS,
+                    "one refused route must not stop a reachable source: "
+                            + (events.finishedSummaries.isEmpty() ? "" : events.finishedSummaries.getFirst()));
+            h.assertValueEqual(
+                    companion.inventory().countItem(Items.OAK_LOG), 1, "the credited step must be the one that mined");
+        });
+    }
+
+    /** A batch gather child inherits the same bound, and the batch reports the blocker the child settled with. */
+    @GameTest(maxTicks = 1200)
+    public void aBatchGatherStopsOnTheSameBlocker(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 3);
+        BlockedRouteFactory factory = new BlockedRouteFactory();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        runner.start(
+                new BatchObtainTask(
+                        List.of(new CraftPlanner.Target("minecraft:oak_log", 1)),
+                        false,
+                        true,
+                        4,
+                        1_000,
+                        32,
+                        32,
+                        400,
+                        "local",
+                        null,
+                        null,
+                        factory),
+                "obtain_batch_blocked_routes");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the batch to finish");
+            h.assertValueEqual(events.finishedDispositions.getFirst(), TaskDisposition.FAILED, "blocked batch");
+            h.assertValueEqual(
+                    factory.children.size(), 2, "the gather child must stop at the second route, as on its own");
+            String summary = events.finishedSummaries.getFirst();
+            h.assertTrue(
+                    summary.contains("return-route-obstructed"),
+                    "the batch must report the blocker its child settled with: " + summary);
+        });
+    }
+
+    /**
+     * The same remembered-but-absent log site, repeated at distinct cells: each is a nominal source the planner can
+     * visit, so refusing one leaves the next eligible exactly as the incident's alternating routes did.
+     */
+    private static CompanionEntity rememberLogSites(GameTestHelper h, int count) {
+        GameTestSupport.platformAt(h, 500, 8);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 501, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 501, 2);
+        companion.setOwner(owner.getUUID());
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(companion);
+        runtime.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        var viewpoint = h.absolutePos(new BlockPos(2, 501, 2));
+        for (int i = 0; i < count; i++) {
+            var remembered = h.absolutePos(new BlockPos(5 + i, 501, 3 + i));
+            runtime.knowledge()
+                    .book(owner.getUUID())
+                    .observe(
+                            new ResourceObservation(
+                                    "minecraft:oak_log",
+                                    new ResourceObservation.Location(
+                                            dimension,
+                                            new Pos(remembered.getX(), remembered.getY(), remembered.getZ())),
+                                    new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                    Math.max(0, h.getLevel().getGameTime() - 1)),
+                            "minecraft:oak_log");
+        }
+        return companion;
+    }
+
+    /** A child that always refuses with the same typed reason, at a different failed leg each time. */
+    private static final class BlockedRouteFactory implements ObtainSubtaskFactory {
+        final List<BlockedRouteChild> children = new ArrayList<>();
+
+        @Override
+        public Created create(TaskContext context, ObtainStep step, Options options) {
+            BlockedRouteChild child = new BlockedRouteChild(children.size() + 1);
+            children.add(child);
+            return Created.task(child);
+        }
+    }
+
+    private static final class BlockedRouteChild implements Task {
+        private final int leg;
+
+        private BlockedRouteChild(int leg) {
+            this.leg = leg;
+        }
+
+        @Override
+        public String type() {
+            return "blocked_route_child";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.FAILED;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "a blocked route";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "dug down without reaching it (why=return-route-obstructed-" + leg + ",2," + leg + "->" + leg + ",3,"
+                    + leg + " x2 cand=0)";
+        }
+    }
+
+    /** Fails the first child it is asked for and delegates the rest, so a single blocked route is all the fixture adds. */
+    private static final class FirstRouteBlockedFactory implements ObtainSubtaskFactory {
+        final ObtainSubtaskFactory rest = new MinecraftObtainSubtaskFactory();
+        int stubbed;
+
+        @Override
+        public Created create(TaskContext context, ObtainStep step, Options options) {
+            if (stubbed == 0) {
+                stubbed++;
+                return Created.task(new BlockedRouteChild(1));
+            }
+            return rest.create(context, step, options);
+        }
+    }
+
     private static boolean seenByCompanion(GameTestHelper h, CompanionEntity companion, int x, int z) {
         return GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(x, 2, z)));
     }

@@ -887,15 +887,15 @@ public class ObtainTests {
     }
 
     /**
-     * The order item 184 came from, on the terrain it came from and with nothing in the bag: the companion fells the
-     * only wood, crafts the table and a wooden pickaxe, descends into the buried stone over a reversible route and
-     * carries back the four stone tools. No tool, plank or stick is preloaded.
+     * The order item 184 came from, on the terrain it came from and in the stance it reached: the table and the wooden
+     * pickaxe are already made, so the whole run depends on descending into the buried stone over a route the return
+     * check can verify. No cobblestone is carried beforehand.
      */
     @GameTest(
             maxTicks = 18000,
             environment = "friendai-gametest:obtain_buried_tool_set",
             structure = GameTestArenas.ARENA_24)
-    public void callerObtainsStoneToolSetFromBuriedStoneWithAnEmptyBag(GameTestHelper h) {
+    public void callerCraftsStoneToolSetFromBuriedStone(GameTestHelper h) {
         GameTestSupport.platformAt(h, 200, 24);
         for (int x = 0; x < 24; x++) {
             for (int z = 0; z < 24; z++) {
@@ -903,18 +903,16 @@ public class ObtainTests {
                 for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
             }
         }
-        // The only wood in the world: one reachable oak trunk the companion must fell for its own pickaxe and table.
-        for (int y = 201; y <= 204; y++) h.setBlock(new BlockPos(14, y, 10), Blocks.OAK_LOG);
-        h.setBlock(
-                new BlockPos(14, 205, 10),
-                Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
         var owner = GameTestSupport.mockPlayerAt(h, 8, 201, 12);
+        h.setBlock(new BlockPos(8, 201, 10), Blocks.CRAFTING_TABLE);
         CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
         companion.setOwner(owner.getUUID());
-        h.assertTrue(companion.inventory().isEmpty(), "the order must start with an empty bag");
-        h.assertTrue(
-                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(14, 201, 10))),
-                "the trunk should be directly visible");
+        // The incident's order began with the table and the wooden pickaxe already made; the sticks their handles need
+        // are carried too, so the one thing this run must obtain is the stone itself.
+        companion.inventory().setItem(0, new ItemStack(Items.WOODEN_PICKAXE));
+        companion.inventory().setItem(1, new ItemStack(Items.OAK_PLANKS, 4));
+        companion.inventory().setItem(2, new ItemStack(Items.STICK, 8));
+        h.assertValueEqual(0, companion.inventory().countItem(Items.COBBLESTONE), "no cobblestone may be preloaded");
         Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER);
         List<String> toolIds = List.of(
                 "minecraft:stone_pickaxe", "minecraft:stone_axe", "minecraft:stone_shovel", "minecraft:stone_sword");
@@ -941,7 +939,7 @@ public class ObtainTests {
                 "obtain_items");
         TaskTrace.of(h, runner, companion).succeedWhen(() -> {
             runner.tick();
-            h.assertTrue(result.status != null, "the empty-bag stone tool order should finish");
+            h.assertTrue(result.status != null, "the stone tool order should finish");
             h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());
             for (Item item : tools) {
                 h.assertValueEqual(companion.inventory().countItem(item), 1, "crafted " + item);

@@ -63,16 +63,102 @@ class AcquisitionAttemptsTest {
     }
 
     @Test
+    void twoRoutesBlockedTheSameWayStopTheJob() {
+        AcquisitionAttempts attempts = new AcquisitionAttempts();
+
+        attempts.recordFailure(
+                "tool_materials", "minecraft:stone", "dug 3 blocks down (why=return-route-obstructed-4,2,2->4,3,2)");
+        assertEquals("", attempts.repeatedBlocker(), "one refused route is not yet a blocked way");
+
+        attempts.recordFailure(
+                "tool_materials",
+                "minecraft:cobblestone",
+                "dug 2 blocks down (why=return-route-obstructed-8,2,8->8,3,8)");
+
+        assertEquals("return-route-obstructed", attempts.repeatedBlocker());
+        assertEquals(2, attempts.repeatedBlockerAttempts());
+        assertEquals(java.util.List.of("minecraft:stone", "minecraft:cobblestone"), attempts.repeatedBlockerSources());
+    }
+
+    @Test
+    void aDifferentBlockerStartsTheEvidenceOver() {
+        AcquisitionAttempts attempts = new AcquisitionAttempts();
+
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-unloaded-5,2,5->5,3,5)");
+
+        assertEquals("", attempts.repeatedBlocker());
+        assertEquals(1, attempts.repeatedBlockerAttempts());
+    }
+
+    @Test
+    void anUntypedFailureNeitherCountsNorBreaksTheStreak() {
+        AcquisitionAttempts attempts = new AcquisitionAttempts();
+
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        attempts.recordFailure("family", "minecraft:stone", "no stone within 12 blocks");
+        attempts.recordFailure("family", "minecraft:cobblestone", "x (why=return-route-obstructed-2,2,3->2,3,3)");
+
+        assertEquals("return-route-obstructed", attempts.repeatedBlocker());
+        assertEquals(2, attempts.repeatedBlockerAttempts());
+    }
+
+    @Test
+    void aCreditedStepMakesTheRouteEligibleAgain() {
+        AcquisitionAttempts attempts = new AcquisitionAttempts();
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        assertEquals("return-route-obstructed", attempts.repeatedBlocker());
+
+        attempts.clearBlockers();
+        assertEquals("", attempts.repeatedBlocker());
+        assertTrue(attempts.repeatedBlockerSources().isEmpty());
+
+        attempts.recordFailure("family", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        assertEquals("", attempts.repeatedBlocker(), "the new attempt is the first of its streak");
+    }
+
+    @Test
+    void anotherNeedDoesNotShareTheStreak() {
+        AcquisitionAttempts attempts = new AcquisitionAttempts();
+
+        attempts.recordFailure("tool_materials", "minecraft:stone", "x (why=return-route-obstructed-1,2,3->1,3,3)");
+        attempts.recordFailure("fuel", "minecraft:stone", "x (why=return-route-obstructed-2,2,3->2,3,3)");
+
+        assertEquals("", attempts.repeatedBlocker());
+    }
+
+    @Test
+    void theBlockerKeyDropsTheFailedLeg() {
+        assertEquals(
+                "return-route-obstructed",
+                AcquisitionAttempts.blockerKey("(why=return-route-obstructed-1,2,3->1,3,3 x2 cand=0)"));
+        assertEquals(
+                "return-route-obstructed",
+                AcquisitionAttempts.blockerKey("(why=return-route-obstructed--4,2,3->-4,3,3)"));
+        assertEquals("return-needs-supports", AcquisitionAttempts.blockerKey("(why=return-needs-supports-2-spare-0)"));
+        assertEquals(
+                "return-route-anchor-unloaded", AcquisitionAttempts.blockerKey("why=return-route-anchor-unloaded"));
+        assertEquals("", AcquisitionAttempts.blockerKey("no stone within 12 blocks"));
+        assertEquals(
+                "",
+                AcquisitionAttempts.blockerKey("(why=unreachable x0 cand=8)"),
+                "a transient search failure is not a blocked way");
+        assertEquals("", AcquisitionAttempts.blockerKey(null));
+    }
+
+    @Test
     void aBlankSourceIsIgnoredAndClearForgetsEverything() {
         AcquisitionAttempts attempts = new AcquisitionAttempts();
         attempts.recordFailure("family", "  ", "failed");
         attempts.recordFailure("family", null, "failed");
         assertTrue(attempts.entries().isEmpty());
 
-        attempts.recordFailure("family", "minecraft:stone", "failed");
+        attempts.recordFailure("family", "minecraft:stone", "failed (why=return-route-obstructed-1,2,3->1,3,3)");
         attempts.clear();
 
         assertTrue(attempts.entries().isEmpty());
         assertTrue(attempts.sourceFailures().isEmpty());
+        assertEquals("", attempts.repeatedBlocker(), "a cleared ledger carries no blocker");
     }
 }

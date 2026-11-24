@@ -101,14 +101,17 @@ public final class ObtainTask implements Task {
     private Task stoppedChild;
     /** The carried bag and source count when the current step began, so its settlement is judged by measured effects. */
     private Map<String, Integer> stepStartBag = Map.of();
+
     private int stepStartCandidates;
     /** The step whose reported success waits for the replan's scan to confirm it changed something. */
     private ObtainStep settledStep;
+
     private boolean settledVisitPresent;
     private Map<String, Integer> settledBag = Map.of();
     private int settledCandidates;
     /** The last attempt that yielded nothing, so the same unchanged attempt cannot repeat until a limit. */
     private String noYieldKey;
+
     private Map<String, Integer> noYieldBag = Map.of();
     private int noYieldCandidates;
     /** A look through nearby storage, run once before making or gathering the item. */
@@ -443,6 +446,10 @@ public final class ObtainTask implements Task {
                     excludedSiteIds.add(visit.siteId());
                 }
                 recordFailedSource(step, subSummary);
+                String blocker = attempts.repeatedBlocker();
+                if (!blocker.isEmpty()) {
+                    return fail(blockedText(blocker, subSummary));
+                }
                 String key = stepKey(step);
                 if (key.equals(lastFailedKey)) {
                     return fail("stuck at " + ObtainText.stepText(step) + ": " + subSummary);
@@ -479,7 +486,8 @@ public final class ObtainTask implements Task {
                 }
             }
         }
-        if (stepsRun >= maxSteps) {
+        // A settled step counts even before its effect is verified: the limit bounds work done, not work credited.
+        if (stepsRun + (settledStep != null ? 1 : 0) >= maxSteps) {
             return fail("gave up after " + maxSteps + " steps; have " + have + " of " + count + " " + item);
         }
         ServerLevel level = c.level();
@@ -497,6 +505,8 @@ public final class ObtainTask implements Task {
                 history.add(pastText(step));
                 lastFailedKey = null;
                 noYieldKey = null;
+                // A verified effect is the relevant change: a route that failed before is eligible again.
+                attempts.clearBlockers();
             } else {
                 // The child said it did the action; the world says it changed nothing. Charge the attempt once, so an
                 // unchanged route cannot be replayed as progress until something relevant moves.
@@ -926,6 +936,28 @@ public final class ObtainTask implements Task {
             case ObtainStep.VisitResource visit -> attempts.recordFailure(item, visit.block(), cause);
             default -> {}
         }
+    }
+
+    /**
+     * The stop a blocked route earns: the typed refusal, every source the streak ruled out and the last child's own
+     * account, so a report names the wall instead of "stuck at" or a spent step budget.
+     */
+    private String blockedText(String blocker, String cause) {
+        StringBuilder text = new StringBuilder("can't reach ")
+                .append(item)
+                .append(": ")
+                .append(blocker)
+                .append(" on ")
+                .append(attempts.repeatedBlockerAttempts())
+                .append(" consecutive attempts");
+        String sources = String.join(", ", attempts.repeatedBlockerSources());
+        if (!sources.isBlank()) {
+            text.append(" through ").append(sources);
+        }
+        if (cause != null && !cause.isBlank()) {
+            text.append(": ").append(cause);
+        }
+        return text.toString();
     }
 
     private static String stepKey(ObtainStep step) {

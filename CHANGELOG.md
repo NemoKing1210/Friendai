@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.22] - 2026-11-25
+
+### Fixed
+
+- An order that keeps being blocked the same way now stops and says what refuses it instead of alternating between equivalent sources until its step budget runs out; one blocked route on its own still lets another source supply the item.
+
 ## [0.233.21] - 2026-11-25
 
 ### Fixed
