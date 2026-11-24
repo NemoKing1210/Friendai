@@ -104,6 +104,74 @@ public class ActiveTaskLifecycleTests {
         }
     }
 
+    /** What the runner published when a queued step never became a task. */
+    private static final class ActivationOutcomes implements TaskEventSink {
+        record Row(long jobId, long planId, String tool, TaskDisposition disposition, String summary, long execution) {}
+
+        final List<Row> jobs = new ArrayList<>();
+        final List<Row> finished = new ArrayList<>();
+        long blockedJobId;
+        String blockedReason = "";
+        long finishedPlanId;
+        TaskDisposition planDisposition;
+        String planSummary = "";
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {}
+
+        @Override
+        public void onFinished(
+                int id,
+                long planId,
+                String toolName,
+                TaskDisposition disposition,
+                String summary,
+                java.util.Optional<TaskWorkResult> workResult,
+                long execution) {
+            finished.add(new Row(id, planId, toolName, disposition, summary, execution));
+        }
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+
+        @Override
+        public void onJobFinished(
+                long jobId,
+                long planId,
+                String toolName,
+                TaskDisposition disposition,
+                String summary,
+                long execution,
+                java.util.Optional<TaskWorkResult> workResult) {
+            jobs.add(new Row(jobId, planId, toolName, disposition, summary, execution));
+        }
+
+        @Override
+        public void onPlanBlocked(
+                long planId,
+                String goal,
+                long jobId,
+                String toolName,
+                String reason,
+                int remaining,
+                boolean remainingExact) {
+            blockedJobId = jobId;
+            blockedReason = reason;
+        }
+
+        @Override
+        public void onPlanFinished(
+                long planId,
+                String goal,
+                TaskDisposition disposition,
+                String summary,
+                java.util.Optional<TaskWorkResult> workResult) {
+            finishedPlanId = planId;
+            planDisposition = disposition;
+            planSummary = summary;
+        }
+    }
+
     /** What the queue said at a plan boundary, with the receipt each boundary was obliged to carry. */
     private static final class PlanBoundaries implements TaskEventSink {
         long blockedPlanId;
@@ -699,6 +767,172 @@ public class ActiveTaskLifecycleTests {
                     "a terminal plan keeps the last step's verified work: "
                             + boundaries.finishedReceipt.get().compact());
             h.assertValueEqual(boundaries.finishedDisposition, TaskDisposition.FAILED, "the plan ends failed");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aQueuedStepRefusedAtActivationStillBecomesAnOutcome(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        ActivationOutcomes outcomes = new ActivationOutcomes();
+        runner.setEventSink(outcomes);
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "store the wheat",
+                List.of(give),
+                List.of(context -> {
+                    throw new IllegalArgumentException("owner is not in this dimension");
+                }),
+                PlanOptions.DEFAULT);
+        long jobId = runner.queue().jobsOfPlan(planId).getFirst().id();
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(outcomes.jobs.size(), 1, "one refused activation: " + outcomes.jobs);
+            ActivationOutcomes.Row row = outcomes.jobs.getFirst();
+            h.assertValueEqual(row.jobId(), jobId, "the row keeps the job identity");
+            h.assertValueEqual(row.planId(), planId, "the row keeps the plan identity");
+            h.assertValueEqual(row.tool(), "give_items", "the row names the refused tool");
+            h.assertValueEqual(row.disposition(), TaskDisposition.FAILED, "a refusal is a failure");
+            h.assertValueEqual(row.summary(), "owner is not in this dimension", "the factory's own reason survives");
+            h.assertValueEqual(row.execution(), 0L, "no task instance ran");
+            h.assertTrue(outcomes.finished.isEmpty(), "the plan boundary carries it: " + outcomes.finished);
+            h.assertValueEqual(outcomes.blockedJobId, jobId, "the blocker names the same job");
+            h.assertValueEqual(
+                    outcomes.blockedReason, "owner is not in this dimension", "the plan says why the step stopped");
+            h.assertValueEqual(
+                    runner.queue().job(jobId).orElseThrow().state(),
+                    JobState.FAILED,
+                    "the refused job stays in the plan for the panel");
+            h.assertTrue(runner.current().isEmpty(), "no task was started");
+            h.assertValueEqual(companion.inventory().isEmpty(), true, "the refusal changed nothing");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aDirectStepRefusedAtActivationSettlesOnceAndLeavesTheQueue(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        ActivationOutcomes outcomes = new ActivationOutcomes();
+        runner.setEventSink(outcomes);
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long jobId = runner.enqueue(give, context -> {
+            throw new IllegalArgumentException("no owner is set");
+        });
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(outcomes.jobs.size(), 1, "one queue row: " + outcomes.jobs);
+            h.assertValueEqual(outcomes.jobs.getFirst().jobId(), jobId, "the row keeps the job identity");
+            h.assertValueEqual(outcomes.jobs.getFirst().planId(), 0L, "a direct job has no plan");
+            h.assertValueEqual(outcomes.jobs.getFirst().summary(), "no owner is set", "the reason survives");
+            h.assertValueEqual(outcomes.finished.size(), 1, "the direct job reaches the brain once");
+            h.assertValueEqual(outcomes.finished.getFirst().disposition(), TaskDisposition.FAILED, "failed");
+            h.assertTrue(runner.queue().job(jobId).isEmpty(), "the refused direct job leaves the queue");
+            h.assertTrue(outcomes.blockedJobId == 0L, "no plan boundary for a direct job");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void aRevokedGrantSettlesTheStepAsCancelled(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        ActivationOutcomes outcomes = new ActivationOutcomes();
+        runner.setEventSink(outcomes);
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "store the wheat",
+                List.of(give),
+                List.of(new dev.friendai.task.plan.StepFactory() {
+                    @Override
+                    public Task create(TaskContext context) {
+                        throw new AssertionError("a revoked step must never be built");
+                    }
+
+                    @Override
+                    public boolean authorized(TaskContext context) {
+                        return false;
+                    }
+                }),
+                PlanOptions.DEFAULT);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(outcomes.jobs.size(), 1, "one row for the revoked step: " + outcomes.jobs);
+            h.assertValueEqual(
+                    outcomes.jobs.getFirst().disposition(), TaskDisposition.CANCELLED, "nothing was attempted");
+            h.assertTrue(
+                    outcomes.jobs.getFirst().summary().contains("was revoked before the action started"),
+                    "the row says the grant is gone: "
+                            + outcomes.jobs.getFirst().summary());
+            h.assertValueEqual(outcomes.finishedPlanId, planId, "the plan still ends");
+            h.assertValueEqual(outcomes.planDisposition, TaskDisposition.FAILED, "the plan ends failed");
+            h.assertTrue(outcomes.planSummary.contains("revoked"), "the plan says why: " + outcomes.planSummary);
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 60)
+    public void aRestoredJobWithoutAFactorySettlesOnce(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity first = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator before = new ExecutionCoordinator(first, () -> 300, () -> false);
+        before.start(new WaitTask(40), "hold");
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long jobId = before.enqueue(give, context -> new WaitTask(1));
+        QueueSave.Decoded saved = new QueueSave.Decoded(before.queue(), 0);
+        before.stop("simulated restart");
+        CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        ExecutionCoordinator runner = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
+        ActivationOutcomes outcomes = new ActivationOutcomes();
+        runner.setEventSink(outcomes);
+        runner.installRestoredState(saved, java.util.Map.of(), java.util.Map.of(), null);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertValueEqual(outcomes.jobs.size(), 1, "the restored job settles once: " + outcomes.jobs);
+            h.assertValueEqual(outcomes.jobs.getFirst().jobId(), jobId, "the same job identity");
+            h.assertValueEqual(
+                    outcomes.jobs.getFirst().summary(),
+                    "task factory is unavailable for give_items",
+                    "the row names the missing factory and the tool");
+            h.assertValueEqual(outcomes.finished.size(), 1, "the brain hears about it once");
+            h.assertTrue(runner.queue().job(jobId).isEmpty(), "the unusable job leaves the queue");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 80)
+    public void activationRefusalsSettleInBoundedSteps(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        ActivationOutcomes outcomes = new ActivationOutcomes();
+        runner.setEventSink(outcomes);
+        // A running task keeps every enqueue from starting immediately, so the whole batch faces one scheduler step.
+        runner.start(new WaitTask(2), "hold");
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        for (int i = 0; i < 12; i++) {
+            runner.enqueue(give, context -> {
+                throw new IllegalArgumentException("owner is away");
+            });
+        }
+        h.assertValueEqual(outcomes.jobs.size(), 0, "the held task kept the batch from starting");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!outcomes.jobs.isEmpty(), "no activation refusal settled yet");
+            h.assertTrue(
+                    outcomes.jobs.size() < 12,
+                    "one scheduler step must not settle the whole queue: " + outcomes.jobs.size());
+            for (int i = 0; i < 20 && outcomes.jobs.size() < 12; i++) runner.tick();
+            h.assertValueEqual(outcomes.jobs.size(), 12, "the rest settle on later polls");
             runner.stop("test cleanup");
         });
     }

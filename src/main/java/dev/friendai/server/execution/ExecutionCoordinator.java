@@ -1153,6 +1153,18 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private boolean startNextQueued() {
+        return startNextQueued(0);
+    }
+
+    /**
+     * One scheduler step settles at most {@link #MAX_ACTIVATION_SETTLEMENTS} refusing jobs; the rest wait for the next
+     * poll. A queue full of jobs that cannot start must not keep one tick busy.
+     */
+    private boolean startNextQueued(int settled) {
+        if (settled >= MAX_ACTIVATION_SETTLEMENTS) {
+            queueDriver.deferNextPoll(POLL_INTERVAL_TICKS);
+            return false;
+        }
         if ((queueDriver.queue().jobCount() == 0
                         && queueDriver.queue().plans().stream().noneMatch(plan -> plan.cursor() != null))
                 || paused
@@ -1161,7 +1173,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         expireDeadlines();
         Optional<Job> candidate = queueDriver.nextReady();
         if (candidate.isEmpty()) {
-            if (tryIdleRepair()) return startNextQueued();
+            if (tryIdleRepair()) return startNextQueued(settled + 1);
             maybeNoticeBlocked();
             return false;
         }
@@ -1171,14 +1183,17 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         Job job = candidate.get();
         StepFactory factory = queueDriver.factory(job.id());
         if (factory == null) {
+            // A factory that is not registered cannot appear later, so the job ends on its first attempt.
+            String reason = "task factory is unavailable for " + job.tool();
+            queueDriver.failPermanently(job.id(), reason);
+            refuseActivation(job, reason, TaskDisposition.FAILED);
             if (isStructuredPlan(job.planId())) {
                 queueDriver.cancelPlan(job.planId());
-                queueDriver.finishPlan(job.planId(), "task factory is unavailable for " + job.tool(), false);
-            } else {
-                queueDriver.fail(job.id(), "task factory is unavailable");
-                if (job.planId() > 0) queueDriver.notifyBlocked(job.planId(), job.id(), "task factory is unavailable");
+                queueDriver.finishPlan(job.planId(), reason, false);
+            } else if (job.planId() > 0) {
+                queueDriver.notifyBlocked(job.planId(), job.id(), reason);
             }
-            return startNextQueued();
+            return startNextQueued(settled + 1);
         }
         CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
         if (companion.creativeMode()
@@ -1195,14 +1210,16 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             PlanStepFactory planFactory = queueDriver.planFactory(job.planId(), job.tool());
             if (planFactory == null || !planFactory.authorized(authorizationContext, step(job))) {
                 queueDriver.cancelPlan(job.planId());
+                refuseActivation(job, revoked, TaskDisposition.CANCELLED);
                 queueDriver.finishPlan(job.planId(), revoked, false);
-                return startNextQueued();
+                return startNextQueued(settled + 1);
             }
         } else if (!factory.authorized(authorizationContext)) {
             // Deterministic refusal: retrying with the same principal would only fail again.
             queueDriver.cancelJob(job.id(), revoked);
+            refuseActivation(job, revoked, TaskDisposition.CANCELLED);
             if (job.planId() > 0) queueDriver.finishPlan(job.planId(), revoked, false);
-            return startNextQueued();
+            return startNextQueued(settled + 1);
         }
         if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
         try {
@@ -1233,6 +1250,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         } catch (RuntimeException e) {
             String reason = e instanceof IllegalArgumentException ? e.getMessage() : activeTasks.crashSummary(e);
             var failed = queueDriver.fail(job.id(), reason);
+            if (!failed.retried()) {
+                // A failed start is a refusal nobody else publishes: the task never ran a tick, so the running-task
+                // path has no outcome for it and the retry button has nothing to replay.
+                refuseActivation(job, reason, TaskDisposition.FAILED);
+            }
             if (!failed.retried() && isStructuredPlan(job.planId()))
                 handleStructuredActionFailure(job.planId(), job.id(), reason);
             else if (!failed.retried() && job.planId() > 0) {
@@ -1242,7 +1264,27 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 } else if (queueDriver.queue().planStatus(job.planId()) == PlanStatus.FAILED)
                     queueDriver.finishPlan(job.planId(), reason, false);
             }
-            return startNextQueued();
+            return startNextQueued(settled + 1);
+        }
+    }
+
+    /** Activation refusals one scheduler step may settle before the rest wait for the next poll. */
+    private static final int MAX_ACTIVATION_SETTLEMENTS = 8;
+
+    /**
+     * One terminal outcome for a queued job that never produced a running task, through the same sink a finished task
+     * uses. Without it a refusal that arrives after a tool already returned the job id leaves no history row and never
+     * reaches the model. A direct job has no plan boundary to carry it, so its row is the only trace and the job leaves
+     * the queue right away.
+     */
+    private void refuseActivation(Job job, String reason, TaskDisposition disposition) {
+        String bounded = QueueText.truncate(reason, QueueText.MAX_BLOCKED_REASON);
+        emit(sink ->
+                sink.onJobFinished(job.id(), job.planId(), job.tool(), disposition, bounded, 0L, Optional.empty()));
+        if (job.planId() == 0) {
+            emit(sink -> sink.onFinished((int) job.id(), 0L, job.tool(), disposition, bounded, Optional.empty(), 0L));
+            queueDriver.remove(job.id());
+            queueDriver.clearFactory(job.id());
         }
     }
 
