@@ -1,6 +1,7 @@
 package dev.friendai.features.inventory.minecraft.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.features.knowledge.ResourceKnowledge;
@@ -39,13 +40,14 @@ class StorageIndexServiceTest {
     }
 
     @Test
-    void aLegacyObservationOffersUnknownCapacityAsFreeSlots() {
+    void aLegacyObservationKeepsItsCapacityUnknown() {
         var observation = new ResourceKnowledge.ContainerObservation(
                 new ResourceObservation.Location("minecraft:overworld", new Pos(1, 64, 1)),
-                Map.of("minecraft:stone", 1),
+                Map.of("minecraft:stone", 64),
                 10);
         var record = StorageIndexService.toRecord(observation);
-        assertEquals(27, record.slotsTotal());
-        assertTrue(record.freeSlots() > 0);
+        assertEquals(0, record.slotsTotal());
+        assertFalse(record.capacityKnown());
+        assertEquals(0, record.freeSlots());
     }
 }

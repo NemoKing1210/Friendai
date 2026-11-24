@@ -2,13 +2,16 @@ package dev.friendai.features.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class StorageTargetsTest {
     private static final String OVERWORLD = "minecraft:overworld";
+    private static final Set<String> ANDESITE = Set.of("minecraft:andesite");
 
     @Test
     void aFreshFarContainerBeatsAStaleNearOne() {
@@ -42,39 +45,63 @@ class StorageTargetsTest {
     }
 
     @Test
-    void storePrefersFreeSlotsAndDepositPutsTheItemFirst() {
+    void storePrefersCountedRoomAndSkipsACountedFullContainer() {
         var limits = new StorageLimits(16, 8, 600);
         var index = new StorageIndex(limits);
-        index.observe(record(1, 0, 0, 900, 27, Map.of("minecraft:stone", 64)));
-        index.observe(record(8, 0, 0, 900, 1, Map.of("minecraft:iron_ingot", 5)));
+        index.observe(record(2, 0, 0, 900, 27, Map.of("minecraft:stone", 64)));
+        index.observe(record(4, 0, 0, 900, 20, Map.of()));
+        index.observe(unknown(8, 0, 0, 900));
         assertEquals(
-                8,
-                StorageTargets.store(index, OVERWORLD, 0, 64, 0, 1_000, limits)
-                        .orElseThrow()
-                        .key()
-                        .x());
+                List.of(4, 8), xs(StorageTargets.storeOrder(index, OVERWORLD, 0, 0, 0, ANDESITE, 1_000, limits, 16)));
+    }
+
+    @Test
+    void aCountedFullContainerThatHoldsTheItemIsAHintBeforeUnknownCapacity() {
+        var limits = new StorageLimits(16, 8, 600);
+        var index = new StorageIndex(limits);
+        index.observe(unknown(1, 0, 0, 900));
+        index.observe(record(5, 0, 0, 900, 27, Map.of("minecraft:iron_ingot", 10)));
         assertEquals(
-                8,
-                StorageTargets.depositOrder(index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0)
-                        .getFirst()
-                        .key()
-                        .x());
+                List.of(5, 1),
+                xs(StorageTargets.storeOrder(
+                        index, OVERWORLD, 0, 0, 0, Set.of("minecraft:iron_ingot"), 1_000, limits, 16)));
+    }
+
+    @Test
+    void storeStaysInsideTheTravelRadius() {
+        var limits = new StorageLimits(16, 8, 600);
+        var index = new StorageIndex(limits);
+        index.observe(unknown(40, 0, 0, 900));
+        index.observe(record(60, 0, 0, 900, 0, Map.of()));
+        assertTrue(StorageTargets.storeOrder(index, OVERWORLD, 0, 0, 0, ANDESITE, 1_000, limits, 16)
+                .isEmpty());
+        assertEquals(
+                List.of(60, 40), xs(StorageTargets.storeOrder(index, OVERWORLD, 0, 0, 0, ANDESITE, 1_000, limits, 64)));
+    }
+
+    @Test
+    void depositOrderPutsTheItemThenCountedRoomThenUnknownThenFull() {
+        var limits = new StorageLimits(16, 8, 600);
+        var index = new StorageIndex(limits);
+        index.observe(record(1, 0, 0, 10, 27, Map.of("minecraft:stone", 64)));
+        index.observe(record(2, 0, 0, 10, 1, Map.of("minecraft:iron_ingot", 5)));
+        index.observe(record(3, 0, 0, 10, 1, Map.of()));
+        index.observe(unknown(4, 0, 0, 10));
+        assertEquals(
+                List.of(2, 3, 4, 1),
+                xs(StorageTargets.depositOrder(index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0)));
+    }
+
+    private static List<Integer> xs(List<ContainerRecord> records) {
+        return records.stream().map(record -> record.key().x()).toList();
     }
 
     private static ContainerRecord record(int x, int y, int z, long seen, int used, Map<String, Integer> counts) {
         return new ContainerRecord(new StorageKey(OVERWORLD, x, y, z), "chest", seen, used, 27, counts);
     }
 
-    @Test
-    void depositOrderPutsTheItemThenFreeSlotsThenUnrecorded() {
-        var limits = new StorageLimits(16, 8, 600);
-        var index = new StorageIndex(limits);
-        index.observe(record(1, 0, 0, 10, 27, Map.of("minecraft:stone", 64)));
-        index.observe(record(2, 0, 0, 10, 1, Map.of("minecraft:iron_ingot", 5)));
-        index.observe(record(3, 0, 0, 10, 1, Map.of()));
-        var ordered = StorageTargets.depositOrder(index.records(), OVERWORLD, "minecraft:iron_ingot", 0, 0, 0);
-        assertEquals(2, ordered.get(0).key().x());
-        assertEquals(3, ordered.get(1).key().x());
-        assertEquals(1, ordered.get(2).key().x());
+    /** A record written before slot counts were persisted: the container is known, its capacity is not. */
+    private static ContainerRecord unknown(int x, int y, int z, long seen) {
+        return new ContainerRecord(new StorageKey(OVERWORLD, x, y, z), "chest", seen, 0, 0, Map.of());
     }
 }

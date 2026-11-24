@@ -19,7 +19,11 @@ public interface StorageAccess {
 
     Optional<BlockPos> takeTarget(CompanionEntity companion, Set<String> itemIds, int minCount);
 
-    Optional<BlockPos> storeTarget(CompanionEntity companion);
+    /**
+     * Where the carried items could go, best first, within {@code radius}. A counted free slot comes before a
+     * container that only might take them, so a caller can try a short list and stop at the first that accepts.
+     */
+    List<BlockPos> storeTargets(CompanionEntity companion, int radius, Set<String> itemIds);
 
     Set<String> itemIds(String idOrTag);
 
@@ -46,8 +50,8 @@ public interface StorageAccess {
         }
 
         @Override
-        public Optional<BlockPos> storeTarget(CompanionEntity companion) {
-            return Optional.empty();
+        public List<BlockPos> storeTargets(CompanionEntity companion, int radius, Set<String> itemIds) {
+            return List.of();
         }
 
         @Override

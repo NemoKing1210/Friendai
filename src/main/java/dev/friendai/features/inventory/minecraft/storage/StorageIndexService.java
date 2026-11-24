@@ -88,18 +88,22 @@ public final class StorageIndexService implements StorageAccess {
     }
 
     @Override
-    public Optional<BlockPos> storeTarget(CompanionEntity companion) {
+    public List<BlockPos> storeTargets(CompanionEntity companion, int radius, Set<String> itemIds) {
         BlockPos position = companion.blockPosition();
-        return StorageTargets.store(
+        return StorageTargets.storeOrder(
                         book(companion),
                         dimension(companion.level()),
                         position.getX(),
                         position.getY(),
                         position.getZ(),
+                        itemIds,
                         nowTick(companion),
-                        limits.get())
+                        limits.get(),
+                        radius)
+                .stream()
                 .map(record -> new BlockPos(
-                        record.key().x(), record.key().y(), record.key().z()));
+                        record.key().x(), record.key().y(), record.key().z()))
+                .toList();
     }
 
     @Override
@@ -128,10 +132,13 @@ public final class StorageIndexService implements StorageAccess {
         return index;
     }
 
-    /** Maps one knowledge observation to the query record; legacy slot-less rows read as unknown capacity. */
+    /**
+     * Maps one knowledge observation to the query record. A row without a slot count keeps total 0, which the query
+     * policy reads as unknown capacity: it may be tried, but it never advertises room it was not seen to have.
+     */
     static ContainerRecord toRecord(ResourceKnowledge.ContainerObservation observation) {
-        int total = observation.slotsTotal() > 0 ? observation.slotsTotal() : 27;
-        int used = observation.slotsTotal() > 0 ? Math.min(observation.slotsUsed(), total) : 0;
+        int total = observation.slotsTotal();
+        int used = total > 0 ? Math.min(observation.slotsUsed(), total) : observation.slotsUsed();
         return new ContainerRecord(
                 new StorageKey(
                         observation.location().dimension(),

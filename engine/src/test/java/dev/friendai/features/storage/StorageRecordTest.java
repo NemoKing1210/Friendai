@@ -1,7 +1,9 @@
 package dev.friendai.features.storage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +30,18 @@ class StorageRecordTest {
         assertEquals(5, record.countOf(Set.of("minecraft:iron_ingot")));
         assertEquals(7, record.countOf(Set.of("minecraft:iron_ingot", "minecraft:stone")));
         assertEquals(25, record.freeSlots());
+    }
+
+    @Test
+    void aRecordWithoutSlotCountsNeverAdvertisesFreeSlots() {
+        var key = new StorageKey("minecraft:overworld", 4, 64, -7);
+        var unknown = new ContainerRecord(key, "chest", 10, 0, 0, Map.of("minecraft:stone", 64));
+        assertFalse(unknown.capacityKnown());
+        assertEquals(0, unknown.freeSlots());
+
+        var counted = new ContainerRecord(key, "chest", 10, 12, 27, Map.of());
+        assertTrue(counted.capacityKnown());
+        assertEquals(15, counted.freeSlots());
     }
 
     @Test

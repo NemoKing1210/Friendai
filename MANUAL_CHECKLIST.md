@@ -686,3 +686,12 @@ These need a live world with two dimensions; the automated suite used a fixed pl
 - [ ] Fill every slot of the companion's bag, lock one nearby chest and leave a second one open, then order something that needs one free slot: the companion walks to the open chest, opens it, stores exactly one unrelated stack and finishes the order; the locked chest keeps everything it had.
 - [ ] Give the same order with only a locked chest and an unreachable chest nearby: the companion says its inventory is full and names what it tried instead of putting anything into a container it could not open.
 - [ ] Use `find_stored_item` after such an order: the stack the companion made room with is reported in the chest it actually opened.
+
+## Remembered chest capacity (TODO 131)
+
+- [ ] Fill a chest completely with single dirt stacks, then give a plain `store_items` order for cobblestone and watch the companion: it opens the full chest, finds it has no room and walks on to another chest instead of reporting the first one as a place that took the items.
+- [ ] Fill a chest with 26 full dirt stacks and leave the last slot with ten dirt, then store five dirt: the five merge into that partial stack and the companion does not open another chest.
+- [ ] Put a renamed dirt stack in the last slot of a full chest with plain dirt, then store plain dirt from the bag: the named stack keeps its identity, the plain dirt goes to another chest and the named stack is untouched.
+- [ ] After the first case, type `find_stored_item` for the dirt: the remembered slot count of the opened chest matches what you see, not a guess.
+
+The automated suite used freshly recorded and legacy-format observations in a fixed platform; the in-game cases use chests you filled by hand.

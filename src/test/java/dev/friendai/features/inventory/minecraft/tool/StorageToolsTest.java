@@ -77,8 +77,8 @@ class StorageToolsTest {
         }
 
         @Override
-        public Optional<BlockPos> storeTarget(CompanionEntity companion) {
-            return Optional.empty();
+        public List<BlockPos> storeTargets(CompanionEntity companion, int radius, Set<String> itemIds) {
+            return List.of();
         }
 
         @Override

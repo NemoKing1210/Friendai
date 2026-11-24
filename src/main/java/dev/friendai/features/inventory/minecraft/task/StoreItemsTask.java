@@ -6,11 +6,16 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
 /** Puts items from the 27-slot inventory into a storage container. Never touches the main hand. */
@@ -22,6 +27,9 @@ public final class StoreItemsTask extends ContainerTaskBase {
     private final int count;
     /** When true, the target is the nearest storage container the companion placed. */
     private final boolean placed;
+
+    private final Set<BlockPos> tried = new LinkedHashSet<>();
+    private final List<String> full = new ArrayList<>();
 
     public StoreItemsTask(ItemMatcher matcher, int count, BlockPos target) {
         this(matcher, count, target, false);
@@ -57,14 +65,56 @@ public final class StoreItemsTask extends ContainerTaskBase {
         if (placed) {
             return context.placedService().nearestContainer(context.companion(), NEAR_PLACED_RADIUS);
         }
-        return context.storage().storeTarget(context.companion()).or(() -> ContainerAccess.nearest(context, RADIUS));
+        for (BlockPos candidate : context.storage().storeTargets(context.companion(), RADIUS, carriedIds(context))) {
+            if (markTried(context, candidate)) {
+                return Optional.of(candidate);
+            }
+        }
+        for (BlockPos candidate : ContainerAccess.known(context, RADIUS)) {
+            if (markTried(context, candidate)) {
+                return Optional.of(candidate);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** A position already opened in this task is not offered again; a double chest counts once, by its canonical half. */
+    private boolean markTried(TaskContext context, BlockPos candidate) {
+        return tried.add(ContainerAccess.canonicalChest(context.level(), candidate));
+    }
+
+    /** The item ids the carried stacks this task would store belong to, for judging partial-stack room. */
+    private Set<String> carriedIds(TaskContext context) {
+        Set<String> ids = new LinkedHashSet<>();
+        SimpleContainer inventory = context.companion().inventory();
+        for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            if (matcher == null || matcher.accepts(id)) {
+                ids.add(id);
+            }
+        }
+        return ids;
     }
 
     @Override
     protected String noTargetSummary() {
+        if (!full.isEmpty()) {
+            return fullText();
+        }
         return placed
                 ? "no storage container you placed within " + NEAR_PLACED_RADIUS + " blocks"
                 : "no storage container within " + RADIUS + " blocks";
+    }
+
+    private String fullText() {
+        if (full.size() == 1) {
+            return full.getFirst() + " is full";
+        }
+        return String.join(", ", full.subList(0, full.size() - 1)) + " and " + full.getLast() + " are full";
     }
 
     @Override
@@ -101,7 +151,14 @@ public final class StoreItemsTask extends ContainerTaskBase {
         ContainerAccess.recordContents(c, containerPos, container);
 
         if (stored.isEmpty()) {
-            summary = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords() + " is full";
+            String filled = "the " + ContainerAccess.shortLabel(c.level(), containerPos) + " at " + coords();
+            if (!full.contains(filled)) {
+                full.add(filled);
+            }
+            summary = fullText();
+            if (!placed) {
+                tryAnotherContainer();
+            }
             return TaskStatus.FAILED;
         }
         StringBuilder text = new StringBuilder("stored ");

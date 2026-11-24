@@ -16,8 +16,14 @@ import net.minecraft.world.Container;
  */
 abstract class ContainerTaskBase implements Task {
     protected static final int RADIUS = 16;
+    /** How many containers one task may open before it reports that they are all full. */
+    private static final int MAX_CONTAINERS = 3;
 
-    private final ContainerSession session;
+    private final BlockPos requestedTarget;
+    private final int maxContainers;
+    private ContainerSession session;
+    private int opened;
+    private boolean nextCandidate;
     private boolean preflightDone;
 
     protected BlockPos containerPos;
@@ -25,11 +31,35 @@ abstract class ContainerTaskBase implements Task {
     protected String summary = "";
 
     protected ContainerTaskBase(BlockPos target) {
-        this.session = new ContainerSession(
-                target, this::findTarget, onlyInsidePlacesInFreeTime(), this::noTargetSummary, position -> {
-                    containerPos = position;
-                    return missingTargetSummary();
-                });
+        this(target, MAX_CONTAINERS);
+    }
+
+    protected ContainerTaskBase(BlockPos target, int maxContainers) {
+        this.requestedTarget = target;
+        this.maxContainers = Math.max(1, maxContainers);
+    }
+
+    private ContainerSession session() {
+        if (session == null) {
+            session = new ContainerSession(
+                    requestedTarget,
+                    this::findTarget,
+                    onlyInsidePlacesInFreeTime(),
+                    this::noTargetSummary,
+                    position -> {
+                        containerPos = position;
+                        return missingTargetSummary();
+                    });
+        }
+        return session;
+    }
+
+    /**
+     * Asks the base to open the next ranked container instead of ending the task when the current one could not take
+     * anything. Ignored when the task was given one exact position or has already opened its bounded number.
+     */
+    protected void tryAnotherContainer() {
+        nextCandidate = true;
     }
 
     @Override
@@ -67,23 +97,46 @@ abstract class ContainerTaskBase implements Task {
             }
             preflightDone = true;
         }
-        TaskStatus status = session.tick(c, (context, position, openedContainer) -> {
+        ContainerSession current = session();
+        TaskStatus status = current.tick(c, (context, position, openedContainer) -> {
             containerPos = position;
             container = openedContainer;
             return work(context);
         });
+        if (nextCandidate) {
+            nextCandidate = false;
+            if (status == TaskStatus.FAILED && anotherCandidate(current, c)) {
+                return TaskStatus.RUNNING;
+            }
+        }
         if (status == TaskStatus.FAILED
                 && containerPos != null
                 && ContainerAccess.at(c.level(), containerPos).isEmpty()) {
             c.storage().forget(c.companion(), c.level(), containerPos);
         }
-        if (status == TaskStatus.FAILED && summary.isEmpty()) summary = session.failureSummary();
+        if (status == TaskStatus.FAILED && summary.isEmpty()) summary = current.failureSummary();
         return status;
+    }
+
+    /** Drops a container that took nothing so the next tick can pick the next ranked one. */
+    private boolean anotherCandidate(ContainerSession current, TaskContext c) {
+        if (requestedTarget != null || opened + 1 >= maxContainers) {
+            return false;
+        }
+        opened++;
+        current.stop(c);
+        session = null;
+        containerPos = null;
+        container = null;
+        summary = "";
+        return true;
     }
 
     @Override
     public void stop(TaskContext c) {
-        session.stop(c);
+        if (session != null) {
+            session.stop(c);
+        }
     }
 
     protected String coords() {

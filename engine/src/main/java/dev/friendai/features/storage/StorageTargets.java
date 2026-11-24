@@ -43,23 +43,56 @@ public final class StorageTargets {
         return eligible.stream().findFirst();
     }
 
-    public static Optional<ContainerRecord> store(
-            StorageIndex index, String dimension, int x, int y, int z, long nowTick, StorageLimits limits) {
+    /**
+     * Store order within {@code radius}: a container with a counted empty slot first, then a counted-full one that
+     * already holds one of the carried items (it may still take the stack through a partial stack of the same item and
+     * components), then a record whose capacity was never counted. A counted-full container with none of the carried
+     * items is not eligible. Freshness, distance and free slots order the candidates inside a group.
+     */
+    public static List<ContainerRecord> storeOrder(
+            StorageIndex index,
+            String dimension,
+            int x,
+            int y,
+            int z,
+            Set<String> itemIds,
+            long nowTick,
+            StorageLimits limits,
+            int radius) {
         if (index == null) {
-            return Optional.empty();
+            return List.of();
         }
+        Set<String> carried = itemIds == null ? Set.of() : Set.copyOf(itemIds);
+        long scope = radius <= 0 ? Long.MAX_VALUE : (long) radius * radius;
         List<ContainerRecord> eligible = new ArrayList<>();
         for (ContainerRecord record : index.records()) {
-            if (record.key().dimension().equals(dimension) && record.freeSlots() > 0) {
+            if (!record.key().dimension().equals(dimension) || distanceSq(record, x, y, z) > scope) {
+                continue;
+            }
+            if (storeGroup(record, carried) < NOT_A_STORE_TARGET) {
                 eligible.add(record);
             }
         }
-        eligible.sort(Comparator.comparing((ContainerRecord record) -> stale(record, nowTick, limits))
+        eligible.sort(Comparator.comparingInt((ContainerRecord record) -> storeGroup(record, carried))
+                .thenComparing(record -> stale(record, nowTick, limits))
                 .thenComparingLong(record -> distanceSq(record, x, y, z))
                 .thenComparing(
                         Comparator.comparingInt(ContainerRecord::freeSlots).reversed())
                 .thenComparing(StorageTargets::compareKeys));
-        return eligible.stream().findFirst();
+        return List.copyOf(eligible);
+    }
+
+    /** Group 3 is "not a store target": a counted-full container that holds none of the carried items. */
+    private static final int NOT_A_STORE_TARGET = 3;
+
+    private static int storeGroup(ContainerRecord record, Set<String> carried) {
+        if (!record.capacityKnown()) {
+            return 2;
+        }
+        if (record.freeSlots() > 0) {
+            return 0;
+        }
+        return record.countOf(carried) > 0 ? 1 : NOT_A_STORE_TARGET;
     }
 
     /** Orders query rows for display: same dimension first, then freshness, distance and count. */
@@ -82,8 +115,8 @@ public final class StorageTargets {
     }
 
     /**
-     * Deposit order: containers that last held the item, then containers with a free slot, then the rest; distance
-     * breaks ties inside each group.
+     * Deposit order: containers that last held the item, then counted free slots, then records whose capacity was
+     * never counted, then counted-full containers; distance breaks ties inside each group.
      */
     public static List<ContainerRecord> depositOrder(
             Collection<ContainerRecord> records, String dimension, String itemId, int x, int y, int z) {
@@ -108,7 +141,10 @@ public final class StorageTargets {
         if (record.countOf(item) > 0) {
             return 0;
         }
-        return record.freeSlots() > 0 ? 1 : 2;
+        if (!record.capacityKnown()) {
+            return 2;
+        }
+        return record.freeSlots() > 0 ? 1 : 3;
     }
 
     private static boolean stale(ContainerRecord record, long nowTick, StorageLimits limits) {

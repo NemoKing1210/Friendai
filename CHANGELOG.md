@@ -13,6 +13,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- A chest that is full of one item but has a stack with room left in it now takes more of that item, and a chest whose
+  contents were recorded before the mod counted its slots is no longer treated as empty: the companion opens it, sees
+  how much room it really has, and moves on to another chest instead of leaving your items in the wrong place.
 - When a full inventory needs room for a gathering or crafting order, the companion now walks to a chest and opens
   it like a player instead of putting items into a container from a distance: a locked, blocked or unreachable chest is
   left untouched, a second one is tried, and the container that received the extra stack is remembered so you can find it.

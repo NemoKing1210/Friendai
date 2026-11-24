@@ -6,7 +6,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/** One observation of a storage container: where it was, what it held and when it was seen. */
+/**
+ * One observation of a storage container: where it was, what it held and when it was seen.
+ *
+ * <p>{@code slotsTotal == 0} means the opening that recorded this container never counted its slots, as every record
+ * written before slot counts were persisted did. Such a record is a hint that the container exists and says nothing
+ * about room; only a counted record can claim a free slot.
+ */
 public record ContainerRecord(
         StorageKey key, String kind, long lastSeenTick, int slotsUsed, int slotsTotal, Map<String, Integer> counts) {
     public ContainerRecord {
@@ -19,8 +25,9 @@ public record ContainerRecord(
         if (lastSeenTick < 0) {
             throw new IllegalArgumentException("lastSeenTick must be non-negative");
         }
-        if (slotsUsed < 0 || slotsTotal < 1 || slotsUsed > slotsTotal) {
-            throw new IllegalArgumentException("slots must satisfy 0 <= used <= total and total >= 1");
+        if (slotsUsed < 0 || slotsTotal < 0 || slotsTotal > 0 && slotsUsed > slotsTotal) {
+            throw new IllegalArgumentException(
+                    "slots must satisfy used >= 0, total >= 0 and used <= total when total is known");
         }
         if (counts == null) {
             throw new IllegalArgumentException("counts is required");
@@ -54,7 +61,13 @@ public record ContainerRecord(
         return total;
     }
 
+    /** True when this observation counted the container's slots, so {@link #freeSlots()} is a fact. */
+    public boolean capacityKnown() {
+        return slotsTotal > 0;
+    }
+
+    /** Slots the observation counted as empty; 0 when capacity was never counted, never a guess. */
     public int freeSlots() {
-        return slotsTotal - slotsUsed;
+        return capacityKnown() ? slotsTotal - slotsUsed : 0;
     }
 }

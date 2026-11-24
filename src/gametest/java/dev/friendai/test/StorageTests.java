@@ -13,7 +13,9 @@ import dev.friendai.features.inventory.minecraft.task.StoreItemsTask;
 import dev.friendai.features.inventory.minecraft.task.TakeItemsTask;
 import dev.friendai.features.knowledge.ContainerFreshness;
 import dev.friendai.features.knowledge.ResourceKnowledge;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.memory.minecraft.tool.MemoryAccess;
+import dev.friendai.foundation.spatial.Pos;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.SavedExecution;
@@ -24,6 +26,7 @@ import dev.friendai.task.interact.ContainerAccess;
 import dev.friendai.task.interact.ContainerSession;
 import dev.friendai.task.interact.MakeRoomTask;
 import dev.friendai.task.inventory.ItemMatcher;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -92,6 +95,14 @@ public class StorageTests {
     private static void fill(Container container, net.minecraft.world.item.Item item, int slots) {
         for (int i = 0; i < slots; i++) {
             container.setItem(i, new ItemStack(item));
+        }
+        container.setChanged();
+    }
+
+    /** Fills whole slots with full stacks, so the container really has no room. */
+    private static void fillFull(Container container, net.minecraft.world.item.Item item, int slots) {
+        for (int i = 0; i < slots; i++) {
+            container.setItem(i, new ItemStack(item, 64));
         }
         container.setChanged();
     }
@@ -1117,6 +1128,86 @@ public class StorageTests {
         });
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void storeWithoutCoordinatesOpensALegacyFullChestAndMovesOn(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 4, Blocks.CHEST);
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        fillFull(containerAt(h, 4, 2, 4), Items.DIRT, 27);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.ANDESITE, 4));
+        // Records written before slot counts were persisted: the near chest is a hint, not a claim about room.
+        recordLegacyContainer(h, c, 4, 2, 4, Map.of("minecraft:dirt", 27 * 64));
+        recordLegacyContainer(h, c, 12, 2, 12, Map.of());
+        Result store = new Result();
+        ExecutionCoordinator runner = runner(c, store);
+        runner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(store.status == TaskStatus.SUCCESS, "not finished: " + store.status + " " + store.summary);
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.ANDESITE), 4, "the second chest took it");
+            h.assertValueEqual(containerAt(h, 4, 2, 4).countItem(Items.DIRT), 27 * 64, "the full chest is untouched");
+            h.assertValueEqual(
+                    observationAt(h, c, 4, 2, 4).slotsTotal(),
+                    27,
+                    "opening the legacy record confirmed the real capacity");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
+    public void aFullChestTakesTheItemThroughItsPartialStack(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(6, 2, 6, Blocks.CHEST);
+        Container chest = containerAt(h, 6, 2, 6);
+        fillFull(chest, Items.DIRT, 26);
+        chest.setItem(26, new ItemStack(Items.DIRT, 10));
+        chest.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.DIRT, 5));
+        recordContainer(h, c, 6, 2, 6);
+        Result store = new Result();
+        ExecutionCoordinator runner = runner(c, store);
+        runner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(store.status == TaskStatus.SUCCESS, "not finished: " + store.status + " " + store.summary);
+            h.assertValueEqual(
+                    containerAt(h, 6, 2, 6).countItem(Items.DIRT), 26 * 64 + 15, "the partial stack took the five");
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
+    public void componentsThatPreventMergingSendTheItemToTheNextChest(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        h.setBlock(4, 2, 4, Blocks.CHEST);
+        h.setBlock(12, 2, 12, Blocks.CHEST);
+        Container keepsakes = containerAt(h, 4, 2, 4);
+        fillFull(keepsakes, Items.DIRT, 26);
+        ItemStack named = new ItemStack(Items.DIRT, 10);
+        named.set(DataComponents.CUSTOM_NAME, Component.literal("keepsake"));
+        keepsakes.setItem(26, named);
+        keepsakes.setChanged();
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(java.util.UUID.randomUUID());
+        c.inventory().addItem(new ItemStack(Items.DIRT, 5));
+        recordContainer(h, c, 4, 2, 4);
+        recordLegacyContainer(h, c, 12, 2, 12, Map.of());
+        Result store = new Result();
+        ExecutionCoordinator runner = runner(c, store);
+        runner.start(new StoreItemsTask(null, Integer.MAX_VALUE, null), "store_items");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(store.status == TaskStatus.SUCCESS, "not finished: " + store.status + " " + store.summary);
+            h.assertValueEqual(
+                    containerAt(h, 4, 2, 4).countItem(Items.DIRT),
+                    26 * 64 + 10,
+                    "the named stack must not swallow plain dirt");
+            h.assertValueEqual(containerAt(h, 12, 2, 12).countItem(Items.DIRT), 5, "the next chest took the five");
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
     public void moveItemsMovesExactCount(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
@@ -1651,6 +1742,35 @@ public class StorageTests {
     private static void recordContainer(GameTestHelper h, CompanionEntity c, int x, int y, int z) {
         ContainerAccess.recordContents(
                 new TaskContext(c, h.getLevel()), h.absolutePos(new BlockPos(x, y, z)), containerAt(h, x, y, z));
+    }
+
+    /** Writes a record the way a knowledge file from before slot counts loads: contents known, capacity not. */
+    private static void recordLegacyContainer(
+            GameTestHelper h, CompanionEntity c, int x, int y, int z, Map<String, Integer> items) {
+        BlockPos pos = h.absolutePos(new BlockPos(x, y, z));
+        new TaskContext(c, h.getLevel())
+                .ownerKnowledge()
+                .recordContainer(new ResourceKnowledge.ContainerObservation(
+                        new ResourceObservation.Location(
+                                h.getLevel().dimension().identifier().toString(),
+                                new Pos(pos.getX(), pos.getY(), pos.getZ())),
+                        items,
+                        h.getLevel().getGameTime()));
+    }
+
+    private static ResourceKnowledge.ContainerObservation observationAt(
+            GameTestHelper h, CompanionEntity c, int x, int y, int z) {
+        BlockPos pos = h.absolutePos(new BlockPos(x, y, z));
+        String dimension = h.getLevel().dimension().identifier().toString();
+        return new TaskContext(c, h.getLevel())
+                .ownerKnowledge().containerObservations().stream()
+                        .filter(observation ->
+                                observation.location().dimension().equals(dimension)
+                                        && observation.location().pos().x() == pos.getX()
+                                        && observation.location().pos().y() == pos.getY()
+                                        && observation.location().pos().z() == pos.getZ())
+                        .findFirst()
+                        .orElseThrow();
     }
 
     /** Locks a chest the way the existing refusal fixture does, after its contents were recorded. */
