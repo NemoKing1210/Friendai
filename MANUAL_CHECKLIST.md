@@ -744,3 +744,9 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Queue two brewing steps of two bottles each for the same potion, then ask to optimize the plan: the two steps stay separate; two steps of two and one bottle may become one three-bottle step.
 - [ ] Queue three mining steps of the same block, pause the middle one, then optimize: the paused step keeps its place and its pause.
 - [ ] Let one step fail between two identical steps, then optimize: the failed step stays where it is and the two around it are not folded over it.
+
+## A fetched prerequisite releases its step (TODO 148)
+
+- [ ] Ask for something that needs an item the companion does not carry, with automatic repair consent (a plan that places planks): the companion fetches it once, then the original step runs in its place, and nothing is fetched a second time.
+- [ ] Make the fetch impossible (no source within reach): the plan says it waits for that step and which one failed, and unrelated work still runs.
+- [ ] Save and quit while the fetch is queued, then reload: the step still waits for its fetch, and a successful fetch after the reload starts it once.

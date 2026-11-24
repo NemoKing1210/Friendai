@@ -42,6 +42,9 @@ public final class IdleRepairPolicy {
                         .thenComparingLong(Job::id))
                 .toList();
         for (Job job : ordered) {
+            // A job already waiting on a queued prerequisite is being serviced; a second remedy would duplicate it,
+            // and a settled one that failed is a named blocker for the owner, not a reason to acquire again.
+            if (!job.after().isEmpty()) continue;
             for (Guard guard : job.guards()) {
                 if (guard instanceof Guard.HasItem item
                         && item.evaluate(facts) == Guard.Truth.FALSE

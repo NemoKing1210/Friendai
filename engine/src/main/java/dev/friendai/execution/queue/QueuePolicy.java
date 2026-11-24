@@ -170,6 +170,10 @@ public final class QueuePolicy {
     }
 
     public static String notReadyReason(JobQueue queue, Job job, GuardFacts facts) {
+        // A prerequisite that failed, was cancelled or is missing is the concrete blocker, so it is named before the
+        // plan's own "waiting for your decision", which would hide it.
+        String dependency = dependencyReason(queue, job);
+        if (dependency != null) return dependency;
         if (job.planId() != 0 && planStatus(queue, job.planId()) == PlanStatus.NEEDS_DECISION)
             return "plan waits for your decision";
         QueueHold planHold = job.planId() == 0
@@ -183,11 +187,6 @@ public final class QueuePolicy {
         if (jobHold != null && !jobHold.satisfied(queue.clock(), facts, startTick, startDistance))
             return jobHold.describe(queue.clock());
         if (job.retryAtTick() > queue.clock()) return "retries in " + (job.retryAtTick() - queue.clock()) + " ticks";
-        for (long id : job.after()) {
-            Job other = queue.job(id).orElse(null);
-            if (other == null || other.state() != JobState.DONE)
-                return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
-        }
         return job.guards().stream()
                 .filter(g -> g.evaluate(facts, startTick, startDistance) != Guard.Truth.TRUE)
                 .findFirst()
@@ -195,6 +194,16 @@ public final class QueuePolicy {
                         ? "cannot tell yet whether " + g.describe()
                         : "waits for " + g.describe())
                 .orElse("pending");
+    }
+
+    /** The dependency that stops this job, or null when every one of them is done. */
+    private static String dependencyReason(JobQueue queue, Job job) {
+        for (long id : job.after()) {
+            Job other = queue.job(id).orElse(null);
+            if (other == null || other.state() != JobState.DONE)
+                return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
+        }
+        return null;
     }
 
     private static String stateWord(Job job) {

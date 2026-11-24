@@ -9,6 +9,7 @@ import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
@@ -26,6 +27,8 @@ import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /** A prerequisite keeps its answer after the plan or goal that produced it leaves the active list. */
 public final class TerminalPrerequisiteTests {
@@ -206,5 +209,118 @@ public final class TerminalPrerequisiteTests {
 
         h.assertTrue(started.isEmpty(), "an abandoned goal never satisfies its prerequisite: " + started);
         h.succeed();
+    }
+
+    /** A step that stays active for a few ticks, so its job identity is observable between server ticks. */
+    private static Task slowTask(int ticks) {
+        return new Task() {
+            private int elapsed;
+
+            @Override
+            public String type() {
+                return "slow_step";
+            }
+
+            @Override
+            public void start(TaskContext context) {}
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return ++elapsed >= ticks ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "placing planks";
+            }
+
+            @Override
+            public String resultSummary() {
+                return "placed";
+            }
+        };
+    }
+
+    /** The remedy a blocked step waits for: it brings the guarded item and then succeeds. */
+    private static Task deliveringPlanks(CompanionEntity companion) {
+        return new Task() {
+            @Override
+            public String type() {
+                return "obtain_item";
+            }
+
+            @Override
+            public void start(TaskContext context) {
+                companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 1));
+            }
+
+            @Override
+            public TaskStatus tick(TaskContext context) {
+                return TaskStatus.SUCCESS;
+            }
+
+            @Override
+            public void stop(TaskContext context) {}
+
+            @Override
+            public String describe() {
+                return "gathering planks";
+            }
+
+            @Override
+            public String resultSummary() {
+                return "1 oak planks gathered";
+            }
+        };
+    }
+
+    @GameTest(maxTicks = 200)
+    public void anAutomaticAcquisitionLetsTheBlockedStepRunOnceWithItsOwnIdentity(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        runner.setRepairFactory((context, args) -> deliveringPlanks(context.companion()));
+        JsonObject args = new JsonObject();
+        args.addProperty("block", "minecraft:oak_planks");
+        QueuedStep blocked = new QueuedStep(
+                "place_block",
+                args,
+                null,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 1)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of(),
+                null,
+                false);
+        List<Long> started = new ArrayList<>();
+        long planId = runner.enqueuePlan(
+                "place planks",
+                List.of(blocked),
+                List.of(context -> {
+                    started.add(1L);
+                    return slowTask(5);
+                }),
+                PlanOptions.DEFAULT);
+        long blockedJob = runner.queue().jobsOfPlan(planId).getFirst().id();
+        long remedyId = runner.queue().jobs().stream()
+                .filter(job -> job.planId() == 0 && job.tool().equals("obtain_item"))
+                .mapToLong(Job::id)
+                .findFirst()
+                .orElse(0);
+        long[] identity = {0};
+        h.succeedWhen(() -> {
+            if (identity[0] == 0 && !started.isEmpty())
+                identity[0] = runner.activeJob().map(Job::id).orElse(0L);
+            runner.tick();
+            h.assertValueEqual(runner.idleRepairInserted(), 1, "exactly one automatic acquisition");
+            h.assertValueEqual(started.size(), 1, "the original step ran");
+            h.assertValueEqual(identity[0], blockedJob, "it kept the job and its cursor");
+            h.assertTrue(remedyId > 0 && runner.queue().job(remedyId).isEmpty(), "the finished remedy leaves");
+            h.assertTrue(runner.queue().plan(planId).isEmpty(), "the plan finished");
+        });
     }
 }

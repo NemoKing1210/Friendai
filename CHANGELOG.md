@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.3] - 2026-11-24
+
+### Fixed
+
+- A plan that pauses because the companion has to fetch something first now carries on by itself once that is fetched:
+  the original step starts, in its original place, without asking for the same thing twice. If fetching fails, the plan
+  says which step it is waiting for instead of forgetting why it stopped.
+
 ## [0.230.2] - 2026-11-24
 
 ### Fixed

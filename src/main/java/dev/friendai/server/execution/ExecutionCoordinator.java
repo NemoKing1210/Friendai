@@ -1158,7 +1158,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                                 workResult,
                                 active.execution()));
                     queueDriver.remove(active.jobId());
-                    queueDriver.clearFactory(active.jobId());
                 }
             } else if (isStructuredPlan(active.planId())) {
                 if (!retried) {
@@ -1438,7 +1437,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             noteDirectEnded(job.id(), RetryPolicy.Ending.REFUSED);
             emit(sink -> sink.onFinished((int) job.id(), 0L, job.tool(), disposition, bounded, Optional.empty(), 0L));
             queueDriver.remove(job.id());
-            queueDriver.clearFactory(job.id());
         }
     }
 

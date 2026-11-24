@@ -77,7 +77,8 @@ public final class QueueDriver {
 
     void remove(long id) {
         queue.remove(id);
-        factories.remove(id);
+        // A row kept as another step's blocker can be retried, so its factory outlives the settlement.
+        if (queue.job(id).isEmpty()) factories.remove(id);
     }
 
     void cancelJob(long id) {
@@ -534,7 +535,20 @@ public final class QueueDriver {
         if (blockedSince < 0) blockedSince = queue.clock();
         if (queue.clock() - blockedSince < noticeInterval) return;
         for (PlanRecord plan : queue.plans()) {
-            if (queue.planStatus(plan.id()) != PlanStatus.ACTIVE) continue;
+            PlanStatus status = queue.planStatus(plan.id());
+            if (status == PlanStatus.NEEDS_DECISION) {
+                // A step waiting on a prerequisite that failed, was cancelled or is missing says which one, once.
+                Job stuck = queue.jobsOfPlan(plan.id()).stream()
+                        .filter(j -> j.state() == JobState.PENDING && !QueuePolicy.dependenciesDone(queue, j))
+                        .findFirst()
+                        .orElse(null);
+                if (stuck == null) continue;
+                String reason = QueueText.truncate(
+                        QueuePolicy.notReadyReason(queue, stuck, facts), QueueText.MAX_BLOCKED_REASON);
+                if (!reason.equals(blockedPlans.get(plan.id()))) notifyBlocked(plan.id(), stuck.id(), reason);
+                continue;
+            }
+            if (status != PlanStatus.ACTIVE) continue;
             Job gating = queue.jobsOfPlan(plan.id()).stream()
                     .filter(j -> j.state() == JobState.PENDING
                             && j.retryAtTick() <= queue.clock()

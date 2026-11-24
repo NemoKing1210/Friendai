@@ -975,9 +975,46 @@ public final class JobQueue {
         return Result.ok("cancelled plan #" + planId);
     }
 
+    /**
+     * Removes a settled direct job the driver no longer needs.
+     *
+     * <p>A job another queued step still depends on keeps its meaning: a successful one releases that edge as it
+     * leaves, so the dependent can run and a reload sees no dangling id, while a failed or cancelled one stays in the
+     * queue as the named blocker of the step that waited for it — dropping it would leave the dependent pointing at a
+     * missing job and its plan could never say why.
+     */
     public Result remove(long id) {
+        Job job = jobs.get(id);
+        if (job == null) return Result.error("unknown job #" + id);
+        List<Job> dependents = dependents(id);
+        if (!dependents.isEmpty() && job.state() != JobState.DONE)
+            return Result.ok("#" + id + " stays queued as the blocker of #"
+                    + dependents.getFirst().id());
         dropJobHold(id);
-        return jobs.remove(id) == null ? Result.error("unknown job #" + id) : Result.ok("removed #" + id);
+        jobs.remove(id);
+        for (Job dependent : dependents) {
+            List<Long> deps = new ArrayList<>(dependent.after());
+            deps.remove(id);
+            jobs.put(
+                    dependent.id(),
+                    copy(
+                            dependent,
+                            dependent.args(),
+                            dependent.priority(),
+                            dependent.priorityExplicit(),
+                            dependent.order(),
+                            dependent.state(),
+                            deps,
+                            dependent.result(),
+                            dependent.retryAtTick()));
+        }
+        return Result.ok("removed #" + id);
+    }
+
+    private List<Job> dependents(long id) {
+        List<Job> result = new ArrayList<>();
+        for (Job job : jobs.values()) if (job.after().contains(id)) result.add(job);
+        return result;
     }
 
     public Result clear() {
@@ -1032,7 +1069,23 @@ public final class JobQueue {
             jobs.remove(job.id());
             dropJobHold(job.id());
         }
+        pruneOrphanedBlockers();
         trimArchives();
+    }
+
+    /** A kept blocker row outlives only the dependent that named it; archiving that plan leaves nothing to explain. */
+    private void pruneOrphanedBlockers() {
+        if (jobs.isEmpty()) return;
+        Set<Long> referenced = new HashSet<>();
+        for (Job job : jobs.values()) referenced.addAll(job.after());
+        Iterator<Job> iterator = jobs.values().iterator();
+        while (iterator.hasNext()) {
+            Job job = iterator.next();
+            if (job.planId() == 0 && terminal(job) && !referenced.contains(job.id())) {
+                dropJobHold(job.id());
+                iterator.remove();
+            }
+        }
     }
 
     /**

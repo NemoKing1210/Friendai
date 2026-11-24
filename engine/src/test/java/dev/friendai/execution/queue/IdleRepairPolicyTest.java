@@ -131,4 +131,48 @@ class IdleRepairPolicyTest {
             }
         };
     }
+
+    @Test
+    void aJobAlreadyWaitingOnItsRemedyIsNotRepairedAgain() {
+        Job blocked = job(2, "place_block", new Guard.HasItem("minecraft:oak_planks", 4), JobState.PENDING, 7);
+        JsonObject remedyArgs = new JsonObject();
+        remedyArgs.addProperty("item", "minecraft:oak_planks");
+        Job remedy = new Job(
+                3,
+                0,
+                "obtain_item",
+                remedyArgs,
+                0,
+                false,
+                3,
+                JobState.FAILED,
+                List.of(),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                1,
+                List.of(),
+                "nothing nearby",
+                0);
+        Job waiting = new Job(
+                2,
+                7,
+                "place_block",
+                new JsonObject(),
+                0,
+                false,
+                2,
+                JobState.PENDING,
+                List.of(new Guard.HasItem("minecraft:oak_planks", 4)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                0,
+                List.of(3L),
+                "",
+                0);
+
+        assertTrue(IdleRepairPolicy.select(List.of(waiting, remedy), FACTS, Set.of("obtain_item"), Set.of(7L))
+                .isEmpty());
+    }
 }
