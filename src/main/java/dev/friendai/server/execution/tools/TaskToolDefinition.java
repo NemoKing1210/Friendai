@@ -183,11 +183,25 @@ public record TaskToolDefinition(
         Task create(CompanionEntity companion, Caller caller, JsonObject args);
     }
 
-    public record QueueTraits(boolean interrupts, String mergeableCountArg, boolean requiresTradingScope) {
-        public static final QueueTraits DEFAULT = new QueueTraits(false, null, false);
+    /**
+     * How one task behaves in the queue. {@code mergeableCountArg} names the argument the optimizer may combine;
+     * {@code mergeLimit} is the largest combined value the tool's own admission accepts, so a merge never produces
+     * arguments the task would refuse.
+     */
+    public record QueueTraits(
+            boolean interrupts, String mergeableCountArg, int mergeLimit, boolean requiresTradingScope) {
+        public static final QueueTraits DEFAULT = new QueueTraits(false, null, 64, false);
+
+        public QueueTraits(boolean interrupts, String mergeableCountArg, boolean requiresTradingScope) {
+            this(interrupts, mergeableCountArg, 64, requiresTradingScope);
+        }
 
         public QueueTraits(boolean interrupts, String mergeableCountArg) {
-            this(interrupts, mergeableCountArg, false);
+            this(interrupts, mergeableCountArg, 64, false);
+        }
+
+        public QueueTraits(boolean interrupts, String mergeableCountArg, int mergeLimit) {
+            this(interrupts, mergeableCountArg, mergeLimit, false);
         }
     }
 }

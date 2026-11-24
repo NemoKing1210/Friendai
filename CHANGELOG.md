@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.230.2] - 2026-11-24
+
+### Fixed
+
+- Merging queued steps no longer folds work that has to stay separate: a step waiting between two others keeps its
+  own turn, two orders from different owners are never combined, and brewing steps merge only up to the three bottles
+  a stand operation can take, so a merged order is never rejected when it starts.
+
 ## [0.230.1] - 2026-11-24
 
 ### Fixed

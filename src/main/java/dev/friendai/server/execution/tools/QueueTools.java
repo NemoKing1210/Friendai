@@ -14,6 +14,7 @@ import dev.friendai.execution.queue.HoldKey;
 import dev.friendai.execution.queue.Job;
 import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.MergePolicy;
 import dev.friendai.execution.queue.PlanCodec;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanFingerprint;
@@ -379,12 +380,7 @@ public final class QueueTools implements FeatureToolContributor {
                         .enqueuePlan(
                                 goal, steps, factories, new PlanOptions(priority, policy, time, autoRepair), planId -> {
                                     QueueOptimizer.apply(
-                                            c.executionCoordinator().queue(), planId, name -> {
-                                                TaskToolDefinition def = all.get(name);
-                                                return def == null
-                                                        ? null
-                                                        : def.queueTraits().mergeableCountArg();
-                                            });
+                                            c.executionCoordinator().queue(), planId, mergePolicy(all));
                                     registerFactories(
                                             access,
                                             c,
@@ -891,10 +887,7 @@ public final class QueueTools implements FeatureToolContributor {
                 }
                 case "optimize" -> {
                     Long plan = args.has("plan") ? args.get("plan").getAsLong() : null;
-                    var r = QueueOptimizer.apply(q, plan, n -> {
-                        TaskToolDefinition d = all.get(n);
-                        return d == null ? null : d.queueTraits().mergeableCountArg();
-                    });
+                    var r = QueueOptimizer.apply(q, plan, mergePolicy(all));
                     List<Long> affected = new ArrayList<>();
                     if (plan == null) {
                         for (var record : q.plans()) for (var job : q.jobsOfPlan(record.id())) affected.add(job.id());
@@ -1002,6 +995,23 @@ public final class QueueTools implements FeatureToolContributor {
         for (long id : ids) {
             c.executionCoordinator().registerFactory(id, TaskToolRuntime.queuedStepFactory(access, id, definitions));
         }
+    }
+
+    /** The merge contract each contributed tool declares: which argument may combine, and up to what value. */
+    private static MergePolicy mergePolicy(Map<String, TaskToolDefinition> definitions) {
+        return new MergePolicy() {
+            @Override
+            public String countArgument(String tool) {
+                TaskToolDefinition definition = definitions.get(tool);
+                return definition == null ? null : definition.queueTraits().mergeableCountArg();
+            }
+
+            @Override
+            public int mergeLimit(String tool) {
+                TaskToolDefinition definition = definitions.get(tool);
+                return definition == null ? 64 : definition.queueTraits().mergeLimit();
+            }
+        };
     }
 
     private static QueuedStep bindCaller(QueuedStep step, TaskToolDefinition def, Caller caller) {

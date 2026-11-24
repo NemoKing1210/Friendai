@@ -738,3 +738,9 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Let a transfer fail its attempts while the destination is gone: after the last attempt the job stops with its own reason instead of withdrawing again on every retry.
 - [ ] Save and quit during the retry's wait, then reload: the job comes back with the items it had already withdrawn still carried, and finishes without a second withdrawal.
 - [ ] Smelt a batch, break the furnace mid-batch, then restore it: the retry continues the batch it had loaded rather than putting a fresh stack in.
+
+## Merging queued steps (TODO 146)
+
+- [ ] Queue two brewing steps of two bottles each for the same potion, then ask to optimize the plan: the two steps stay separate; two steps of two and one bottle may become one three-bottle step.
+- [ ] Queue three mining steps of the same block, pause the middle one, then optimize: the paused step keeps its place and its pause.
+- [ ] Let one step fail between two identical steps, then optimize: the failed step stays where it is and the two around it are not folded over it.

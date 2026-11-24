@@ -49,7 +49,7 @@ public final class BrewTools implements FeatureToolContributor {
                                 args.get("count").getAsInt(),
                                 pos(args)),
                         true,
-                        new TaskToolDefinition.QueueTraits(false, "count"),
+                        new TaskToolDefinition.QueueTraits(false, "count", BrewRecipe.BOTTLES_PER_OPERATION),
                         metadata(BREW, "Use brew_potion only for a stand you can reach; it does not place one."))
                 .withCheckpoint(BREW, BrewCheckpoints::brew));
         registry.registerTool(

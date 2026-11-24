@@ -116,6 +116,11 @@ public final class JobQueue {
         return !holds.isEmpty();
     }
 
+    /** Whether this job carries its own hold; a held job is waiting on the owner, not on the work ahead of it. */
+    public boolean jobHeld(long id) {
+        return !holds.isEmpty() && holds.containsKey(HoldKey.job(id));
+    }
+
     /**
      * Reload notes about saved holds that a bare id could not attribute to one target, recorded by the codec. The
      * restore path shows them to the owner once, so an ambiguity is never silent.
