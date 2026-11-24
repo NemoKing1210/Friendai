@@ -15,6 +15,7 @@ import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.ObtainText;
+import dev.friendai.features.acquisition.SearchScope;
 import dev.friendai.features.acquisition.TradingContext;
 import dev.friendai.features.acquisition.WorldFacts;
 import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
@@ -145,19 +146,24 @@ public final class ObtainTools implements FeatureToolContributor {
 
                     @Override
                     public ToolResult execute(CompanionEntity c, JsonObject a) {
+                        // A direct call has no caller, so it can authorize no more than a local search.
+                        return preview(c, null, a);
+                    }
+
+                    @Override
+                    public ToolResult execute(CompanionEntity c, Caller caller, JsonObject a) {
+                        return preview(c, caller, a);
+                    }
+
+                    private ToolResult preview(CompanionEntity c, Caller caller, JsonObject a) {
                         String item = itemId(a.get("item").getAsString());
                         int count = a.has("count") && !a.get("count").isJsonNull()
                                 ? a.get("count").getAsInt()
                                 : 1;
-                        String result =
-                                planText(c, item, count, flag(a, "use_containers", true), flag(a, "explore", true));
-                        if (a.has("scope") && "expedition".equals(a.get("scope").getAsString())) {
-                            var policy = taskContext(c).resourceSearchSettings();
-                            result += "; expedition search policy: " + policy.expeditionRadius() + " blocks, "
-                                    + policy.expeditionTicks()
-                                    + " ticks, owner only and disabled unless enabled by the server";
-                        }
-                        return ToolResult.ok(result);
+                        // The preview asks the same question the execution path does, so the scope it names is
+                        // the one that will run, and an unauthorized expedition is refused here too.
+                        SearchOptions options = searchOptions(c, caller, a);
+                        return ToolResult.ok(planText(c, item, count, options));
                     }
                 },
                 metadata("plan_obtain"));
@@ -256,22 +262,18 @@ public final class ObtainTools implements FeatureToolContributor {
             boolean useContainers, boolean explore, String scope, int radius, int ticks, TradingContext trading) {}
 
     private static SearchOptions searchOptions(CompanionEntity companion, Caller caller, JsonObject args) {
-        String scope = args.has("scope") && !args.get("scope").isJsonNull()
-                ? args.get("scope").getAsString()
-                : "local";
-        if (!scope.equals("local") && !scope.equals("expedition"))
-            throw new IllegalArgumentException("scope must be local or expedition");
+        boolean owner = caller != null && caller.access() == AccessLevel.OWNER;
         TaskContext context = taskContext(companion);
-        var config = context.resourceSearchSettings();
-        if (scope.equals("expedition")
-                && (caller.access() != AccessLevel.OWNER
-                        || !config.allowExpeditions()
-                        || !config.chunkLoadingEnabled()))
-            throw new IllegalArgumentException("expeditions are disabled or owner-only");
-        int radius = scope.equals("expedition") ? config.expeditionRadius() : config.localRadius();
-        int ticks = scope.equals("expedition") ? config.expeditionTicks() : config.localTicks();
+        SearchScope scope = SearchScope.resolve(
+                args.has("scope") && !args.get("scope").isJsonNull()
+                        ? args.get("scope").getAsString()
+                        : SearchScope.LOCAL,
+                owner,
+                context.resourceSearchSettings());
+        int radius = scope.radius();
+        int ticks = scope.ticks();
         TradingContext trading = null;
-        if (caller.access() == AccessLevel.OWNER && caller.uuid() != null && caller.tradingScope() != null) {
+        if (owner && caller.uuid() != null && caller.tradingScope() != null) {
             TradeAuthority authority = context.tradeAuthorityFor(caller.uuid());
             var budget = authority.budgetFor(caller.tradingScope()).orElse(null);
             if (budget != null) {
@@ -313,19 +315,21 @@ public final class ObtainTools implements FeatureToolContributor {
             }
         }
         return new SearchOptions(
-                flag(args, "use_containers", true), flag(args, "explore", true), scope, radius, ticks, trading);
+                flag(args, "use_containers", true), flag(args, "explore", true), scope.token(), radius, ticks, trading);
     }
 
-    private static String planText(
-            CompanionEntity companion, String item, int count, boolean useContainers, boolean explore) {
+    private static String planText(CompanionEntity companion, String item, int count, SearchOptions options) {
         ServerLevel level = (ServerLevel) companion.level();
         Map<String, Integer> inventory = inventoryMap(companion);
-        WorldFacts world = WorldScan.scan(taskContext(companion), WorldScan.BLOCK_RADIUS, useContainers, explore);
-        ObtainPlan plan = ObtainPlanner.plan(item, count, inventory, RecipeIndex.of(level), DropIndex.of(level), world);
+        WorldFacts world = WorldScan.scan(
+                taskContext(companion), WorldScan.BLOCK_RADIUS, options.useContainers(), options.explore());
+        ObtainPlan plan = ObtainPlanner.plan(
+                item, count, inventory, RecipeIndex.of(level), DropIndex.of(level), world, options.trading());
         if (!plan.actionable()) {
-            return ObtainText.failureText(plan, item, count, !explore);
+            return ObtainText.failureText(plan, item, count, !options.explore())
+                    + ObtainText.scopeNote(options.scope(), options.radius(), options.ticks());
         }
-        return ObtainText.planText(plan, item, count, inventory);
+        return ObtainText.previewText(plan, item, count, inventory, options.scope(), options.radius(), options.ticks());
     }
 
     private static boolean flag(JsonObject args, String name, boolean fallback) {

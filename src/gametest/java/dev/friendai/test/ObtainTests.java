@@ -22,6 +22,7 @@ import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
@@ -1732,6 +1733,13 @@ public class ObtainTests {
     @GameTest(maxTicks = 9600, structure = GameTestArenas.ARENA_16)
     public void aBatchSplitsItsStoneDemandAcrossAccessibleSources(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
+        // The chests are the only stone material in reach: a stone floor would let the companion mine one unit
+        // itself, and the split between the two chests would depend on what sight happened to record.
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(x, 1, z, Blocks.DIRT);
+            }
+        }
         BlockPos table = new BlockPos(4, 2, 2);
         h.setBlock(table, Blocks.CRAFTING_TABLE);
         BlockPos firstPos = new BlockPos(5, 2, 3);
@@ -2237,6 +2245,38 @@ public class ObtainTests {
                     result.summary.startsWith("couldn't get 1 minecraft:dragon_egg for minecraft:dragon_egg:"),
                     result.summary);
         });
+    }
+
+    /** A trusted player's unauthorized expedition is refused by the preview with the reason execution would give. */
+    @GameTest(structure = GameTestArenas.ARENA_16, environment = "friendai-gametest:search_trusted_expedition")
+    public void planObtainRefusesATrustedExpedition(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 2, 2);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        c.setOwner(owner.getUUID());
+        var state = GameTestSupport.runtime(h.getLevel().getServer());
+        var config = state.config();
+        config.tasks.resources.allowExpeditions = true;
+        config.companion.chunkLoading.enabled = true;
+        state.applyConfig(config);
+        h.setBlock(4, 2, 2, Blocks.IRON_ORE);
+        c.inventory().addItem(new ItemStack(Items.STONE_PICKAXE));
+        ToolExecutor tools = GameTestToolRegistry.create(c, () -> 32).bind(c);
+        String json = "{\"item\":\"minecraft:raw_iron\",\"count\":1,\"scope\":\"expedition\"}";
+        ToolResult trusted = tools.execute(
+                new ToolCall("1", "plan_obtain", JsonParser.parseString(json).getAsJsonObject(), json, null),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.TRUSTED));
+        h.assertTrue(trusted.error(), "the preview must refuse what the queued call would refuse");
+        h.assertTrue(trusted.content().contains("expeditions are disabled or owner-only"), trusted.content());
+
+        ToolResult granted = tools.execute(
+                new ToolCall("2", "plan_obtain", JsonParser.parseString(json).getAsJsonObject(), json, null),
+                new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER));
+        h.assertFalse(granted.error(), granted.content());
+        h.assertTrue(
+                granted.content().contains("search scope: expedition (512 blocks, 12000 ticks"),
+                "the preview names the scope execution will run: " + granted.content());
+        h.succeed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)

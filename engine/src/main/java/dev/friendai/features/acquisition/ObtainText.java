@@ -18,8 +18,38 @@ public final class ObtainText {
      * annotation on the steps that need it.
      */
     public static String planText(ObtainPlan plan, String target, int count, Map<String, Integer> inventory) {
+        return planText(plan, target, count, inventory, false);
+    }
+
+    /**
+     * The preview text: the same plan, with every search for a resource that is not located yet marked as such, and
+     * the search scope the acquisition will run under. The scope is the one execution resolved, so the preview and
+     * the queued work cannot disagree about it.
+     */
+    public static String previewText(
+            ObtainPlan plan,
+            String target,
+            int count,
+            Map<String, Integer> inventory,
+            String scope,
+            int radius,
+            int ticks) {
+        return planText(plan, target, count, inventory, true) + scopeNote(scope, radius, ticks);
+    }
+
+    /** The search scope a preview names, so the model and the owner see the budget the queued work will run under. */
+    public static String scopeNote(String scope, int radius, int ticks) {
+        return "; search scope: " + scope + " (" + radius + " blocks, " + ticks + " ticks"
+                + ("expedition".equals(scope) ? ", owner only and only when the server allows expeditions" : "")
+                + ")";
+    }
+
+    private static String planText(
+            ObtainPlan plan, String target, int count, Map<String, Integer> inventory, boolean markSearches) {
         if (plan.conditional()) {
-            String prefix = plan.steps().stream().map(ObtainText::stepText).collect(Collectors.joining(", "));
+            String prefix = plan.steps().stream()
+                    .map(step -> labeledStep(step, markSearches))
+                    .collect(Collectors.joining(", "));
             return "to get " + count + " " + target + ": conditional prefix " + prefix
                     + "; verify the remembered source, then replan; unresolved: " + missingText(plan.missing(), false);
         }
@@ -32,13 +62,18 @@ public final class ObtainText {
         }
         StringJoiner steps = new StringJoiner(", ");
         for (ObtainStep step : plan.steps()) {
-            String text = stepText(step);
+            String text = labeledStep(step, markSearches);
             if (step instanceof ObtainStep.Mine mine && annotateTool(mine.tool(), plan.steps(), inventory)) {
                 text += " (needs a " + mine.tool().words() + ": will craft one)";
             }
             steps.add(text);
         }
         return header + steps + "; about " + plan.estimatedSteps() + " steps";
+    }
+
+    private static String labeledStep(ObtainStep step, boolean markSearches) {
+        String text = stepText(step);
+        return markSearches && step instanceof ObtainStep.Explore ? text + " (not yet located)" : text;
     }
 
     /**

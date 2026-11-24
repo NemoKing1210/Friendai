@@ -74,6 +74,28 @@ class ObtainTextTest {
     }
 
     @Test
+    void aPreviewMarksASearchThatIsNotLocatedYetAndNamesTheScope() {
+        ObtainPlan plan = new ObtainPlan(
+                List.of(
+                        new ObtainStep.Explore("#minecraft:logs", false, 0),
+                        new ObtainStep.Craft("minecraft:stone_pickaxe", 1)),
+                Map.of(),
+                2);
+
+        String preview = ObtainText.previewText(plan, "minecraft:stone_pickaxe", 1, Map.of(), "local", 64, 600);
+
+        assertTrue(
+                preview.contains("explore up to 64 blocks around for #minecraft:logs (not yet located)"),
+                "a speculative search is labeled: " + preview);
+        assertTrue(preview.contains("search scope: local (64 blocks, 600 ticks)"), preview);
+        assertFalse(
+                ObtainText.planText(plan, "minecraft:stone_pickaxe", 1).contains("not yet located"),
+                "the plan text used by messages is unchanged");
+        assertTrue(ObtainText.previewText(plan, "minecraft:stone_pickaxe", 1, Map.of(), "expedition", 512, 12_000)
+                .contains("owner only and only when the server allows expeditions"));
+    }
+
+    @Test
     void conditionalPlanExplainsVerificationBoundary() {
         ObtainPlan plan = new ObtainPlan(
                 List.of(new ObtainStep.VisitResource(41, "minecraft:overworld", "minecraft:iron_ore")),

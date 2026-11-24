@@ -127,7 +127,7 @@ public final class ObtainPlanner {
             }
         });
         Search search = new Search(recipes, sources, world, trading, maxEvaluations, maxCopies);
-        Attempt attempt = search.need(target, count, 0, new LinkedHashSet<>(), sim, true);
+        Attempt attempt = search.need(target, count, 0, new LinkedHashSet<>(), sim, true, true);
         List<ObtainStep> steps = merge(attempt.steps);
         // A conditional pass has not resolved its source yet, so it claims the whole count its child will replan for;
         // otherwise the covered part is what the target's own residual in {@code missing} does not account for.
@@ -360,12 +360,10 @@ public final class ObtainPlanner {
         /**
          * Obtains {@code qty} of {@code item} from {@code sim}. A craft step of this call is emitted only when
          * {@code emitCraft} is true: the ingredient recursion of a craft leaves its purely crafting
-         * intermediates to the crafting task.
+         * intermediates to the crafting task. {@code allowExplore} is the policy of the whole pass and every
+         * nested decision — ingredient, tool, station and fuel — inherits it, so a local-only comparison cannot
+         * bootstrap an exploration-dependent chain.
          */
-        Attempt need(String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft) {
-            return need(item, qty, depth, path, sim, emitCraft, true);
-        }
-
         Attempt need(
                 String item, int qty, int depth, Set<String> path, Sim sim, boolean emitCraft, boolean allowExplore) {
             Attempt total = new Attempt();
@@ -553,7 +551,7 @@ public final class ObtainPlanner {
                 // failure must not make the only route to the item unplannable.
                 int failures = world.attemptedSources().getOrDefault(mine.block(), 0);
                 if (world.blocksNearby().getOrDefault(mine.block(), 0) > 0) {
-                    providers.add(new MineProvider(item, mine, false, failures));
+                    providers.add(new MineProvider(item, mine, false, failures, allowExplore));
                 }
                 if (allowExplore && world.exploreAllowed()) {
                     world.resourceCandidates().stream()
@@ -568,7 +566,7 @@ public final class ObtainPlanner {
                             .anyMatch(candidate -> !candidate.visibleNow()
                                     && candidate.blockId().equals(mine.block())
                                     && !world.excludedSiteIds().contains(candidate.siteId()));
-                    if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true, failures));
+                    if (!hasRememberedSite) providers.add(new MineProvider(item, mine, true, failures, allowExplore));
                 }
             }
             return providers;
@@ -689,7 +687,8 @@ public final class ObtainPlanner {
         }
 
         /** Makes sure a tool satisfying the need is available, planning it when it is not carried. */
-        private boolean ensureTool(ToolNeed need, int depth, Set<String> path, Sim sim, Attempt attempt) {
+        private boolean ensureTool(
+                ToolNeed need, int depth, Set<String> path, Sim sim, Attempt attempt, boolean allowExplore) {
             if (carriedTool(need, sim)) {
                 return true;
             }
@@ -701,7 +700,7 @@ public final class ObtainPlanner {
             }
             // A tool is its own chain: a gold trip may need an iron pickaxe whose chain is as long as any
             // other, and the shared path already guards real cycles.
-            Attempt tool = need(item, 1, 0, path, sim, true);
+            Attempt tool = need(item, 1, 0, path, sim, true, allowExplore);
             if (tool.conditional) {
                 attempt.merge(tool);
                 return false;
@@ -716,7 +715,8 @@ public final class ObtainPlanner {
         }
 
         /** Makes sure a station is usable: nearby, carried, or planned and then reserved. */
-        private boolean ensureStation(Station station, int depth, Set<String> path, Sim sim, Attempt attempt) {
+        private boolean ensureStation(
+                Station station, int depth, Set<String> path, Sim sim, Attempt attempt, boolean allowExplore) {
             if (station == Station.INVENTORY || stationNearby(station)) {
                 return true;
             }
@@ -728,7 +728,7 @@ public final class ObtainPlanner {
                 sim.reserved.add(item);
                 return true;
             }
-            Attempt planned = craftable(item, 1, 0, path, sim);
+            Attempt planned = craftable(item, 1, 0, path, sim, allowExplore);
             if (!planned.ok()) {
                 return false;
             }
@@ -742,7 +742,7 @@ public final class ObtainPlanner {
          * Obtains a station item by crafting or carrying it, never by mining a placed one: a table taken from
          * the world is infrastructure the rest of the plan is counting on.
          */
-        private Attempt craftable(String item, int qty, int depth, Set<String> path, Sim sim) {
+        private Attempt craftable(String item, int qty, int depth, Set<String> path, Sim sim, boolean allowExplore) {
             Attempt total = new Attempt();
             qty -= sim.take(item, qty);
             if (qty <= 0) {
@@ -765,7 +765,8 @@ public final class ObtainPlanner {
                     total.missing.merge(item, qty, Integer::sum);
                     break;
                 }
-                Candidate candidate = new CraftProvider(recipe).take(this, copy, qty, depth, nextPath, true);
+                Candidate candidate =
+                        new CraftProvider(recipe, allowExplore).take(this, copy, qty, depth, nextPath, true);
                 if (candidate != null
                         && candidate.supplied() > 0
                         && (best == null || candidate.attempt().cost < best.cost)) {
@@ -801,7 +802,8 @@ public final class ObtainPlanner {
         }
 
         /** Plans one cheap fuel item per eight smelted inputs. */
-        private boolean addFuel(Sim sim, Attempt attempt, int inputs, int depth, Set<String> path) {
+        private boolean addFuel(
+                Sim sim, Attempt attempt, int inputs, int depth, Set<String> path, boolean allowExplore) {
             int count = Math.max(1, (inputs + 7) / 8);
             Attempt best = null;
             Sim bestSim = null;
@@ -810,7 +812,7 @@ public final class ObtainPlanner {
                 if (copy == null) {
                     break;
                 }
-                Attempt planned = need(fuel, count, depth + 1, path, copy, true);
+                Attempt planned = need(fuel, count, depth + 1, path, copy, true, allowExplore);
                 if (planned.ok() && (best == null || planned.cost < best.cost)) {
                     best = planned;
                     bestSim = copy;
@@ -968,7 +970,7 @@ public final class ObtainPlanner {
                         }
                     }
                 }
-                if (!ensureStation(recipe.station(), depth, path, sim, attempt)) {
+                if (!ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
                     return null;
                 }
                 int leftover = times * recipe.outputCount() - want;
@@ -1029,8 +1031,8 @@ public final class ObtainPlanner {
                     }
                 }
                 if (inputItem == null
-                        || !addFuel(sim, attempt, times, depth, path)
-                        || !ensureStation(recipe.station(), depth, path, sim, attempt)) {
+                        || !addFuel(sim, attempt, times, depth, path, allowExplore)
+                        || !ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
                     return null;
                 }
                 int leftover = times * recipe.outputCount() - want;
@@ -1048,16 +1050,15 @@ public final class ObtainPlanner {
             private final Source.Mine source;
             private final boolean explore;
             private final int failures;
+            /** The policy of the pass that offered this mine, inherited by the tool it needs. */
+            private final boolean allowExplore;
 
-            MineProvider(String item, Source.Mine source, boolean explore) {
-                this(item, source, explore, 0);
-            }
-
-            MineProvider(String item, Source.Mine source, boolean explore, int failures) {
+            MineProvider(String item, Source.Mine source, boolean explore, int failures, boolean allowExplore) {
                 this.item = item;
                 this.source = source;
                 this.explore = explore;
                 this.failures = failures;
+                this.allowExplore = allowExplore;
             }
 
             @Override
@@ -1076,7 +1077,7 @@ public final class ObtainPlanner {
             public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 int blocks = Math.max(1, (int) Math.ceil(want / source.perBlock()));
                 Attempt attempt = new Attempt();
-                if (!ensureTool(source.tool(), depth, path, sim, attempt)) {
+                if (!ensureTool(source.tool(), depth, path, sim, attempt, allowExplore)) {
                     if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
                     return null;
                 }

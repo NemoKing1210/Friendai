@@ -12,6 +12,7 @@ import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.SchemaBuilder;
 import dev.friendai.execution.tool.Tool;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.SearchScope;
 import dev.friendai.features.acquisition.minecraft.ResourceSearchTaskFactory;
 import dev.friendai.features.acquisition.minecraft.search.ResourceResolver;
 import dev.friendai.features.acquisition.minecraft.search.SearchTargets;
@@ -178,33 +179,30 @@ public final class ResourceTools implements FeatureToolContributor {
                 caller);
     }
 
+    /**
+     * The requested search scope, authorized through the same {@link SearchScope} rule the acquisition tools use, so
+     * every caller who asks for an expedition gets one refusal message wherever they ask.
+     */
+    private static String authorizedScope(CompanionEntity companion, Caller caller, JsonObject args) {
+        String requested = args.has("scope") && !args.get("scope").isJsonNull()
+                ? args.get("scope").getAsString()
+                : SearchScope.LOCAL;
+        return SearchScope.resolve(
+                        requested,
+                        caller.access() == AccessLevel.OWNER,
+                        context(companion).resourceSearchSettings())
+                .token();
+    }
+
     private static Task callerStructure(
             CompanionEntity companion, Caller caller, JsonObject args, ResourceSearchTaskFactory taskFactory) {
-        String scope = args.has("scope") && !args.get("scope").isJsonNull()
-                ? args.get("scope").getAsString()
-                : "local";
-        if (!scope.equals("local") && !scope.equals("expedition"))
-            throw new IllegalArgumentException("scope must be local or expedition");
-        if (scope.equals("expedition")) {
-            var config = context(companion).resourceSearchSettings();
-            if (caller.access() != AccessLevel.OWNER || !config.allowExpeditions() || !config.chunkLoadingEnabled())
-                throw new IllegalArgumentException("expeditions are disabled or owner-only");
-        }
+        String scope = authorizedScope(companion, caller, args);
         return structureTask(companion, caller, args, taskFactory);
     }
 
     private static Task callerFindTarget(
             CompanionEntity companion, Caller caller, JsonObject args, ResourceSearchTaskFactory taskFactory) {
-        String scope = args.has("scope") && !args.get("scope").isJsonNull()
-                ? args.get("scope").getAsString()
-                : "local";
-        if (!scope.equals("local") && !scope.equals("expedition"))
-            throw new IllegalArgumentException("scope must be local or expedition");
-        if (scope.equals("expedition")) {
-            var config = context(companion).resourceSearchSettings();
-            if (caller.access() != AccessLevel.OWNER || !config.allowExpeditions() || !config.chunkLoadingEnabled())
-                throw new IllegalArgumentException("expeditions are disabled or owner-only");
-        }
+        String scope = authorizedScope(companion, caller, args);
         SearchTargets.Resolution resolved = SearchTargets.resolve(
                 context(companion),
                 args.get("kind").getAsString(),
@@ -359,16 +357,7 @@ public final class ResourceTools implements FeatureToolContributor {
 
     private static Task callerSearch(
             CompanionEntity companion, Caller caller, JsonObject args, ResourceSearchTaskFactory taskFactory) {
-        String scope = args.has("scope") && !args.get("scope").isJsonNull()
-                ? args.get("scope").getAsString()
-                : "local";
-        if (!scope.equals("local") && !scope.equals("expedition"))
-            throw new IllegalArgumentException("scope must be local or expedition");
-        if (scope.equals("expedition")) {
-            var config = context(companion).resourceSearchSettings();
-            if (caller.access() != AccessLevel.OWNER || !config.allowExpeditions() || !config.chunkLoadingEnabled())
-                throw new IllegalArgumentException("expeditions are disabled or owner-only");
-        }
+        String scope = authorizedScope(companion, caller, args);
         String resource = args.get("resource").getAsString();
         SearchTargets.Resolution resolved = SearchTargets.resolve(context(companion), "resource", resource);
         if (!resolved.ok()) throw new IllegalArgumentException(resolved.error());

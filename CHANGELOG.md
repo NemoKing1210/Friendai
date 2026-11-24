@@ -6,6 +6,14 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.232.3] - 2026-11-24
+
+### Fixed
+
+- Asking the companion to show how it would get something now names the search it may run and refuses an expedition the asker is not allowed to order, so a plan shown to a trusted player no longer promises a trip the companion would never make.
+- A preview now marks a search it could not verify yet instead of presenting it as an ordinary step.
+- When the companion works out whether something can be made where it stands, it no longer counts a tool or a workbench that would itself need a search trip.
+
 ## [0.232.2] - 2026-11-24
 
 ### Fixed

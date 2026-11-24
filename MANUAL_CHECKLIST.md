@@ -806,3 +806,10 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       recovery request: the saved fact is part of the memory block, in English and in Russian.
 - [ ] Ask about one saved fact in Russian with a Russian message: the fact is selected and rendered; switch retrieval
       off and the ordinary bounded book renders as before.
+
+## Search limits in an acquisition preview (TODO 157)
+
+- [ ] As the owner, ask the companion to show how it would get something that needs a trip: the answer names the
+      search scope with its radius and time budget, and a step it has not located yet is marked as such.
+- [ ] As a trusted player, ask for the same plan with an expedition: the companion refuses in one line and offers the
+      local search instead; the queued work afterwards uses the same scope the preview showed.
