@@ -141,8 +141,9 @@ public final class MinecraftObtainSubtaskFactory
     }
 
     @Override
-    public MiningTask create(String block, boolean down, int depthY, int radius, int maxBlocks, int maxTicks) {
-        ExploreTask task = new ExploreTask(blockMatcher(block), down, depthY, radius, maxBlocks, maxTicks);
+    public MiningTask create(
+            java.util.Set<String> blocks, boolean down, int depthY, int radius, int maxBlocks, int maxTicks) {
+        ExploreTask task = new ExploreTask(blockMatcher(blocks), down, depthY, radius, maxBlocks, maxTicks);
         return new MiningTask() {
             @Override
             public int excavationBlocks() {
@@ -243,6 +244,32 @@ public final class MinecraftObtainSubtaskFactory
 
     private static BlockMatcher blockMatcher(String id) {
         return BlockMatcher.parse(id).orElseThrow(() -> new IllegalArgumentException("unknown block: " + id));
+    }
+
+    /** One matcher over a whole family; a set the registry no longer names is refused like a single bad id. */
+    private static BlockMatcher blockMatcher(java.util.Set<String> ids) {
+        if (ids.size() == 0) {
+            throw new IllegalArgumentException("unknown block: " + ids);
+        }
+        if (ids.size() == 1) {
+            return blockMatcher(ids.iterator().next());
+        }
+        java.util.List<BlockMatcher> matchers = new java.util.ArrayList<>();
+        for (String id : ids) {
+            matchers.add(blockMatcher(id));
+        }
+        String label = "(" + String.join("|", new java.util.TreeSet<>(ids)) + ")";
+        return new BlockMatcher() {
+            @Override
+            public boolean test(net.minecraft.world.level.block.state.BlockState state) {
+                return matchers.stream().anyMatch(matcher -> matcher.test(state));
+            }
+
+            @Override
+            public String label() {
+                return label;
+            }
+        };
     }
 
     private static EntityType<?> entityType(String id) {

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.18] - 2026-11-24
+
+### Fixed
+
+- A mining search now finds an ore through whichever variant it meets underground, such as deepslate iron ore, instead of digging past it while looking for the other variant.
+
 ## [0.233.17] - 2026-11-24
 
 ### Fixed

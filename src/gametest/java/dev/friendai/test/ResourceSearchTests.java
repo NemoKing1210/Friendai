@@ -58,7 +58,7 @@ public final class ResourceSearchTests {
                 new SearchSession.Limits(32, 128, 2400, 24),
                 now);
         ExploreTaskFactory factory =
-                (block, down, depthY, radius, maxBlocks, maxTicks) -> new ExploreTaskFactory.MiningTask() {
+                (blocks, down, depthY, radius, maxBlocks, maxTicks) -> new ExploreTaskFactory.MiningTask() {
                     private boolean broken;
 
                     @Override
@@ -156,6 +156,122 @@ public final class ResourceSearchTests {
                     sessions.size() == 1 && sessions.getFirst().excavationBlocks() > 0,
                     "successful search must account for excavation in its bounded session");
         });
+    }
+
+    /**
+     * A family whose first sorted id is absent must still be found through the variant actually present: the child
+     * explores for the whole family, not one arbitrary member.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_24, maxTicks = 800)
+    public void theMineChildReceivesTheWholeFamily(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 24);
+        for (int x = 0; x < 24; x++) {
+            for (int z = 0; z < 24; z++) {
+                for (int y = 194; y < 199; y++) h.setBlock(x, y, z, Blocks.DEEPSLATE);
+                for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
+        companion.setOwner(java.util.UUID.randomUUID());
+        companion.inventory().setItem(0, Items.IRON_PICKAXE.getDefaultInstance());
+        companion.inventory().setItem(1, Items.TORCH.getDefaultInstance().copyWithCount(16));
+        String dimension = h.getLevel().dimension().identifier().toString();
+        long now = h.getLevel().getServer().overworld().getGameTime();
+        BlockPos at = companion.blockPosition();
+        // The alphabetically first member is the one this world does not have.
+        var target = new TargetKind.BlockFamily(
+                "minecraft:iron_ore",
+                new java.util.LinkedHashSet<>(java.util.List.of("minecraft:deepslate_iron_ore", "minecraft:iron_ore")),
+                new ResourceSearchProfile(
+                        "minecraft:iron_ore",
+                        Set.of(dimension),
+                        OptionalInt.of(-20),
+                        Set.of(ResourceSearchProfile.Strategy.MINE)));
+        var session = new SearchSession(
+                java.util.UUID.randomUUID(),
+                dimension,
+                "minecraft:iron_ore",
+                new Pos(at.getX(), at.getY(), at.getZ()),
+                new SearchSession.Limits(32, 128, 2_400, 64),
+                now);
+        String[] started = {null};
+        ExploreTaskFactory factory = (blocks, down, depthY, radius, maxBlocks, maxTicks) -> {
+            started[0] = String.join(",", new java.util.TreeSet<>(blocks));
+            return new ExploreTaskFactory.MiningTask() {
+                @Override
+                public int excavationBlocks() {
+                    return 0;
+                }
+
+                @Override
+                public String type() {
+                    return "test_mining_noop";
+                }
+
+                @Override
+                public void start(TaskContext context) {}
+
+                @Override
+                public TaskStatus tick(TaskContext context) {
+                    return TaskStatus.FAILED;
+                }
+
+                @Override
+                public void stop(TaskContext context) {}
+
+                @Override
+                public String describe() {
+                    return "records the block set it was asked to find";
+                }
+
+                @Override
+                public String resultSummary() {
+                    return "no block found";
+                }
+            };
+        };
+        var driver = new ResourceSearchDriver(
+                session,
+                target,
+                (ResourceSearchProfile) target.profile(),
+                32,
+                false,
+                ResourceSearchProfile.Strategy.MINE,
+                null,
+                null,
+                null,
+                false,
+                factory);
+        driver.start(new TaskContext(companion, h.getLevel()));
+
+        h.assertValueEqual(
+                started[0], "minecraft:deepslate_iron_ore,minecraft:iron_ore", "the child receives the whole family");
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void theMineTaskRecognizesTheVariantItMeets(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 10, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 11, 2);
+        BlockPos ore = h.absolutePos(new BlockPos(5, 11, 5));
+        h.setBlock(5, 11, 5, Blocks.DEEPSLATE_IRON_ORE);
+        h.assertTrue(GameTestSupport.observeVisible(h, companion, ore), "the deepslate variant should be visible");
+        TaskContext context = new TaskContext(companion, h.getLevel());
+        var factory = new MinecraftObtainSubtaskFactory();
+
+        var family =
+                factory.create(Set.of("minecraft:deepslate_iron_ore", "minecraft:iron_ore"), true, 10, 16, 128, 600);
+        family.start(context);
+        h.assertTrue(
+                family.resultSummary().contains("found minecraft:deepslate_iron_ore"),
+                "the family matches the variant present: " + family.resultSummary());
+
+        var oneMember = factory.create("minecraft:iron_ore", true, 10, 16, 128, 600);
+        oneMember.start(context);
+        h.assertFalse(
+                oneMember.resultSummary().contains("found"),
+                "a single absent id must not match it: " + oneMember.resultSummary());
+        h.succeed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)

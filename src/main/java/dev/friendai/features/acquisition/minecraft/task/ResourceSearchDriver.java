@@ -295,11 +295,13 @@ public final class ResourceSearchDriver implements Task {
                     summary = diagnostic(returnFailureReason);
                     return;
                 }
-                Set<String> blockIds = target instanceof TargetKind.BlockFamily family ? family.blockIds() : Set.of();
-                String block = blockIds.stream().sorted().findFirst().orElse(target.label());
+                // The whole family goes to the child: an ore and its deepslate variant are the same find, and the
+                // parent's per-tick check accepts either, so the child must not dig for one arbitrary id.
+                Set<String> blockIds =
+                        target instanceof TargetKind.BlockFamily family ? family.blockIds() : Set.of(target.label());
                 Pos from = current(context);
                 miningSearch = exploreTaskFactory.create(
-                        block,
+                        blockIds,
                         true,
                         profile.shallowStone()
                                 ? from.y() - 8
