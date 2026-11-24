@@ -460,6 +460,8 @@ const RU = {
   "Local Whisper": "Локальный Whisper",
   "Wake word": "Слово-активатор",
   "Off by default; an explicitly armed local detector, with bounded pre-wake audio.": "Выключено по умолчанию; локальный детектор включается вручную, аудио до активации ограничено.",
+  "Command outcome": "Результат команды",
+  "A spoken command reports whether it reached the companion, and why not when it did not; an oversized one is refused, never shortened.": "Голосовая команда сообщает, дошла ли она до компаньона, и почему нет, если не дошла; слишком длинная отклоняется, а не обрезается.",
   "tiny, base or small, size and SHA-256 checked.": "tiny, base или small, проверка размера и SHA-256.",
   "Parakeet V3": "Parakeet V3",
   "25 European languages, offline.": "25 европейских языков, офлайн.",

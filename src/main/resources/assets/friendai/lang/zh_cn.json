@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "正在私密录音…",
   "friendai.voice.hud.recording_private.partial": "私密：%s",
   "friendai.voice.hud.transcribing": "转写中…",
+  "friendai.voice.hud.sent": "已发送给你的伙伴",
   "friendai.voice.hud.listening": "正在等待唤醒词…",
 
   "friendai.voice.stream_incomplete": "回复中断，后面的内容没有收到。",  "friendai.voice.error.no_model": "语音模型尚未下载 — 设置 → 语音",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "尚未为语音识别设置 Yandex 文件夹 ID。",
   "friendai.voice.error.unsupported_language": "所选语音提供方不支持此语言。",
   "friendai.voice.error.no_mic": "麦克风不可用",
+  "friendai.voice.error.empty": "没有听到内容",
+  "friendai.voice.error.too_long": "指令太长，无法发送。请用更少的词说一遍。",
+  "friendai.voice.error.not_sent": "未发送：没有连接到服务器。语音指令由服务器上的伙伴接收。",
+  "friendai.voice.error.rate_limited": "伙伴来不及接收这条指令。请稍后再试。",
   "friendai.voice.error.failed": "语音识别失败",
   "friendai.voice.error.auth": "语音服务拒绝了该 API 密钥。",
   "friendai.voice.error.quota": "语音服务繁忙或配额已用尽，请稍后再试。",

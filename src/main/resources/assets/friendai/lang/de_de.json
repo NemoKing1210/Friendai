@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "Private Aufnahme läuft…",
   "friendai.voice.hud.recording_private.partial": "Privat: %s",
   "friendai.voice.hud.transcribing": "Wird transkribiert…",
+  "friendai.voice.hud.sent": "An deinen Gefährten gesendet",
   "friendai.voice.hud.listening": "Warte auf das Wachwort…",
 
   "friendai.voice.stream_incomplete": "Die Antwort wurde unterbrochen; der Rest kam nicht an.",  "friendai.voice.error.no_model": "Sprachmodell nicht heruntergeladen – Einstellungen → Sprache",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "Für die Spracherkennung ist keine Yandex-Ordner-ID gesetzt.",
   "friendai.voice.error.unsupported_language": "Diese Sprache wird vom gewählten Sprachanbieter nicht unterstützt.",
   "friendai.voice.error.no_mic": "Mikrofon nicht verfügbar",
+  "friendai.voice.error.empty": "Nichts gehört",
+  "friendai.voice.error.too_long": "Der Befehl ist zu lang zum Senden. Sag ihn mit weniger Worten.",
+  "friendai.voice.error.not_sent": "Nicht gesendet: keine Verbindung zum Server. Sprachbefehle erreichen den Gefährten auf dem Server.",
+  "friendai.voice.error.rate_limited": "Der Gefährte konnte den Befehl nicht so schnell annehmen. Versuch es gleich noch einmal.",
   "friendai.voice.error.failed": "Spracherkennung fehlgeschlagen",
   "friendai.voice.error.auth": "Der Sprachdienst hat den API-Schlüssel abgelehnt.",
   "friendai.voice.error.quota": "Der Sprachdienst ist ausgelastet oder das Kontingent ist erschöpft. Versuch es später noch einmal.",

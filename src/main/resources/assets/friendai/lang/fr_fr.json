@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "Enregistrement privé…",
   "friendai.voice.hud.recording_private.partial": "Privé : %s",
   "friendai.voice.hud.transcribing": "Transcription…",
+  "friendai.voice.hud.sent": "Envoyé à votre compagnon",
   "friendai.voice.hud.listening": "Écoute du mot d'activation…",
 
   "friendai.voice.stream_incomplete": "La réponse a été interrompue ; la fin n'est pas arrivée.",  "friendai.voice.error.no_model": "Modèle vocal non téléchargé — Paramètres → Voix",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "Aucun identifiant de dossier Yandex n'est défini pour la reconnaissance vocale.",
   "friendai.voice.error.unsupported_language": "Cette langue n'est pas prise en charge par le fournisseur vocal sélectionné.",
   "friendai.voice.error.no_mic": "Microphone indisponible",
+  "friendai.voice.error.empty": "Rien n'a été entendu",
+  "friendai.voice.error.too_long": "L'ordre est trop long pour être envoyé. Dites-le en moins de mots.",
+  "friendai.voice.error.not_sent": "Non envoyé : pas de connexion au serveur. Les ordres vocaux atteignent le compagnon sur le serveur.",
+  "friendai.voice.error.rate_limited": "Le compagnon n'a pas pu accepter l'ordre aussi vite. Réessayez dans un instant.",
   "friendai.voice.error.failed": "La reconnaissance vocale a échoué",
   "friendai.voice.error.auth": "Le service vocal a rejeté la clé API.",
   "friendai.voice.error.quota": "Le service vocal est occupé ou le quota est épuisé. Réessayez plus tard.",

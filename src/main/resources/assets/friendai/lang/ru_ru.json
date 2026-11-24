@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "Личная запись…",
   "friendai.voice.hud.recording_private.partial": "Лично: %s",
   "friendai.voice.hud.transcribing": "Распознаю…",
+  "friendai.voice.hud.sent": "Отправлено компаньону",
   "friendai.voice.hud.listening": "Слушаю слово активации…",
 
   "friendai.voice.stream_incomplete": "Ответ оборвался; продолжение не пришло.",  "friendai.voice.error.no_model": "Модель распознавания не скачана — Настройки → Голос",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "Для распознавания речи не задан идентификатор каталога Yandex.",
   "friendai.voice.error.unsupported_language": "Выбранный сервис распознавания не поддерживает этот язык.",
   "friendai.voice.error.no_mic": "Микрофон недоступен",
+  "friendai.voice.error.empty": "Ничего не услышано",
+  "friendai.voice.error.too_long": "Команда слишком длинная для отправки. Скажите её короче.",
+  "friendai.voice.error.not_sent": "Не отправлено: нет связи с сервером. Голосовые команды доходят до компаньона на сервере.",
+  "friendai.voice.error.rate_limited": "Компаньон не успел принять команду. Попробуйте ещё раз через мгновение.",
   "friendai.voice.error.failed": "Не удалось распознать речь",
   "friendai.voice.error.auth": "Сервис речи отклонил API-ключ.",
   "friendai.voice.error.quota": "Сервис речи занят или лимит исчерпан. Попробуй позже.",

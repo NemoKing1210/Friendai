@@ -7,11 +7,11 @@ import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.ClientKeys;
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.VoiceErrors;
+import dev.friendai.features.speech.VoiceTranscript;
 import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -26,7 +26,7 @@ public final class PushToTalkHandler {
     private final MicCapture mic = VoiceRuntime.mic();
     private final Supplier<SpeechToText> stt;
     private final Supplier<ClientSessionId> session;
-    private final BiConsumer<ClientSessionId, String> onTranscript;
+    private final VoiceSubmission.Sink onTranscript;
     private KeyMapping key;
     private boolean held;
     private boolean pressIgnored;
@@ -43,9 +43,7 @@ public final class PushToTalkHandler {
     private MicCapture.Capture recordingCapture;
 
     public PushToTalkHandler(
-            Supplier<SpeechToText> stt,
-            Supplier<ClientSessionId> session,
-            BiConsumer<ClientSessionId, String> onTranscript) {
+            Supplier<SpeechToText> stt, Supplier<ClientSessionId> session, VoiceSubmission.Sink onTranscript) {
         this.stt = stt;
         this.session = session;
         this.onTranscript = onTranscript;
@@ -265,9 +263,9 @@ public final class PushToTalkHandler {
                 VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
             } else {
                 VoiceState.set(VoiceState.Kind.IDLE, null);
-                if (text != null && !text.isBlank()) {
-                    onTranscript.accept(sessionId, text.strip());
-                }
+                VoiceSubmission.Outcome outcome = onTranscript.submit(
+                        sessionId, VoiceTranscript.normalize(text), VoiceSubmission.Origin.PUSH_TO_TALK);
+                VoiceSubmission.show(outcome, VoiceSubmission.Origin.PUSH_TO_TALK);
             }
         }));
     }

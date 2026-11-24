@@ -6,6 +6,7 @@ import dev.friendai.client.debug.MovementDebugState;
 import dev.friendai.client.runtime.ClientRuntime;
 import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.tts.SpeechRuntime;
+import dev.friendai.client.voice.VoiceSubmission;
 import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.protocol.DecodeResult;
 import dev.friendai.protocol.ProtocolAccept;
@@ -22,6 +23,7 @@ import dev.friendai.protocol.instructions.SkillProtocolViewCodec;
 import dev.friendai.protocol.memory.MemoryProtocolViewCodec;
 import dev.friendai.protocol.places.PlaceProtocolViewCodec;
 import dev.friendai.protocol.speech.CompanionSpeechProtocolViewCodec;
+import dev.friendai.protocol.speech.SpeechAcknowledgementProtocolViewCodec;
 import dev.friendai.protocol.trading.TradeProtocolViewCodec;
 import dev.friendai.transport.payload.ProtocolAcceptC2SPayload;
 import dev.friendai.transport.payload.ProtocolHelloS2CPayload;
@@ -130,7 +132,14 @@ public final class ClientProtocolNetworking {
             }
             case DEBUG -> receiveDebug(sessionId, frame, bytes, session);
             case SPEECH -> {
-                if (frame.operationId() == CompanionSpeechProtocolViewCodec.STREAM_OPERATION) {
+                if (frame.operationId() == SpeechAcknowledgementProtocolViewCodec.OPERATION) {
+                    var decoded = SpeechAcknowledgementProtocolViewCodec.decode(bytes);
+                    var view = decodedView(decoded);
+                    if (view != null)
+                        VoiceSubmission.onAcknowledgement(
+                                view.requestId(), view.value().outcome());
+                    else warnView("speech acknowledgement", decoded);
+                } else if (frame.operationId() == CompanionSpeechProtocolViewCodec.STREAM_OPERATION) {
                     var decoded = CompanionSpeechProtocolViewCodec.decodeStream(bytes);
                     var view = decodedView(decoded);
                     if (view != null) SpeechRuntime.onCompanionStreamSentence(sessionId, view.value());

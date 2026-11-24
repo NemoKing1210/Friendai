@@ -8,6 +8,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Added
 
+- Spoken commands now tell you what happened to them: a green "Sent to your companion" confirmation when the line
+  reaches it, and a specific notice when it does not — the command was too long, the companion could not take it that
+  fast, you have no companion nearby, it is too far away, or there is no connection to the server. A spoken command
+  that is too long is never shortened into a different order.
 - A reloaded batch that is already cooking, or a transfer that already took its items, now carries on from where it
   stopped instead of starting over, so nothing is loaded into a furnace or withdrawn from a chest twice.
 

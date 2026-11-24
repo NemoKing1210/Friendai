@@ -11,6 +11,8 @@ public final class VoiceState {
         LISTENING,
         RECORDING,
         TRANSCRIBING,
+        /** A recognized line reached the connection; the companion's answer follows on its own. */
+        SENT,
         ERROR
     }
 

@@ -17,6 +17,7 @@ import net.minecraft.network.chat.Component;
  */
 public final class VoiceHud {
     private static final long ERROR_MILLIS = 3_000;
+    private static final long SENT_MILLIS = 2_000;
 
     private static final int HEIGHT = 18;
     private static final int PADDING = 6;
@@ -34,6 +35,7 @@ public final class VoiceHud {
     private static final int ACCENT_LISTENING = 0xFF3B6EA5;
     private static final int ACCENT_RECORDING = 0xFFAA0000;
     private static final int ACCENT_TRANSCRIBING = 0xFF555555;
+    private static final int ACCENT_SENT = 0xFF2E7D32;
     private static final int ACCENT_ERROR = 0xFF8A4500;
 
     private static final float FADE_IN_PER_SECOND = 14f;
@@ -72,6 +74,7 @@ public final class VoiceHud {
     private static boolean isActive(VoiceState.Snapshot state) {
         return switch (state.kind()) {
             case LISTENING, RECORDING, TRANSCRIBING -> true;
+            case SENT -> System.currentTimeMillis() - state.sinceMillis() <= SENT_MILLIS;
             case ERROR -> state.message() != null && System.currentTimeMillis() - state.sinceMillis() <= ERROR_MILLIS;
             default -> false;
         };
@@ -85,6 +88,7 @@ public final class VoiceHud {
                         ? Component.translatable("friendai.voice.hud.recording_private")
                         : Component.translatable("friendai.voice.hud.recording_private.partial", state.partial());
             case TRANSCRIBING -> Component.translatable("friendai.voice.hud.transcribing");
+            case SENT -> Component.translatable("friendai.voice.hud.sent");
             case ERROR -> state.message() == null ? null : Components.of(state.message());
             default -> null;
         };
@@ -95,6 +99,7 @@ public final class VoiceHud {
         boolean transcribing = kind == VoiceState.Kind.TRANSCRIBING;
         boolean error = kind == VoiceState.Kind.ERROR;
         boolean listening = kind == VoiceState.Kind.LISTENING;
+        boolean sent = kind == VoiceState.Kind.SENT;
         int maxTextWidth = Math.max(24, graphics.guiWidth() - 16 - PADDING * 2 - INDICATOR_WIDTH - INDICATOR_GAP);
         if (font.width(text) > maxTextWidth) {
             text = Component.literal(font.plainSubstrByWidth(text.getString(), maxTextWidth));
@@ -111,8 +116,8 @@ public final class VoiceHud {
         if (transcribing) {
             drawWaitingDots(graphics, contentX, centerY, visibility);
         } else {
-            float strength = error ? 1f : pulse();
-            int accent = error ? ACCENT_ERROR : listening ? ACCENT_LISTENING : ACCENT_RECORDING;
+            float strength = error || sent ? 1f : pulse();
+            int accent = error ? ACCENT_ERROR : sent ? ACCENT_SENT : listening ? ACCENT_LISTENING : ACCENT_RECORDING;
             drawDot(graphics, contentX + (INDICATOR_WIDTH - DOT_SIZE) / 2, centerY, accent, strength, visibility);
         }
 

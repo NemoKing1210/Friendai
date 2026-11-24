@@ -13,7 +13,6 @@ import dev.friendai.infrastructure.config.ClientConfig;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -109,7 +108,7 @@ public final class WakeWordHandler {
     private final Supplier<ClientConfig> config;
     private final Supplier<SpeechToText> stt;
     private final Supplier<ClientSessionId> session;
-    private final BiConsumer<ClientSessionId, String> onTranscript;
+    private final VoiceSubmission.Sink onTranscript;
     private final Supplier<Detector> detectors;
     private final WakeWordPolicy.Config policyTemplate;
 
@@ -132,7 +131,7 @@ public final class WakeWordHandler {
             Supplier<ClientConfig> config,
             Supplier<SpeechToText> stt,
             Supplier<ClientSessionId> session,
-            BiConsumer<ClientSessionId, String> onTranscript,
+            VoiceSubmission.Sink onTranscript,
             Supplier<Detector> detectors) {
         this(
                 capture,
@@ -156,7 +155,7 @@ public final class WakeWordHandler {
             Supplier<ClientConfig> config,
             Supplier<SpeechToText> stt,
             Supplier<ClientSessionId> session,
-            BiConsumer<ClientSessionId, String> onTranscript,
+            VoiceSubmission.Sink onTranscript,
             Supplier<Detector> detectors,
             WakeWordPolicy.Config policy) {
         this.capture = capture;
@@ -437,7 +436,9 @@ public final class WakeWordHandler {
             }
             restoreIndicator();
             if (text != null && !text.isBlank()) {
-                onTranscript.accept(sessionId, text.strip());
+                VoiceSubmission.Outcome outcome =
+                        onTranscript.submit(sessionId, text.strip(), VoiceSubmission.Origin.WAKE_WORD);
+                VoiceSubmission.show(outcome, VoiceSubmission.Origin.WAKE_WORD);
             }
         }));
     }

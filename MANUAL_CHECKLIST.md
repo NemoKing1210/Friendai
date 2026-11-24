@@ -695,3 +695,14 @@ These need a live world with two dimensions; the automated suite used a fixed pl
 - [ ] After the first case, type `find_stored_item` for the dirt: the remembered slot count of the opened chest matches what you see, not a guess.
 
 The automated suite used freshly recorded and legacy-format observations in a fixed platform; the in-game cases use chests you filled by hand.
+
+## Voice command outcomes (TODO 136)
+
+- [ ] Hold push-to-talk and dictate a command longer than 500 bytes (about 250 Cyrillic characters): the HUD says the command is too long, and nothing of it runs — the line is not shortened into a different order.
+- [ ] Send one command and immediately another within a second: the second shows the "could not take it that fast" notice while the first still runs, and no whisper of the refused line appears in chat.
+- [ ] Dismiss the companion with `/friendai dismiss`, then speak: the HUD asks you to summon a companion, and no order is queued.
+- [ ] Teleport the companion well out of hearing and speak: the HUD says it is too far away, and the companion does not start work.
+- [ ] Speak a normal command: "Sent to your companion" appears with a green dot, and the transcript line stays in your private chat.
+- [ ] Stop the server (or leave the world) while a command is being recognized: the HUD says it was not sent instead of showing it as accepted.
+
+The automated client suite drove the same paths with fixture audio on a loopback dedicated server; oversized, rate-limited and dismissed-companion cases ran there, while microphone input and the HUD wording need a real device.

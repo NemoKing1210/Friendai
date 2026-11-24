@@ -142,6 +142,7 @@ const CATS = [
     items: [
       "~Push-to-talk|16 kHz, 16-bit, mono capture.", "~Local Whisper|tiny, base or small, size and SHA-256 checked.",
       "~Wake word|Off by default; an explicitly armed local detector, with bounded pre-wake audio.",
+      "~Command outcome|A spoken command reports whether it reached the companion, and why not when it did not; an oversized one is refused, never shortened.",
       "~Parakeet V3|25 European languages, offline.", "~Nemotron 3.5|Streaming partials, 19 locales.", "~GigaAM v3|Russian with punctuation, offline.",
       "~Verified bundles|Pinned revision, size and SHA-256, atomic install.", "~OpenAI STT|Cloud recognition.",
       "~Groq STT|Cloud recognition.", "~Yandex STT|Cloud recognition.", "~Key in headers|Keys never go in URLs or logs." ] },
@@ -404,6 +405,7 @@ const CODE = {
   "~/friendai commands": ["src/main/java/dev/friendai/command/FriendaiCommands.java"],
   "~English and Russian": ["engine/src/main/resources/agent/intents_en.json", "engine/src/main/resources/agent/intents_ru.json"],
   "~Push-to-talk": ["src/client/java/dev/friendai/client/voice/PushToTalkHandler.java"],
+  "~Command outcome": ["src/client/java/dev/friendai/client/voice/VoiceSubmission.java", "engine/src/main/java/dev/friendai/protocol/speech/SpeechAcknowledgementProtocolViewCodec.java", "src/main/java/dev/friendai/server/net/VoiceTranscriptHandler.java"],
   "~Local Whisper": ["src/client/java/dev/friendai/client/voice/WhisperLocalStt.java"],
   "~Parakeet V3": ["engine/src/main/java/dev/friendai/features/speech/stt/LocalSttCatalog.java", "src/client/java/dev/friendai/client/voice/SherpaStt.java"],
   "~Nemotron 3.5": ["engine/src/main/java/dev/friendai/features/speech/stt/LocalSttCatalog.java", "src/client/java/dev/friendai/client/voice/SherpaStreamingSession.java"],

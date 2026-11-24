@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "Recording privately…",
   "friendai.voice.hud.recording_private.partial": "Private: %s",
   "friendai.voice.hud.transcribing": "Transcribing…",
+  "friendai.voice.hud.sent": "Sent to your companion",
   "friendai.voice.hud.listening": "Listening for the wake word…",
 
   "friendai.voice.stream_incomplete": "The reply was cut off; the rest did not arrive.",  "friendai.voice.error.no_model": "Speech model not downloaded — Settings → Voice",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "No Yandex folder ID is set for speech recognition.",
   "friendai.voice.error.unsupported_language": "This language is not supported by the selected speech provider.",
   "friendai.voice.error.no_mic": "Microphone unavailable",
+  "friendai.voice.error.empty": "Nothing was heard",
+  "friendai.voice.error.too_long": "The command is too long to send. Say it in fewer words.",
+  "friendai.voice.error.not_sent": "Not sent: no connection to the server. Voice commands reach the companion on the server.",
+  "friendai.voice.error.rate_limited": "The companion could not take the command that fast. Try again in a moment.",
   "friendai.voice.error.failed": "Speech recognition failed",
   "friendai.voice.error.auth": "The speech service rejected the API key.",
   "friendai.voice.error.quota": "The speech service is busy or the quota is exhausted. Try again later.",

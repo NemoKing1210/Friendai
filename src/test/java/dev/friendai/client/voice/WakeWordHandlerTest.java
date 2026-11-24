@@ -60,7 +60,10 @@ class WakeWordHandlerTest {
                 () -> config,
                 () -> stt,
                 () -> session,
-                (id, text) -> transcripts.add(text),
+                (id, text, origin) -> {
+                    transcripts.add(text);
+                    return VoiceSubmission.Outcome.SENT;
+                },
                 () -> detector,
                 policy);
     }

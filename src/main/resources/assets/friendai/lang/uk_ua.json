@@ -243,6 +243,7 @@
   "friendai.voice.hud.recording_private": "Особистий запис…",
   "friendai.voice.hud.recording_private.partial": "Особисто: %s",
   "friendai.voice.hud.transcribing": "Розшифрування…",
+  "friendai.voice.hud.sent": "Надіслано компаньйону",
   "friendai.voice.hud.listening": "Слухаю слово активації…",
 
   "friendai.voice.stream_incomplete": "Відповідь обірвалася; продовження не надійшло.",  "friendai.voice.error.no_model": "Мовну модель не завантажено — Налаштування → Голос",
@@ -250,6 +251,10 @@
   "friendai.voice.error.no_folder": "Для розпізнавання мовлення не задано ідентифікатор теки Yandex.",
   "friendai.voice.error.unsupported_language": "Ця мова не підтримується вибраним провайдером мовлення.",
   "friendai.voice.error.no_mic": "Мікрофон недоступний",
+  "friendai.voice.error.empty": "Нічого не почуто",
+  "friendai.voice.error.too_long": "Команда занадто довга для надсилання. Скажіть її меншою кількістю слів.",
+  "friendai.voice.error.not_sent": "Не надіслано: немає з'єднання із сервером. Голосові команди доходять до компаньйона на сервері.",
+  "friendai.voice.error.rate_limited": "Компаньйон не встиг прийняти команду. Спробуйте ще раз за мить.",
   "friendai.voice.error.failed": "Не вдалося розпізнати мовлення",
   "friendai.voice.error.auth": "Сервіс мовлення відхилив API-ключ.",
   "friendai.voice.error.quota": "Сервіс мовлення зайнятий або квоту вичерпано. Спробуйте пізніше.",

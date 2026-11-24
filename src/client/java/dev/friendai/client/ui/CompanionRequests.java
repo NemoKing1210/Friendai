@@ -28,6 +28,13 @@ public final class CompanionRequests {
         return session != null && FriendaiClient.runtime().allowsProtocol(session, ProtocolFamily.CONTROL);
     }
 
+    /** Whether a recognized voice line has an accepted connection that can carry it. */
+    public static boolean speechSupported(ClientSessionId expectedSession) {
+        return expectedSession != null
+                && ClientPlayNetworking.canSend(dev.friendai.transport.payload.ProtocolRequestC2SPayload.TYPE)
+                && FriendaiClient.runtime().allowsProtocol(expectedSession, ProtocolFamily.SPEECH);
+    }
+
     public static long send(ClientRequest request) {
         return send(FriendaiClient.runtime().sessionId(), request);
     }

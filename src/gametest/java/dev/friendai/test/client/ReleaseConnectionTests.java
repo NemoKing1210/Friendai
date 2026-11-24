@@ -12,18 +12,20 @@ import dev.friendai.client.ui.CompanionRequests;
 import dev.friendai.client.voice.SpeechToText;
 import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.client.voice.VoiceState;
+import dev.friendai.client.voice.VoiceSubmission;
 import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.features.appearance.SkinHash;
 import dev.friendai.features.appearance.SkinImage;
 import dev.friendai.features.speech.PcmConverter;
+import dev.friendai.features.speech.VoiceTranscript;
 import dev.friendai.features.speech.wake.WakeWordPolicy;
 import dev.friendai.foundation.diagnostics.LogKind;
 import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.infrastructure.config.ClientConfig;
 import dev.friendai.presentation.companion.CompanionViewState;
-import dev.friendai.protocol.speech.SpeechRequest;
 import dev.friendai.server.net.Operators;
+import dev.friendai.server.runtime.ServerRuntime;
 import dev.friendai.server.runtime.ServerRuntimeRegistry;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -35,6 +37,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import javax.imageio.ImageIO;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
@@ -43,6 +46,7 @@ import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerCon
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
+import net.minecraft.server.MinecraftServer;
 
 /** Real negotiated packets on a loopback dedicated server, with fixture PCM and no physical devices. */
 public final class ReleaseConnectionTests implements FabricClientGameTest {
@@ -50,6 +54,9 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
     private static final String DEBUG_LINE = "dedicated operator log fixture";
     private static final String OLD_TRANSCRIPT = "hello from the closed voice connection";
     private static final String NEW_TRANSCRIPT = "hello from the reconnected voice connection";
+    private static final String OVERSIZED_TRANSCRIPT = "a".repeat(VoiceTranscript.MAX_WIRE_BYTES + 100);
+    private static final String RATE_LIMITED_TRANSCRIPT = "hello while the voice gate is closed";
+    private static final String NO_COMPANION_TRANSCRIPT = "hello after the companion went away";
 
     @Override
     public void runTest(ClientGameTestContext context) {
@@ -119,11 +126,49 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                                 mc -> turns.stream().anyMatch(text -> text.contains("by voice]: " + NEW_TRANSCRIPT)));
                         require(fresh.forwarded.get(), "fresh voice turn did not send its negotiated transcript");
                         require(
+                                fresh.submission.get() == VoiceSubmission.Outcome.SENT,
+                                "the current connection reported the fresh transcript as " + fresh.submission.get());
+                        require(
                                 turns.stream().noneMatch(text -> text.contains(OLD_TRANSCRIPT)),
                                 "the dedicated server received stale speech");
                     } finally {
                         context.runOnClient(mc -> fresh.close());
                     }
+
+                    // The client refuses a line that cannot fit the wire limit, so nothing is sent and the HUD says
+                    // why.
+                    expectRefusedTurn(
+                            context,
+                            turns,
+                            OVERSIZED_TRANSCRIPT,
+                            "friendai.voice.error.too_long",
+                            VoiceSubmission.Outcome.TOO_LONG);
+                    // The server admits one line per voice gate window and reports the refusal for the next one.
+                    server.runOnServer(s -> runtime(s)
+                            .protocolConnections()
+                            .voiceLimiter()
+                            .tryAcquire(second.getServerPlayer().getUUID()));
+                    expectRefusedTurn(
+                            context,
+                            turns,
+                            RATE_LIMITED_TRANSCRIPT,
+                            "friendai.voice.error.rate_limited",
+                            VoiceSubmission.Outcome.SENT);
+                    // A speaker whose companion is gone learns it from the server's answer, not from silence. The gate
+                    // is cleared first so this turn reaches the routing decision inside its window.
+                    server.runOnServer(s -> {
+                        var player = second.getServerPlayer();
+                        runtime(s).protocolConnections().voiceLimiter().forget(player.getUUID());
+                        require(
+                                runtime(s).companions().dismiss(player),
+                                "the fixture companion could not be dismissed");
+                    });
+                    expectRefusedTurn(
+                            context,
+                            turns,
+                            NO_COMPANION_TRANSCRIPT,
+                            "friendai.voice.need_companion",
+                            VoiceSubmission.Outcome.SENT);
                 }
             } finally {
                 context.runOnClient(mc -> pending.close());
@@ -195,6 +240,51 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
         return FriendaiClient.companionSession().viewState();
     }
 
+    private static ServerRuntime runtime(MinecraftServer server) {
+        return ServerRuntimeRegistry.getOrCreate(server);
+    }
+
+    /**
+     * Sends one fixture utterance and requires the HUD to name the refusal, with no turn reaching the brain. The local
+     * outcome differs by scenario: the client refuses an oversized line itself, while a closed gate or a missing
+     * companion can only be decided by the server.
+     */
+    private static void expectRefusedTurn(
+            ClientGameTestContext context,
+            ConcurrentLinkedQueue<String> turns,
+            String transcript,
+            String errorKey,
+            VoiceSubmission.Outcome expectedSubmission) {
+        VoiceTurn turn = new VoiceTurn();
+        try {
+            context.runOnClient(mc -> turn.start(context));
+            turn.result.complete(transcript);
+            try {
+                await(context, "voice outcome " + errorKey, mc -> {
+                    VoiceState.Snapshot state = VoiceState.current();
+                    return state.kind() == VoiceState.Kind.ERROR
+                            && state.message() != null
+                            && errorKey.equals(state.message().key());
+                });
+            } catch (AssertionError timeout) {
+                VoiceState.Snapshot last = VoiceState.current();
+                throw new AssertionError(
+                        timeout.getMessage() + " (voice state " + last.kind() + " " + last.message() + ", submission "
+                                + turn.submission.get() + ")",
+                        timeout);
+            }
+            require(
+                    turn.submission.get() == expectedSubmission,
+                    "the refused transcript was reported as " + turn.submission.get() + " instead of "
+                            + expectedSubmission);
+            require(
+                    turns.stream().noneMatch(text -> text.contains(transcript)),
+                    "a refused transcript reached the brain: " + transcript);
+        } finally {
+            context.runOnClient(mc -> turn.close());
+        }
+    }
+
     private static boolean wearingSkin(Minecraft minecraft, String hash) {
         if (minecraft.level == null) return false;
         for (var entity : minecraft.level.entitiesForRendering()) {
@@ -235,6 +325,7 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
         private final CompletableFuture<String> result = new CompletableFuture<>();
         private final CompletableFuture<Void> completionHandled = new CompletableFuture<>();
         private final AtomicBoolean forwarded = new AtomicBoolean();
+        private final AtomicReference<VoiceSubmission.Outcome> submission = new AtomicReference<>();
         private final AtomicBoolean keyword = new AtomicBoolean(true);
         private WakeWordHandler.ChunkSink sink;
         private WakeWordHandler handler;
@@ -249,11 +340,11 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                     () -> config,
                     () -> this,
                     FriendaiClient.runtime()::sessionId,
-                    (session, transcript) -> {
-                        forwarded.set(true);
-                        require(
-                                CompanionRequests.send(session, new SpeechRequest.Transcript(transcript)) > 0,
-                                "the current voice transcript was rejected by the client protocol gate");
+                    (session, transcript, origin) -> {
+                        VoiceSubmission.Outcome outcome = VoiceSubmission.submit(session, transcript, origin);
+                        submission.set(outcome);
+                        forwarded.set(outcome == VoiceSubmission.Outcome.SENT);
+                        return outcome;
                     },
                     () -> samples -> keyword.getAndSet(false));
             handler.tick();

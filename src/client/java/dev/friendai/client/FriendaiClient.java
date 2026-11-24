@@ -8,16 +8,15 @@ import dev.friendai.client.runtime.ClientRuntime;
 import dev.friendai.client.tts.SpeechKeybind;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.CompanionInventoryScreen;
-import dev.friendai.client.ui.CompanionRequests;
 import dev.friendai.client.ui.OutlineKeybind;
 import dev.friendai.client.ui.PauseMenuButton;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceHud;
 import dev.friendai.client.voice.VoiceRuntime;
+import dev.friendai.client.voice.VoiceSubmission;
 import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.entity.FriendaiEntities;
 import dev.friendai.menu.FriendaiMenus;
-import dev.friendai.protocol.speech.SpeechRequest;
 import dev.friendai.transport.payload.ProtocolAcceptC2SPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
@@ -114,10 +113,8 @@ public class FriendaiClient implements ClientModInitializer {
         });
         ClientProtocolNetworking.register(RUNTIME);
 
-        PushToTalkHandler pushToTalk = new PushToTalkHandler(
-                VoiceRuntime::stt,
-                RUNTIME::sessionId,
-                (sessionId, text) -> CompanionRequests.send(sessionId, new SpeechRequest.Transcript(text)));
+        PushToTalkHandler pushToTalk =
+                new PushToTalkHandler(VoiceRuntime::stt, RUNTIME::sessionId, VoiceSubmission::submit);
         RUNTIME.registerPushToTalk(pushToTalk);
         pushToTalk.register();
 
@@ -138,7 +135,7 @@ public class FriendaiClient implements ClientModInitializer {
                 FriendaiClient::clientConfig,
                 VoiceRuntime::stt,
                 RUNTIME::sessionId,
-                (sessionId, text) -> CompanionRequests.send(sessionId, new SpeechRequest.Transcript(text)),
+                VoiceSubmission::submit,
                 () -> VoiceRuntime.wakeDetector(clientConfig().voice.wake.phrase));
         pushToTalk.onCapture(wake::setPushToTalkCapturing);
         RUNTIME.registerWakeWord(wake);
