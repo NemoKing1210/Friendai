@@ -1314,7 +1314,7 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     Optional<TaskWorkResult> workResult) {
                 if (!isCurrent(session, companion)) return;
                 if (planId != 0) { // direct jobs are recorded through onFinished/onCancelled
-                    debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName, disposition, summary));
+                    debug.historyOf(owner).add(new TaskRecord((int) jobId, toolName, disposition, summary, workResult));
                     agent.jobSettled(disposition, execution, planId, jobId, toolName, workResult);
                 }
             }
@@ -1326,6 +1326,16 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
 
             @Override
             public void onPlanFinished(long planId, String goal, TaskDisposition disposition, String summary) {
+                onPlanFinished(planId, goal, disposition, summary, Optional.empty());
+            }
+
+            @Override
+            public void onPlanFinished(
+                    long planId,
+                    String goal,
+                    TaskDisposition disposition,
+                    String summary,
+                    Optional<TaskWorkResult> workResult) {
                 if (!isCurrent(session, companion)) return;
                 // A settled plan starts fresh if its id is ever reused, and its budget entry stops growing.
                 session.planReplans().settled(planId);
@@ -1342,7 +1352,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 goal,
                                 disposition,
                                 summary,
-                                agent.extra(disposition, 0, planId, goal, summary, Optional.empty())));
+                                agent.extra(disposition, 0, planId, goal, summary, workResult),
+                                workResult));
             }
 
             @Override
@@ -1354,6 +1365,19 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                     String reason,
                     int remaining,
                     boolean remainingExact) {
+                onPlanBlocked(planId, goal, jobId, toolName, reason, remaining, remainingExact, Optional.empty());
+            }
+
+            @Override
+            public void onPlanBlocked(
+                    long planId,
+                    String goal,
+                    long jobId,
+                    String toolName,
+                    String reason,
+                    int remaining,
+                    boolean remainingExact,
+                    Optional<TaskWorkResult> workResult) {
                 if (!isCurrent(session, companion)) return;
                 emitTask(dev.friendai.execution.log.TaskLogEvents.queueBlock(
                         owner, companion.getUUID(), logSession, planId, jobId, toolName, reason, remaining));
@@ -1373,7 +1397,8 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                                 reason,
                                 remaining,
                                 remainingExact,
-                                agent.extra(false, planId, toolName, reason)));
+                                agent.extra(false, planId, toolName, reason, workResult),
+                                workResult));
             }
 
             @Override

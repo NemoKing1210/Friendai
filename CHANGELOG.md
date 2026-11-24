@@ -20,6 +20,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- A planned order that stops halfway now says what it really did: a delivery that handed over three of eight wheat and
+  then lost you reports the failed step and the counts, both in the plan notice and in the Tasks tab, so the next try
+  asks only for the five that are left instead of starting over.
 - The companion no longer treats talk about trading as permission to spend. A quoted line, a refusal ("don't sell my
   wheat"), a hypothetical, advice or a question ("should I buy a map?"), and a plan it has only shown you, all leave
   your items alone; a trade goes through only after you plainly tell it to buy, sell or barter.

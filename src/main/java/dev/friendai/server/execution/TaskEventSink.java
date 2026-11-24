@@ -75,6 +75,16 @@ public interface TaskEventSink {
         onPlanFinished(planId, goal, disposition == TaskDisposition.SUCCESS, summary);
     }
 
+    /** A plan that ended after a receipt-bearing step; the last step's measured work rides along. */
+    default void onPlanFinished(
+            long planId,
+            String goal,
+            TaskDisposition disposition,
+            String summary,
+            Optional<TaskWorkResult> workResult) {
+        onPlanFinished(planId, goal, disposition, summary);
+    }
+
     default void onPlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {}
 
     /**
@@ -90,6 +100,19 @@ public interface TaskEventSink {
             int remaining,
             boolean remainingExact) {
         onPlanBlocked(planId, goal, jobId, toolName, reason, remaining);
+    }
+
+    /** The blocker with what the failed step measured before it stopped. */
+    default void onPlanBlocked(
+            long planId,
+            String goal,
+            long jobId,
+            String toolName,
+            String reason,
+            int remaining,
+            boolean remainingExact,
+            Optional<TaskWorkResult> workResult) {
+        onPlanBlocked(planId, goal, jobId, toolName, reason, remaining, remainingExact);
     }
 
     default void onNotice(String text) {}

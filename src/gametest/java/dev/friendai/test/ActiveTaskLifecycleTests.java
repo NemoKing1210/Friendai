@@ -104,6 +104,90 @@ public class ActiveTaskLifecycleTests {
         }
     }
 
+    /** What the queue said at a plan boundary, with the receipt each boundary was obliged to carry. */
+    private static final class PlanBoundaries implements TaskEventSink {
+        long blockedPlanId;
+        long blockedJobId;
+        String blockedTool;
+        java.util.Optional<TaskWorkResult> blockedReceipt = java.util.Optional.empty();
+        TaskDisposition finishedDisposition;
+        java.util.Optional<TaskWorkResult> finishedReceipt = java.util.Optional.empty();
+
+        @Override
+        public void onFinished(int id, String toolName, TaskStatus status, String summary) {}
+
+        @Override
+        public void onCancelled(int id, String toolName, String reason) {}
+
+        @Override
+        public void onPlanBlocked(
+                long planId,
+                String goal,
+                long jobId,
+                String toolName,
+                String reason,
+                int remaining,
+                boolean remainingExact,
+                java.util.Optional<TaskWorkResult> workResult) {
+            blockedPlanId = planId;
+            blockedJobId = jobId;
+            blockedTool = toolName;
+            blockedReceipt = workResult;
+        }
+
+        @Override
+        public void onPlanFinished(
+                long planId,
+                String goal,
+                TaskDisposition disposition,
+                String summary,
+                java.util.Optional<TaskWorkResult> workResult) {
+            finishedDisposition = disposition;
+            finishedReceipt = workResult;
+        }
+    }
+
+    /**
+     * A gather-and-deliver step that measured a partial hand-over before it stopped: exactly the shape that must not
+     * leave the queue as a bare summary.
+     */
+    private static final class PartialGiveTask implements Task {
+        @Override
+        public String type() {
+            return "give_items";
+        }
+
+        @Override
+        public void start(TaskContext context) {}
+
+        @Override
+        public TaskStatus tick(TaskContext context) {
+            return TaskStatus.FAILED;
+        }
+
+        @Override
+        public String resultSummary() {
+            return "owner is too far away";
+        }
+
+        @Override
+        public java.util.Optional<TaskWorkResult> workResult() {
+            return java.util.Optional.of(new TaskWorkResult(
+                    List.of(new TaskWorkResult.Line("minecraft:wheat", 8, 3, TaskWorkResult.Evidence.HANDED_OVER)),
+                    "partial",
+                    "only gave 3 of 8 minecraft:wheat",
+                    "retry the remaining share"));
+        }
+
+        @Override
+        public String describe() {
+            return "handing over wheat";
+        }
+
+        @Override
+        public void stop(TaskContext context) {}
+    }
+
     private static final class ProgressingTask implements Task {
         private long stamp;
 
@@ -559,6 +643,62 @@ public class ActiveTaskLifecycleTests {
             }
             runner.tick();
             h.assertTrue(runner.current().isPresent(), "the deferred plan starts when its tick arrives");
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aBlockedQueuedStepReportsWhatItMeasured(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        PlanBoundaries boundaries = new PlanBoundaries();
+        runner.setEventSink(boundaries);
+        QueuedStep give = new QueuedStep(
+                "give_items", new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+        long planId = runner.enqueuePlan(
+                "store the wheat", List.of(give), List.of(context -> new PartialGiveTask()), PlanOptions.DEFAULT);
+        long jobId = runner.queue().jobsOfPlan(planId).getFirst().id();
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(boundaries.blockedReceipt.isPresent(), "no plan boundary receipt yet");
+            h.assertValueEqual(boundaries.blockedPlanId, planId, "the blocker names its plan");
+            h.assertValueEqual(boundaries.blockedJobId, jobId, "the receipt stays next to the failed step");
+            h.assertValueEqual(boundaries.blockedTool, "give_items", "the blocker names the step's tool");
+            h.assertTrue(
+                    boundaries.blockedReceipt.get().compact().contains("minecraft:wheat handed_over=3/8 remaining=5"),
+                    "the settlement keeps what the step verified: "
+                            + boundaries.blockedReceipt.get().compact());
+            runner.stop("test cleanup");
+        });
+    }
+
+    @GameTest(maxTicks = 40)
+    public void aTerminalQueuedPlanCarriesWhatItsLastStepMeasured(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 300, () -> false);
+        PlanBoundaries boundaries = new PlanBoundaries();
+        runner.setEventSink(boundaries);
+        QueuedStep give = new QueuedStep(
+                "give_items",
+                new JsonObject(),
+                null,
+                List.of(),
+                GuardAction.WAIT,
+                FailurePolicy.STOP_PLAN,
+                1,
+                List.of());
+        runner.enqueuePlan(
+                "store the wheat", List.of(give), List.of(context -> new PartialGiveTask()), PlanOptions.DEFAULT);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(boundaries.finishedReceipt.isPresent(), "no terminal plan receipt yet");
+            h.assertTrue(
+                    boundaries.finishedReceipt.get().compact().contains("minecraft:wheat handed_over=3/8 remaining=5"),
+                    "a terminal plan keeps the last step's verified work: "
+                            + boundaries.finishedReceipt.get().compact());
+            h.assertValueEqual(boundaries.finishedDisposition, TaskDisposition.FAILED, "the plan ends failed");
             runner.stop("test cleanup");
         });
     }

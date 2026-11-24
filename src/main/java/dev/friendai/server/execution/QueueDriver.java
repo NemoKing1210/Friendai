@@ -2,6 +2,7 @@ package dev.friendai.server.execution;
 
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.TaskDisposition;
+import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardFacts;
 import dev.friendai.execution.queue.Job;
@@ -446,10 +447,15 @@ public final class QueueDriver {
     }
 
     void handleStructuredActionFailure(long planId, long jobId, String reason) {
-        handleStructuredActionFailure(planId, jobId, reason, TaskDisposition.FAILED);
+        handleStructuredActionFailure(planId, jobId, reason, TaskDisposition.FAILED, Optional.empty());
     }
 
     void handleStructuredActionFailure(long planId, long jobId, String reason, TaskDisposition disposition) {
+        handleStructuredActionFailure(planId, jobId, reason, disposition, Optional.empty());
+    }
+
+    void handleStructuredActionFailure(
+            long planId, long jobId, String reason, TaskDisposition disposition, Optional<TaskWorkResult> workResult) {
         PlanRecord plan = queue.plan(planId).orElse(null);
         if (plan == null) return;
         FailurePolicy policy = queue.job(jobId).map(Job::onFailure).orElse(plan.onFailure());
@@ -461,12 +467,16 @@ public final class QueueDriver {
             }
             case ASK -> {
                 awaitingDecision.add(planId);
-                notifyBlocked(planId, jobId, reason);
+                notifyBlocked(planId, jobId, reason, workResult);
             }
         }
     }
 
     void notifyBlocked(long planId, long jobId, String reason) {
+        notifyBlocked(planId, jobId, reason, Optional.empty());
+    }
+
+    void notifyBlocked(long planId, long jobId, String reason, Optional<TaskWorkResult> workResult) {
         Job job = queue.job(jobId).orElse(null);
         if (job == null) return;
         PlanRecord plan = queue.plan(planId).orElse(null);
@@ -485,7 +495,14 @@ public final class QueueDriver {
         String bounded = QueueText.truncate(reason, QueueText.MAX_BLOCKED_REASON);
         blockedPlans.put(planId, bounded);
         coordinator.publishPlanBlocked(
-                planId, goal, jobId, job.tool(), bounded, remaining.actions(), remaining.exact());
+                planId,
+                goal,
+                jobId,
+                job.tool(),
+                bounded,
+                remaining.actions(),
+                remaining.exact(),
+                workResult == null ? Optional.empty() : workResult);
     }
 
     void finishPlan(long id, String summary, boolean success) {
@@ -493,6 +510,10 @@ public final class QueueDriver {
     }
 
     void finishPlan(long id, String summary, TaskDisposition disposition) {
+        finishPlan(id, summary, disposition, Optional.empty());
+    }
+
+    void finishPlan(long id, String summary, TaskDisposition disposition, Optional<TaskWorkResult> workResult) {
         PlanRecord plan = queue.plan(id).orElse(null);
         if (plan == null) return;
         TaskDisposition terminal = disposition == null ? TaskDisposition.FAILED : disposition;
@@ -505,7 +526,7 @@ public final class QueueDriver {
         structuredFactories.remove(id);
         blockedPlans.remove(id);
         awaitingDecision.remove(id);
-        coordinator.publishPlanFinished(id, goal, terminal, full);
+        coordinator.publishPlanFinished(id, goal, terminal, full, workResult == null ? Optional.empty() : workResult);
     }
 
     void maybeNoticeBlocked(GuardFacts facts, long noticeInterval, boolean activeJob) {

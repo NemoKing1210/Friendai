@@ -179,7 +179,13 @@ public sealed interface BrainEvent {
         }
     }
 
-    record PlanFinished(long planId, String goal, TaskDisposition disposition, String summary, String extra)
+    record PlanFinished(
+            long planId,
+            String goal,
+            TaskDisposition disposition,
+            String summary,
+            String extra,
+            Optional<TaskWorkResult> workResult)
             implements BrainEvent {
         public PlanFinished(long planId, String goal, boolean success, String summary) {
             this(planId, goal, success ? TaskDisposition.SUCCESS : TaskDisposition.FAILED, summary, "");
@@ -193,8 +199,14 @@ public sealed interface BrainEvent {
             this(planId, goal, disposition, summary, "");
         }
 
+        public PlanFinished(long planId, String goal, TaskDisposition disposition, String summary, String extra) {
+            this(planId, goal, disposition, summary, extra, Optional.empty());
+        }
+
         public PlanFinished {
             disposition = disposition == null ? TaskDisposition.FAILED : disposition;
+            extra = extra == null ? "" : extra;
+            workResult = workResult == null ? Optional.empty() : workResult;
         }
 
         public boolean success() {
@@ -204,7 +216,8 @@ public sealed interface BrainEvent {
         @Override
         public String toPromptLine() {
             return "[event] plan #" + planId + " " + goal + " " + disposition.promptVerb() + ": " + summary
-                    + withExtra(extra);
+                    + withExtra(extra)
+                    + workResult.map(result -> " " + result.compact()).orElse("");
         }
     }
 
@@ -216,7 +229,8 @@ public sealed interface BrainEvent {
             String reason,
             int remaining,
             boolean remainingExact,
-            String extra)
+            String extra,
+            Optional<TaskWorkResult> workResult)
             implements BrainEvent {
         public PlanBlocked(long planId, String goal, long jobId, String toolName, String reason, int remaining) {
             this(planId, goal, jobId, toolName, reason, remaining, true, "");
@@ -227,13 +241,45 @@ public sealed interface BrainEvent {
             this(planId, goal, jobId, toolName, reason, remaining, true, extra);
         }
 
+        public PlanBlocked(
+                long planId,
+                String goal,
+                long jobId,
+                String toolName,
+                String reason,
+                int remaining,
+                boolean remainingExact,
+                String extra) {
+            this(planId, goal, jobId, toolName, reason, remaining, remainingExact, extra, Optional.empty());
+        }
+
+        public PlanBlocked {
+            extra = extra == null ? "" : extra;
+            workResult = workResult == null ? Optional.empty() : workResult;
+        }
+
+        /** The same blocker, carrying what the failed step measured before it stopped. */
+        public PlanBlocked withWorkResult(Optional<TaskWorkResult> result) {
+            return new PlanBlocked(
+                    planId,
+                    goal,
+                    jobId,
+                    toolName,
+                    reason,
+                    remaining,
+                    remainingExact,
+                    extra,
+                    result == null ? Optional.empty() : result);
+        }
+
         @Override
         public String toPromptLine() {
             return "[event] plan #" + planId + " needs a decision at job #" + jobId + " (" + toolName
                     + "): " + reason + "; "
                     + dev.friendai.execution.queue.QueueText.remainingSteps(remaining, remainingExact)
                     + ". Use queue_edit to repair the plan."
-                    + withExtra(extra);
+                    + withExtra(extra)
+                    + workResult.map(work -> " " + work.compact()).orElse("");
         }
     }
 

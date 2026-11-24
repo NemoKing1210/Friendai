@@ -1036,11 +1036,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                     if (status == TaskStatus.SUCCESS)
                         queueDriver.advanceStructuredPlan(
                                 active.planId(), new PlanInterpreter.ActionResult.Succeeded());
-                    else handleStructuredActionFailure(active.planId(), active.jobId(), result, disposition);
+                    else
+                        handleStructuredActionFailure(active.planId(), active.jobId(), result, disposition, workResult);
                 }
             } else if (queueDriver.queue().planStatus(active.planId()) == PlanStatus.NEEDS_DECISION) {
                 queueDriver.markAwaitingDecision(active.planId());
-                queueDriver.notifyBlocked(active.planId(), active.jobId(), result);
+                queueDriver.notifyBlocked(active.planId(), active.jobId(), result, workResult);
             } else if (queueDriver.queue().planStatus(active.planId()) == PlanStatus.DONE
                     || queueDriver.queue().planStatus(active.planId()) == PlanStatus.FAILED)
                 queueDriver.finishPlan(
@@ -1048,7 +1049,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         QueueText.planSummary(queueDriver.queue(), active.planId()),
                         queueDriver.queue().planStatus(active.planId()) == PlanStatus.DONE
                                 ? TaskDisposition.SUCCESS
-                                : disposition);
+                                : disposition,
+                        workResult);
         } else if (active.emit())
             emit(sink -> sink.onFinished(
                     active.id(),
@@ -1252,6 +1254,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         queueDriver.handleStructuredActionFailure(planId, jobId, reason, disposition);
     }
 
+    private void handleStructuredActionFailure(
+            long planId, long jobId, String reason, TaskDisposition disposition, Optional<TaskWorkResult> workResult) {
+        queueDriver.handleStructuredActionFailure(planId, jobId, reason, disposition, workResult);
+    }
+
     private static QueuedStep step(Job job) {
         return QueueDriver.step(job);
     }
@@ -1264,12 +1271,20 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     void publishPlanBlocked(
-            long plan, String goal, long jobId, String tool, String reason, int remaining, boolean remainingExact) {
-        emit(sink -> sink.onPlanBlocked(plan, goal, jobId, tool, reason, remaining, remainingExact));
+            long plan,
+            String goal,
+            long jobId,
+            String tool,
+            String reason,
+            int remaining,
+            boolean remainingExact,
+            Optional<TaskWorkResult> workResult) {
+        emit(sink -> sink.onPlanBlocked(plan, goal, jobId, tool, reason, remaining, remainingExact, workResult));
     }
 
-    void publishPlanFinished(long id, String goal, TaskDisposition disposition, String summary) {
-        emit(sink -> sink.onPlanFinished(id, goal, disposition, summary));
+    void publishPlanFinished(
+            long id, String goal, TaskDisposition disposition, String summary, Optional<TaskWorkResult> workResult) {
+        emit(sink -> sink.onPlanFinished(id, goal, disposition, summary, workResult));
     }
 
     private void expireDeadlines() {
