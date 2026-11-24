@@ -886,6 +886,69 @@ public class ObtainTests {
         });
     }
 
+    /**
+     * The order item 184 came from, on the terrain it came from and with nothing in the bag: the companion fells the
+     * only wood, crafts the table and a wooden pickaxe, descends into the buried stone over a reversible route and
+     * carries back the four stone tools. No tool, plank or stick is preloaded.
+     */
+    @GameTest(
+            maxTicks = 18000,
+            environment = "friendai-gametest:obtain_buried_tool_set",
+            structure = GameTestArenas.ARENA_24)
+    public void callerObtainsStoneToolSetFromBuriedStoneWithAnEmptyBag(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 200, 24);
+        for (int x = 0; x < 24; x++) {
+            for (int z = 0; z < 24; z++) {
+                for (int y = 194; y < 199; y++) h.setBlock(x, y, z, Blocks.STONE);
+                for (int y = 199; y <= 200; y++) h.setBlock(x, y, z, Blocks.DIRT);
+            }
+        }
+        // The only wood in the world: one reachable oak trunk the companion must fell for its own pickaxe and table.
+        for (int y = 201; y <= 204; y++) h.setBlock(new BlockPos(14, y, 10), Blocks.OAK_LOG);
+        h.setBlock(
+                new BlockPos(14, 205, 10),
+                Blocks.OAK_LEAVES.defaultBlockState().setValue(LeavesBlock.PERSISTENT, true));
+        var owner = GameTestSupport.mockPlayerAt(h, 8, 201, 12);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 10, 201, 10);
+        companion.setOwner(owner.getUUID());
+        h.assertTrue(companion.inventory().isEmpty(), "the order must start with an empty bag");
+        h.assertTrue(
+                GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(14, 201, 10))),
+                "the trunk should be directly visible");
+        Caller caller = new Caller(owner.getUUID(), owner.getName().getString(), AccessLevel.OWNER);
+        List<String> toolIds = List.of(
+                "minecraft:stone_pickaxe", "minecraft:stone_axe", "minecraft:stone_shovel", "minecraft:stone_sword");
+        List<Item> tools = List.of(Items.STONE_PICKAXE, Items.STONE_AXE, Items.STONE_SHOVEL, Items.STONE_SWORD);
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 18000, () -> false);
+        runner.setEventSink(result);
+        runner.start(
+                new BatchObtainTask(
+                        toolIds.stream()
+                                .map(itemId -> new CraftPlanner.Target(itemId, 1))
+                                .toList(),
+                        false,
+                        true,
+                        64,
+                        17000,
+                        64,
+                        128,
+                        8000,
+                        "local",
+                        caller,
+                        null,
+                        new MinecraftObtainSubtaskFactory()),
+                "obtain_items");
+        TaskTrace.of(h, runner, companion).succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "the empty-bag stone tool order should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, result.summary + " at " + companion.blockPosition());
+            for (Item item : tools) {
+                h.assertValueEqual(companion.inventory().countItem(item), 1, "crafted " + item);
+            }
+        });
+    }
+
     @GameTest(maxTicks = 4800, structure = GameTestArenas.ARENA_24)
     public void callerObtainsStonePickaxeFromLogsOnly(GameTestHelper h) {
         GameTestSupport.platformAt(h, 300, 20);
