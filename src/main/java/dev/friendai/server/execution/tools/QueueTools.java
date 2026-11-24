@@ -396,7 +396,10 @@ public final class QueueTools implements FeatureToolContributor {
                                 goal,
                                 bound,
                                 new PlanOptions(priority, policy, time, autoRepair),
-                                planFactories(access, allowed),
+                                // Every registered task tool is available to the plan's steps, so an edit an owner
+                                // admits later cannot leave the tree with an action it cannot build; each emission
+                                // still re-checks the step's own principal and access before it runs.
+                                planFactories(access, all),
                                 attach);
             }
         } catch (IllegalArgumentException e) {
@@ -605,24 +608,32 @@ public final class QueueTools implements FeatureToolContributor {
                 .toList();
     }
 
-    private static Map<String, PlanStepFactory> planFactories(
-            QueueToolAccess access, Map<String, TaskToolDefinition> allowed) {
+    /**
+     * The executable half of a structured plan, keyed by tool. It is built from the registered task tools rather than
+     * from the requester's current subset: a step is admitted when it is emitted, against its own principal and access,
+     * so an edit that adds an action the editor may run never leaves the plan without a factory for it.
+     */
+    static Map<String, PlanStepFactory> planFactories(
+            QueueToolAccess access, Map<String, TaskToolDefinition> registered) {
         Map<String, PlanStepFactory> result = new LinkedHashMap<>();
-        allowed.forEach((name, def) -> result.put(name, new PlanStepFactory() {
-            @Override
-            public dev.friendai.task.Task create(dev.friendai.task.TaskContext context, QueuedStep step) {
-                Caller caller = access.currentCaller(context.companion(), step.principal())
-                        .withTradingScope(QueueTradeScope.read(step.args()));
-                return createTask(def, context.companion(), caller, step.args());
-            }
+        registered.forEach((name, def) -> {
+            if (!def.plannable()) return;
+            result.put(name, new PlanStepFactory() {
+                @Override
+                public dev.friendai.task.Task create(dev.friendai.task.TaskContext context, QueuedStep step) {
+                    Caller caller = access.currentCaller(context.companion(), step.principal())
+                            .withTradingScope(QueueTradeScope.read(step.args()));
+                    return createTask(def, context.companion(), caller, step.args());
+                }
 
-            @Override
-            public boolean authorized(dev.friendai.task.TaskContext context, QueuedStep step) {
-                return access.currentCaller(context.companion(), step.principal())
-                        .access()
-                        .allows(def.minAccess());
-            }
-        }));
+                @Override
+                public boolean authorized(dev.friendai.task.TaskContext context, QueuedStep step) {
+                    return access.currentCaller(context.companion(), step.principal())
+                            .access()
+                            .allows(def.minAccess());
+                }
+            });
+        });
         return result;
     }
 

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.7] - 2026-11-24
+
+### Fixed
+
+- A queued plan edited after a reload, or by someone other than whoever queued it, still runs every action the edit leaves in it instead of stopping the whole plan at its first step.
+
 ## [0.233.6] - 2026-11-24
 
 ### Fixed

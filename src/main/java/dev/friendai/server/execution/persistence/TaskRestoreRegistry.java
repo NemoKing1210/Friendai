@@ -119,14 +119,17 @@ public final class TaskRestoreRegistry {
         return factories;
     }
 
+    /**
+     * One factory per plannable tool for every restored structured plan, not only the tools its current tree names: an
+     * edit after the reload may add an action the plan never carried before, and a missing factory would abort the
+     * whole plan at that emission. Each factory still authorizes the emitted step's own principal.
+     */
     public Map<Long, Map<String, PlanStepFactory>> planFactories(JobQueue queue) {
         Map<Long, Map<String, PlanStepFactory>> result = new HashMap<>();
         for (PlanRecord plan : queue.plans()) {
             if (plan.definition() == null || plan.cursor() == null) continue;
-            Map<String, TaskToolDefinition> definitions = new HashMap<>();
-            collectPlanTools(plan.definition().nodes(), definitions);
             Map<String, PlanStepFactory> byTool = new HashMap<>();
-            for (var entry : definitions.entrySet()) {
+            for (var entry : taskTools.entrySet()) {
                 TaskToolDefinition def = entry.getValue();
                 if (def == null || !def.plannable()) continue;
                 byTool.put(entry.getKey(), new PlanStepFactory() {

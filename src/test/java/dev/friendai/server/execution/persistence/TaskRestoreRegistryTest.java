@@ -12,10 +12,13 @@ import dev.friendai.agent.tools.ToolMeta;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
 import dev.friendai.execution.queue.PlanRecord;
+import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
@@ -27,6 +30,7 @@ import dev.friendai.server.execution.tools.TaskToolDefinition;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskState;
+import dev.friendai.task.plan.PlanStepFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -76,6 +80,29 @@ class TaskRestoreRegistryTest {
                 null);
 
         assertFalse(registry.hasPlanTools(plan));
+    }
+
+    @Test
+    void aRestoredPlanCanEmitAnyPlannableToolAnEditAddsLater() {
+        TaskToolDefinition wait = task("wait", true, true);
+        TaskToolDefinition stay = task("stay", true, true);
+        TaskRestoreRegistry registry = new TaskRestoreRegistry(
+                Map.of(wait.name(), wait, stay.name(), stay),
+                Map.of(wait.name(), wait, stay.name(), stay),
+                Set.of(wait.name(), stay.name()),
+                () -> null,
+                (owner, principal) -> null);
+        PlanDefinition definition = new PlanDefinition(List.of(new PlanNode.Action(new QueuedStep(
+                wait.name(), new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of()))));
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long planId = queue.addStructuredPlan("restored", definition, PlanOptions.DEFAULT);
+
+        Map<String, PlanStepFactory> factories = registry.planFactories(queue).get(planId);
+
+        assertTrue(
+                factories.keySet().containsAll(Set.of(wait.name(), stay.name())),
+                "a plan restored with only one tool in its tree still carries a factory for a tool an edit adds: "
+                        + factories.keySet());
     }
 
     @Test
