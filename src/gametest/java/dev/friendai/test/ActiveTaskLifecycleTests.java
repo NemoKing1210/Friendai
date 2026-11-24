@@ -21,13 +21,19 @@ import dev.friendai.execution.queue.QueueHold;
 import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.features.acquisition.ObtainStep;
+import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
+import dev.friendai.features.acquisition.minecraft.task.BatchObtainTask;
 import dev.friendai.features.acquisition.minecraft.task.ObtainTask;
+import dev.friendai.features.crafting.CraftPlanner;
 import dev.friendai.features.interaction.minecraft.task.WaitTask;
+import dev.friendai.features.knowledge.ResourceObservation;
 import dev.friendai.features.navigation.minecraft.task.StayTask;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.diagnostics.LogEvents;
 import dev.friendai.foundation.spatial.Pos;
+import dev.friendai.infrastructure.persistence.knowledge.KnowledgeStore;
 import dev.friendai.server.execution.DiagnosticClockTestAccess;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
@@ -37,8 +43,11 @@ import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public class ActiveTaskLifecycleTests {
     private static final class Events implements TaskEventSink {
@@ -1319,16 +1328,16 @@ public class ActiveTaskLifecycleTests {
                 .book(owner.getUUID())
                 .observe(
                         new dev.friendai.features.knowledge.ResourceObservation(
-                                "minecraft:coal_ore",
+                                "minecraft:oak_log",
                                 new dev.friendai.features.knowledge.ResourceObservation.Location(
                                         dimension, new Pos(remembered.getX(), remembered.getY(), remembered.getZ())),
                                 new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
                                 Math.max(0, h.getLevel().getGameTime() - 1)),
-                        "minecraft:coal_ore");
+                        "minecraft:oak_log");
         Events events = new Events();
         ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
         runner.setEventSink(events);
-        runner.start(obtainCoal(), "obtain_empty_site");
+        runner.start(obtainLogs(), "obtain_empty_site");
         int[] stage = {0};
         int[] priorVisits = {0};
         h.succeedWhen(() -> {
@@ -1337,7 +1346,7 @@ public class ActiveTaskLifecycleTests {
                     .filter(event -> "visitresource".equals(event.facts().get("operation")))
                     .count();
             if (stage[0] == 0) {
-                if (events.finishedDispositions.isEmpty()) return;
+                h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the first obtain to settle");
                 h.assertValueEqual(
                         events.finishedDispositions.getFirst(),
                         TaskDisposition.FAILED,
@@ -1353,30 +1362,331 @@ public class ActiveTaskLifecycleTests {
                 priorVisits[0] = (int) visits;
                 stage[0] = 1;
                 events.finishedDispositions.clear();
-                runner.start(obtainCoal(), "obtain_again");
-                return;
+                runner.start(obtainLogs(), "obtain_again");
             }
-            if (events.finishedDispositions.isEmpty()) return;
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the second obtain to settle");
             h.assertValueEqual(visits, (long) priorVisits[0], "a later acquisition does not revisit the empty site");
+        });
+    }
+
+    private static ObtainTask obtainLogs() {
+        return obtainLogs(new MinecraftObtainSubtaskFactory());
+    }
+
+    private static ObtainTask obtainLogs(ObtainSubtaskFactory subtaskFactory) {
+        return new ObtainTask(
+                "minecraft:oak_log", 1, false, true, 4, 1_000, 32, 32, 400, "local", null, null, subtaskFactory);
+    }
+
+    /**
+     * The same remembered, now empty site for the lifecycle tests: only the memory exists, so the first plan is a
+     * visit and the visit can only prove the block gone.
+     */
+    private static Remembered rememberLogSite(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 500, 8);
+        var owner = GameTestSupport.mockPlayerAt(h, 2, 501, 2);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 501, 2);
+        companion.setOwner(owner.getUUID());
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        dev.friendai.entity.CompanionManager.get(h.getLevel().getServer()).register(companion);
+        runtime.observations().register(companion);
+        String dimension = h.getLevel().dimension().identifier().toString();
+        var remembered = h.absolutePos(new net.minecraft.core.BlockPos(5, 501, 2));
+        var viewpoint = h.absolutePos(new net.minecraft.core.BlockPos(2, 501, 2));
+        long siteId = runtime.knowledge()
+                .book(owner.getUUID())
+                .observe(
+                        new ResourceObservation(
+                                "minecraft:oak_log",
+                                new ResourceObservation.Location(
+                                        dimension, new Pos(remembered.getX(), remembered.getY(), remembered.getZ())),
+                                new Pos(viewpoint.getX(), viewpoint.getY(), viewpoint.getZ()),
+                                Math.max(0, h.getLevel().getGameTime() - 1)),
+                        "minecraft:oak_log");
+        return new Remembered(runtime.knowledge(), owner.getUUID(), companion, siteId);
+    }
+
+    private record Remembered(KnowledgeStore knowledge, UUID owner, CompanionEntity companion, long siteId) {
+        boolean forgotten(GameTestHelper h) {
+            return knowledge
+                    .book(owner)
+                    .site(siteId, h.getLevel().getGameTime() + 1)
+                    .map(site -> site.members().isEmpty())
+                    .orElse(true);
+        }
+    }
+
+    private static long visitSpans(Events events) {
+        return events.named(LogEvents.SPAN_START).stream()
+                .filter(event -> "visitresource".equals(event.facts().get("operation")))
+                .count();
+    }
+
+    /**
+     * The batch's gather child is an ObtainTask of its own: when it settles naturally, its visit publishes the same
+     * proven absence a standalone visit does, so the batch's next plan does not chase the empty site.
+     */
+    @GameTest(maxTicks = 1200)
+    public void batchObtainForgetsAConfirmedEmptySite(GameTestHelper h) {
+        Remembered remembered = rememberLogSite(h);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(remembered.companion(), () -> 1200, () -> false);
+        runner.setEventSink(events);
+        runner.start(
+                new BatchObtainTask(
+                        List.of(new CraftPlanner.Target("minecraft:oak_log", 1)),
+                        false,
+                        true,
+                        4,
+                        1_000,
+                        32,
+                        32,
+                        400,
+                        "local",
+                        null,
+                        null,
+                        new MinecraftObtainSubtaskFactory()),
+                "obtain_batch_empty_site");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the batch to finish");
+            h.assertTrue(visitSpans(events) >= 1, "the batch should visit the remembered site before giving up");
+            h.assertTrue(remembered.forgotten(h), "the batch's natural child settlement must publish the absence");
+        });
+    }
+
+    /**
+     * A batch that runs out of time settles the child it was still running, and that child settles its own step: the
+     * terminal hook reaches the whole chain instead of stopping at the first level.
+     */
+    @GameTest(maxTicks = 600)
+    public void aBatchTimeoutSettlesItsRunningChild(GameTestHelper h) {
+        Remembered remembered = rememberLogSite(h);
+        StubSubtaskFactory factory = new StubSubtaskFactory(TaskStatus.RUNNING);
+        ExecutionCoordinator runner = new ExecutionCoordinator(remembered.companion(), () -> 600, () -> false);
+        runner.setEventSink(new Events());
+        runner.start(
+                new BatchObtainTask(
+                        List.of(new CraftPlanner.Target("minecraft:oak_log", 1)),
+                        false,
+                        true,
+                        1,
+                        5,
+                        32,
+                        32,
+                        400,
+                        "local",
+                        null,
+                        null,
+                        factory),
+                "obtain_batch_timeout");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!factory.children.isEmpty(), "waiting for the batch to start its gather child");
+            TrackedChild running = factory.children.getLast();
+            h.assertValueEqual(running.stops, 1, "the batch timeout stops the child it was running");
+            h.assertValueEqual(running.terminals, 1, "the batch timeout releases that child's terminal effects");
+        });
+    }
+
+    /**
+     * A batch settles a craft child that ends on its own, so the child's terminal effects run once: a batch whose
+     * craft child fails must still release what that child owned before it reports the failure.
+     */
+    @GameTest(maxTicks = 600)
+    public void aBatchCraftFailureSettlesItsChild(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        companion.inventory().addItem(new ItemStack(Items.OAK_PLANKS, 2));
+        StubSubtaskFactory factory = new StubSubtaskFactory(TaskStatus.FAILED);
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 600, () -> false);
+        runner.setEventSink(new Events());
+        runner.start(
+                new BatchObtainTask(List.of(new CraftPlanner.Target("minecraft:stick", 1)), false, false, factory),
+                "obtain_batch_craft");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!factory.children.isEmpty(), "waiting for the batch's craft child");
+            TrackedChild crafted = factory.children.getLast();
+            h.assertValueEqual(crafted.stops, 1, "the batch stops the craft child that ended");
+            h.assertValueEqual(crafted.terminals, 1, "the batch runs that child's terminal effects once");
+        });
+    }
+
+    /**
+     * A cancelled visit is not a verdict. The owner stopped the work before any ray settled, so the remembered site
+     * keeps every member — the terminal hook that would erase them belongs to natural settlement only.
+     */
+    @GameTest(maxTicks = 600)
+    public void aCancelledNestedVisitKeepsTheRememberedSite(GameTestHelper h) {
+        Remembered remembered = rememberLogSite(h);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(remembered.companion(), () -> 600, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(), "obtain_cancelled_visit");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(visitSpans(events) >= 1, "waiting for the visit to start");
+            runner.stop("test cleanup");
+            h.assertFalse(remembered.forgotten(h), "a cancelled visit must not erase the remembered site");
+        });
+    }
+
+    /**
+     * A nested child earns the lifecycle the runner gives a top-level task: a natural finish stops its cleanup and
+     * runs its terminal hook once, while the child still running at cancellation is stopped without terminal effects.
+     */
+    @GameTest(maxTicks = 600)
+    public void aNestedChildSettlesWithTheLifecycleItEarned(GameTestHelper h) {
+        Remembered remembered = rememberLogSite(h);
+        StubSubtaskFactory factory = new StubSubtaskFactory(TaskStatus.SUCCESS);
+        ExecutionCoordinator runner = new ExecutionCoordinator(remembered.companion(), () -> 600, () -> false);
+        runner.setEventSink(new Events());
+        runner.start(obtainLogs(factory), "obtain_tracked_child");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(factory.children.size() >= 2, "waiting for the parent to plan its next child");
+            TrackedChild settled = factory.children.getFirst();
+            h.assertValueEqual(settled.stops, 1, "a naturally settled child releases its cleanup once");
+            h.assertValueEqual(settled.terminals, 1, "a naturally settled child runs its terminal hook once");
+            runner.stop("test cleanup");
+            TrackedChild cancelled = factory.children.getLast();
+            h.assertValueEqual(cancelled.stops, 1, "cancellation still stops the running child");
+            h.assertValueEqual(cancelled.terminals, 0, "cancellation must not run terminal effects");
             h.succeed();
         });
     }
 
-    private static ObtainTask obtainCoal() {
-        return new ObtainTask(
-                "minecraft:coal",
-                1,
-                false,
-                true,
-                4,
-                1_000,
-                32,
-                32,
-                400,
-                "local",
-                null,
-                null,
-                new MinecraftObtainSubtaskFactory());
+    /** A child whose start throws is a failed start, not a silent leak: the parent settles it once on the way down. */
+    @GameTest(maxTicks = 600)
+    public void aNestedChildWhoseStartFailsStillSettles(GameTestHelper h) {
+        Remembered remembered = rememberLogSite(h);
+        StartFailingSubtaskFactory factory = new StartFailingSubtaskFactory();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(remembered.companion(), () -> 600, () -> false);
+        runner.setEventSink(events);
+        runner.start(obtainLogs(factory), "obtain_failed_start");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the failed start to settle");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(),
+                    TaskDisposition.FAILED,
+                    "a child that cannot start fails the started task");
+            h.assertValueEqual(factory.child.stops, 1, "a failed-start child is stopped once");
+            h.assertValueEqual(factory.child.terminals, 1, "a failed-start child still runs its terminal hook once");
+            h.succeed();
+        });
+    }
+
+    /** Hands every plan step the same counted child, so settlement effects are observable. */
+    private static final class StubSubtaskFactory implements ObtainSubtaskFactory {
+        final List<TrackedChild> children = new ArrayList<>();
+        private final TaskStatus status;
+
+        private StubSubtaskFactory(TaskStatus status) {
+            this.status = status;
+        }
+
+        @Override
+        public Created create(TaskContext context, ObtainStep step, Options options) {
+            TrackedChild child = new TrackedChild(status);
+            children.add(child);
+            return Created.task(child);
+        }
+    }
+
+    /** A child whose cancellation and terminal effects are told apart by counting them. */
+    private static final class TrackedChild implements Task {
+        private final TaskStatus status;
+        int stops;
+        int terminals;
+
+        private TrackedChild(TaskStatus status) {
+            this.status = status;
+        }
+
+        @Override
+        public String type() {
+            return "tracked_child";
+        }
+
+        @Override
+        public void start(TaskContext c) {}
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return status;
+        }
+
+        @Override
+        public void stop(TaskContext c) {
+            stops++;
+        }
+
+        @Override
+        public void onTerminal(TaskContext c) {
+            terminals++;
+        }
+
+        @Override
+        public String describe() {
+            return "tracked child";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "tracked child " + status;
+        }
+    }
+
+    private static final class StartFailingSubtaskFactory implements ObtainSubtaskFactory {
+        final StartFailingChild child = new StartFailingChild();
+
+        @Override
+        public Created create(TaskContext context, ObtainStep step, Options options) {
+            return Created.task(child);
+        }
+    }
+
+    private static final class StartFailingChild implements Task {
+        int stops;
+        int terminals;
+
+        @Override
+        public String type() {
+            return "start_failing_child";
+        }
+
+        @Override
+        public void start(TaskContext c) {
+            throw new IllegalStateException("cannot start");
+        }
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {
+            stops++;
+        }
+
+        @Override
+        public void onTerminal(TaskContext c) {
+            terminals++;
+        }
+
+        @Override
+        public String describe() {
+            return "start failing child";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "";
+        }
     }
 
     /**

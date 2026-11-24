@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.19] - 2026-11-25
+
+### Fixed
+
+- An acquisition stopped by its time limit now still finishes what its running step had proven: a trip that found a remembered deposit gone forgets it instead of walking back to the same empty spot next time.
+
 ## [0.233.18] - 2026-11-24
 
 ### Fixed

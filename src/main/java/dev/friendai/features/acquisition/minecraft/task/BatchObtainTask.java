@@ -90,6 +90,9 @@ public final class BatchObtainTask implements Task {
     private ObtainPlan limitedPlan;
 
     private Task current;
+    /** A child cancellation already stopped, whose terminal effects are still owed if the runner settles us after. */
+    private Task stoppedChild;
+
     private ChildKind childKind = ChildKind.NONE;
     private String childKey = "";
     private String childLabel = "";
@@ -452,6 +455,7 @@ public final class BatchObtainTask implements Task {
     @Override
     public void start(TaskContext c) {
         current = null;
+        stoppedChild = null;
         childKind = ChildKind.NONE;
         childKey = "";
         childLabel = "";
@@ -784,6 +788,7 @@ public final class BatchObtainTask implements Task {
     public void stop(TaskContext c) {
         if (current != null) {
             ObtainTask.safeStop(current, c);
+            stoppedChild = current;
             current = null;
         }
         childKind = ChildKind.NONE;
@@ -795,6 +800,10 @@ public final class BatchObtainTask implements Task {
         if (current != null) {
             ObtainTask.safeTerminate(current, c);
             current = null;
+        }
+        if (stoppedChild != null) {
+            ObtainTask.safeRelease(stoppedChild, c);
+            stoppedChild = null;
         }
     }
 

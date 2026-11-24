@@ -93,6 +93,11 @@ public final class ObtainTask implements Task {
     private final Set<Long> unusableContainers = new LinkedHashSet<>();
 
     private Task current;
+    /**
+     * A step child that cancellation already stopped. Its terminal effects are still owed when the runner settles
+     * this task after the stop (a plan deadline does stop then release), so the chain is not cut at this level.
+     */
+    private Task stoppedChild;
     /** A look through nearby storage, run once before making or gathering the item. */
     private Task tour;
     /** Frees room through the normal container interaction; ticks between steps like the tour. */
@@ -307,6 +312,7 @@ public final class ObtainTask implements Task {
     @Override
     public void start(TaskContext c) {
         current = null;
+        stoppedChild = null;
         currentVisitVerification = null;
         currentStep = null;
         creativeCreationStep = false;
@@ -916,6 +922,12 @@ public final class ObtainTask implements Task {
     static void safeTerminate(Task task, TaskContext c) {
         if (task == null) return;
         safeStop(task, c);
+        safeRelease(task, c);
+    }
+
+    /** Runs a child's terminal effects alone, for a child whose stop already ran during cancellation. */
+    static void safeRelease(Task task, TaskContext c) {
+        if (task == null) return;
         try {
             task.onTerminal(c);
         } catch (RuntimeException ignored) {
@@ -1001,6 +1013,7 @@ public final class ObtainTask implements Task {
         childContext = null;
         if (current != null) {
             safeStop(current, c);
+            stoppedChild = current;
             current = null;
         }
         c.companion().getNavigation().stop();
@@ -1011,6 +1024,10 @@ public final class ObtainTask implements Task {
         if (current != null) {
             safeTerminate(current, childContext == null ? c : childContext);
             current = null;
+        }
+        if (stoppedChild != null) {
+            safeRelease(stoppedChild, c);
+            stoppedChild = null;
         }
         if (tour != null) {
             safeTerminate(tour, c);
