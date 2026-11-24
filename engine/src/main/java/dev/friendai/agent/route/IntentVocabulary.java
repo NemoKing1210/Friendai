@@ -32,6 +32,9 @@ public final class IntentVocabulary {
     private final List<String> planApprovalMarkers;
     private final List<String> conversationMarkers;
     private final List<String> statementNegations;
+    private final List<String> tradeNegationMarkers;
+    private final List<String> tradeConditionalMarkers;
+    private final List<String> tradeDeterminers;
 
     IntentVocabulary(
             List<String> questionMarkers,
@@ -43,7 +46,10 @@ public final class IntentVocabulary {
             List<String> planProposalMarkers,
             List<String> planApprovalMarkers,
             List<String> conversationMarkers,
-            List<String> statementNegations) {
+            List<String> statementNegations,
+            List<String> tradeNegationMarkers,
+            List<String> tradeConditionalMarkers,
+            List<String> tradeDeterminers) {
         this.questionMarkers = questionMarkers;
         this.adviceQuestionMarkers = adviceQuestionMarkers;
         this.actionVerbs = actionVerbs;
@@ -54,6 +60,9 @@ public final class IntentVocabulary {
         this.planApprovalMarkers = List.copyOf(planApprovalMarkers);
         this.conversationMarkers = List.copyOf(conversationMarkers);
         this.statementNegations = List.copyOf(statementNegations);
+        this.tradeNegationMarkers = List.copyOf(tradeNegationMarkers);
+        this.tradeConditionalMarkers = List.copyOf(tradeConditionalMarkers);
+        this.tradeDeterminers = List.copyOf(tradeDeterminers);
     }
 
     /** Both languages merged. */
@@ -68,6 +77,9 @@ public final class IntentVocabulary {
         List<String> planApprovals = new ArrayList<>();
         List<String> conversation = new ArrayList<>();
         List<String> negations = new ArrayList<>();
+        List<String> tradeNegations = new ArrayList<>();
+        List<String> tradeConditionals = new ArrayList<>();
+        List<String> tradeDeterminers = new ArrayList<>();
         for (String file : List.of("/agent/intents_en.json", "/agent/intents_ru.json")) {
             JsonObject json = read(file);
             strings(json, "question_markers", questions);
@@ -80,6 +92,9 @@ public final class IntentVocabulary {
             strings(json, "plan_approval_markers", planApprovals);
             strings(json, "conversation_markers", conversation);
             strings(json, "statement_negations", negations);
+            strings(json, "trade_negation_markers", tradeNegations);
+            strings(json, "trade_conditional_markers", tradeConditionals);
+            strings(json, "trade_determiners", tradeDeterminers);
         }
         return new IntentVocabulary(
                 questions,
@@ -91,7 +106,10 @@ public final class IntentVocabulary {
                 planProposals,
                 planApprovals,
                 conversation,
-                negations);
+                negations,
+                tradeNegations,
+                tradeConditionals,
+                tradeDeterminers);
     }
 
     /** Exact whole-utterance matches only: a greeting beside an order must never hide that order's tools. */
@@ -192,6 +210,84 @@ public final class IntentVocabulary {
         String words = String.join(" ", words(lower));
         return planApprovalMarkers.contains(words);
     }
+
+    /**
+     * True only when the message gives a trade as an instruction: a trading verb used in the imperative, outside
+     * quotes, not negated in its clause, and not part of a question, advice request or conditional. The words alone
+     * decide, so a recovery, fallback or proposal turn cannot turn a discussion about trading into permission to
+     * spend the owner's items.
+     */
+    public boolean isAffirmativeTradeInstruction(String text) {
+        if (text == null || text.isBlank()) return false;
+        String lower = (text.length() > TurnRouter.MAX_TEXT ? text.substring(0, TurnRouter.MAX_TEXT) : text)
+                .toLowerCase(java.util.Locale.ROOT);
+        String unquoted =
+                SINGLE_QUOTED.matcher(QUOTED.matcher(lower).replaceAll(" ")).replaceAll(" ");
+        String stripped = unquoted.strip();
+        List<String> tokens = words(stripped);
+        if (tokens.isEmpty()) return false;
+        if (isAdviceQuestion(stripped)) return false;
+        if (containsWords(tradeConditionalMarkers, stripped)) return false;
+        if (stripped.endsWith("?") || startsWithQuestionMarker(stripped, tokens)) return false;
+        for (String clause : CLAUSE_BREAK.split(unquoted)) {
+            List<String> clauseWords = words(clause);
+            if (!clauseWords.isEmpty() && clauseIsTradeInstruction(clauseWords)) return true;
+        }
+        return false;
+    }
+
+    private boolean clauseIsTradeInstruction(List<String> clause) {
+        int since = 0;
+        for (int i = 0; i < clause.size(); i++) {
+            String word = clause.get(i);
+            if (CONTRAST.contains(word)) {
+                since = i + 1;
+                continue;
+            }
+            for (Map.Entry<String, Set<ToolGroup>> entry : actionVerbs.entrySet()) {
+                if (!entry.getValue().contains(ToolGroup.TRADING) || !matches(word, entry.getKey())) continue;
+                if (!instructionForm(word, entry.getKey())) continue;
+                if (i > 0 && tradeDeterminers.contains(clause.get(i - 1))) continue;
+                if (negatedBetween(clause, since, i)) continue;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A negation marker between the clause start and the verb negates it: "do not buy", "не покупай". */
+    private boolean negatedBetween(List<String> clause, int since, int verbIndex) {
+        if (verbIndex <= since) return false;
+        String before = " " + String.join(" ", clause.subList(since, verbIndex)) + " ";
+        for (String marker : tradeNegationMarkers) {
+            List<String> markerWords = words(marker);
+            if (!markerWords.isEmpty() && before.contains(" " + String.join(" ", markerWords) + " ")) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A trading word counts as an order only in its base form: a Latin-script word must equal its stem ("buy", not
+     * "purchased"); a Cyrillic word must end in an imperative or infinitive ending rather than a past or present-tense
+     * one ("купи", "продай", "пополнить", not "купил" or "покупает").
+     */
+    private static boolean instructionForm(String word, String stem) {
+        boolean cyrillic =
+                word.chars().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.CYRILLIC);
+        if (!cyrillic) return word.equals(stem);
+        if (word.endsWith("ли")) return false;
+        return word.endsWith("й") || word.endsWith("и") || word.endsWith("ь") || word.endsWith("те");
+    }
+
+    /** Quoted spans are reported speech or a dictation, never the owner's own instruction. */
+    private static final java.util.regex.Pattern QUOTED = java.util.regex.Pattern.compile("\"[^\"]*\"|«[^»]*»|“[^”]*”");
+    /** A single-quoted span; the apostrophe inside a word ("don't") does not open one. */
+    private static final java.util.regex.Pattern SINGLE_QUOTED =
+            java.util.regex.Pattern.compile("(?<![\\p{L}])'[^']+'(?![\\p{L}])");
+    /** Sentence punctuation ends a clause; a contrastive conjunction restarts the negation window inside one. */
+    private static final java.util.regex.Pattern CLAUSE_BREAK = java.util.regex.Pattern.compile("[.!?;:,]+");
+    /** Conjunctions that start a fresh statement, so "don't sell it, but buy a map" still orders the purchase. */
+    private static final Set<String> CONTRAST = Set.of("but", "however", "но", "однако", "а");
 
     /**
      * True when one marker appears as whole words: "plan" is not found in "planks" or "plant", nor "then" in

@@ -869,15 +869,16 @@ public final class CompanionBrain {
         decision = withEventToolContext(
                 router.route(turnSignals, agentSettings.get().plannerMode()), batch);
         observe(o -> o.onRouteDecision(decision));
-        // Only an explicit owner trade action may mint a spend scope. Topics, fallback routing and queued
-        // work cannot turn a read-only question into authority behind the chat tool filter.
+        proposalTurn = decision.planning().proposeOnly();
+        // Only an affirmative owner instruction may mint a spend scope. The words decide, not the route: a blocked
+        // plan, a fallback route, a question or a request to see a plan first must not read as consent to spend.
         turnCaller = tradingTurnPort.begin(
                 candidateCaller,
                 ownerInitiated
+                        && !proposalTurn
                         && decision.mode() != TurnMode.CHAT
                         && decision.groups().contains(ToolGroup.TRADING)
                         && router.explicitlyRequestsTrading(String.join("\n", turnPlayerTexts)));
-        proposalTurn = decision.planning().proposeOnly();
         String approvalNote = "";
         if (turnKind == TurnKind.PLAYER && !turnPlayerTexts.isEmpty()) {
             PendingPlan pending = pendingPlans.remove(turnCaller.uuid());

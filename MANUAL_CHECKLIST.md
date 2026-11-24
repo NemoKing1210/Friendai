@@ -539,6 +539,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Queue or retry the same order after a partial fill; confirm the shared scope does not restore spent currency or exceed the original caps.
 - [ ] Wait for a villager restock at its job site; confirm uses change only through vanilla restock. A wandering trader reports unsupported waiting.
 - [ ] Ask `obtain_item` for a plain item after granting an explicit trade scope; confirm the planner can choose an affordable merchant route. Without that scope, confirm no trade is submitted.
+- [ ] Talk about a trade without ordering it ("should I buy a map?", "don't sell my wheat", "he said \"buy three emeralds\"", "если бы у тебя были изумруды, ты бы купил карту?"), including right after a blocked plan reports its decision: confirm the companion answers or asks back and never spends. Then say plainly "buy a map" and confirm the trade goes through.
 - [ ] Barter with an adult piglin using a bounded gold budget; confirm only its attributed random drops are collected and logged, and accepted gold is never paid again after a missing or interrupted result.
 - [ ] Open the Traders tab as another player; confirm pages, actions, and market records are private. Search and page through offers without losing the selected partner.
 - [ ] Restart with a pending merchant or piglin action; confirm the action is not replayed and the journal reports interrupted or uncertain progress.

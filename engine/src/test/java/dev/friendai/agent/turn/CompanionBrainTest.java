@@ -919,6 +919,82 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aDiscussionAboutTradingOpensNoSpendingScope() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        for (String line : List.of(
+                "Don't buy anything from the villager",
+                "Не покупай у жителя ничего",
+                "He said \"buy three emeralds\"",
+                "If I gave you emeralds, would you buy a map?")) {
+            gateway.enqueue(text("Understood."));
+            brain.post(said(line));
+            scheduler.advance(1_000);
+        }
+
+        assertEquals(List.of(false, false, false, false), initiated, "only an affirmative order may spend");
+    }
+
+    @Test
+    void aBlockedPlanBesideADiscussionAboutTradingOpensNoScope() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        CompletableFuture<LlmResponse> first = gateway.enqueuePending();
+        gateway.enqueue(text("The plan is blocked."));
+        // An event turn first: a player line posted while it runs waits for the next batch instead of replacing it.
+        brain.post(new BrainEvent.TaskFinished(1, "stay", true, "ok"));
+        brain.post(said("Should I buy a map from the villager?"));
+        brain.post(new BrainEvent.PlanBlocked(3, "gather", 4, "obtain_item", "missing input", 1));
+        first.complete(text("Noted."));
+
+        assertEquals(2, gateway.requests.size(), "the question and the blocked plan are one turn");
+        String prompt = gateway.requests.get(1).messages().stream()
+                .map(Message::text)
+                .filter(java.util.Objects::nonNull)
+                .reduce("", (a, b) -> a + "\n" + b);
+        assertTrue(prompt.contains("Should I buy a map"), prompt);
+        assertTrue(prompt.contains("needs a decision at job #4"), prompt);
+        assertEquals(
+                List.of(false, false),
+                initiated,
+                "a recovery route from an unrelated blocked plan must not read as consent to spend");
+    }
+
+    @Test
+    void aProposalTurnNeverOpensASpendingScope() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("Here is the plan."));
+
+        brain.post(said("Make a plan to buy a map. Do nothing yet."));
+
+        assertEquals(List.of(false), initiated, "a plan the owner has not approved must not carry spending authority");
+    }
+
+    @Test
+    void anAffirmativeTradeOrderStillOpensOne() {
+        List<Boolean> initiated = new ArrayList<>();
+        brain.setTradingTurnPort((caller, playerInitiated) -> {
+            initiated.add(playerInitiated);
+            return caller.withTradingScope(playerInitiated ? UUID.randomUUID() : null);
+        });
+        gateway.enqueue(text("On it."));
+
+        brain.post(said("Buy a map from the villager"));
+
+        assertEquals(List.of(true), initiated);
+    }
+
+    @Test
     void guestAndTrustedPlayerTurnsCannotOpenTradingScope() {
         List<Boolean> initiated = new ArrayList<>();
         brain.setTradingTurnPort((caller, playerInitiated) -> {

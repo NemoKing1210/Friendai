@@ -18,8 +18,13 @@ import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.trading.ItemCost;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.item.trading.MerchantOffers;
 
 public final class TradingToolsTests {
     private static final List<String> TRADING_TOOLS = List.of(
@@ -104,6 +109,44 @@ public final class TradingToolsTests {
                 "{\"direction\":\"buy\",\"item_id\":\"minecraft:emerald\",\"limit\":2147483647}",
                 new Caller(owner, "owner", AccessLevel.OWNER));
         h.assertTrue(overflow.error(), "query limit overflow must be rejected");
+        h.succeed();
+    }
+
+    /**
+     * The owner only discussed the trade, so no spending scope was minted. Both spending tools refuse before touching
+     * the world: the villager's stock and the companion's emeralds stay exactly as they were.
+     */
+    @GameTest
+    public void aTradeTheOwnerNeverAskedForSpendsNothing(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        UUID owner = UUID.randomUUID();
+        companion.setOwner(owner);
+        companion.inventory().setItem(0, new ItemStack(Items.EMERALD, 4));
+        Villager villager = h.spawn(EntityTypes.VILLAGER, 3, 2, 2);
+        villager.setOffers(new MerchantOffers());
+        villager.getOffers()
+                .add(new MerchantOffer(new ItemCost(Items.EMERALD, 1), new ItemStack(Items.BREAD, 1), 8, 4, 0.05F));
+        MerchantOffer offer = villager.getOffers().getFirst();
+        ToolExecutor tools = tools(companion);
+        Caller neverAsked = new Caller(owner, "owner", AccessLevel.OWNER);
+
+        ToolResult trade = run(
+                tools,
+                "trade_item",
+                "{\"trader\":\"" + villager.getUUID() + "\",\"offer_ref\":\"offer-x\",\"revision\":1,"
+                        + "\"desired_output_count\":1,\"input_caps\":[{\"item_id\":\"minecraft:emerald\","
+                        + "\"max_count\":1}],\"allow_overshoot\":false,\"allow_partial\":false,"
+                        + "\"deadline_ticks\":20}",
+                neverAsked);
+        ToolResult barter = run(tools, "barter", "{\"piglin\":\"00000000-0000-0000-0000-000000000001\"}", neverAsked);
+
+        h.assertTrue(trade.error(), "a purchase without owner consent must be refused: " + trade.content());
+        h.assertTrue(trade.content().contains("has not asked"), trade.content());
+        h.assertTrue(barter.error(), "a barter without owner consent must be refused: " + barter.content());
+        h.assertTrue(barter.content().contains("has not asked"), barter.content());
+        h.assertValueEqual(4, companion.inventory().countItem(Items.EMERALD), "emeralds");
+        h.assertValueEqual(0, offer.getUses(), "the offer kept its uses");
+        h.assertValueEqual(8, offer.getMaxUses(), "the offer kept its stock");
         h.succeed();
     }
 

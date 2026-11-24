@@ -463,7 +463,8 @@ public final class TradingTools implements FeatureToolContributor {
                 true);
         UUID owner = requireOwner(companion, caller);
         if (caller.tradingScope() == null) {
-            throw new IllegalArgumentException("spending requires an owner-initiated player turn");
+            throw new IllegalArgumentException(
+                    "the owner has not asked for this trade; ask them plainly whether to buy, sell or barter, and trade only after they say yes");
         }
         UUID savedScope = QueueTradeScope.read(args);
         if (savedScope != null && !savedScope.equals(caller.tradingScope())) {
@@ -653,7 +654,8 @@ public final class TradingTools implements FeatureToolContributor {
                 true);
         UUID owner = requireOwner(companion, caller);
         if (caller.tradingScope() == null)
-            throw new IllegalArgumentException("barter requires an owner-initiated player turn");
+            throw new IllegalArgumentException(
+                    "the owner has not asked for this barter; ask them plainly whether to barter, and barter only after they say yes");
         UUID savedScope = QueueTradeScope.read(args);
         if (savedScope != null && !savedScope.equals(caller.tradingScope())) {
             throw new IllegalArgumentException("queued trading scope does not match this owner turn");

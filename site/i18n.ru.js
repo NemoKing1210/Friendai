@@ -283,7 +283,7 @@ const RU = {
   "Level a villager up.": "Прокачать жителя.",
   "Barter with piglins.": "Обмен с пиглинами.",
   "Spend authority": "Право тратить",
-  "Ephemeral spending rights are revalidated.": "Временные права на траты перепроверяются.",
+  "Ephemeral spending rights are revalidated, and only your own plain instruction to buy, sell or barter opens one: a question, a refusal, a hypothetical or a quoted line never does.": "Временные права на траты перепроверяются, и открыть их может только ваша прямая просьба купить, продать или обменять: вопрос, отказ, предположение или цитата — никогда.",
   "Idle refresh": "Обновление в простое",
   "Server refreshes traders while idle.": "Сервер обновляет торговцев в простое.",
 

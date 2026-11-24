@@ -233,6 +233,44 @@ class TurnRouterTest {
     }
 
     @Test
+    void aQuotedNegatedOrHypotheticalTradeIsNotConsent() {
+        TurnRouter router = new TurnRouter(IntentVocabulary.load());
+        for (String text : List.of(
+                "He said \"buy three emeralds\" to the villager",
+                "She told me «продай пшеницу» yesterday",
+                "Don't buy anything from the villager",
+                "Не покупай у жителя ничего",
+                "Do not sell my wheat",
+                "I never buy maps at that price",
+                "If you had emeralds, would you buy a map",
+                "Если бы у тебя были изумруды, ты бы купил карту",
+                "Maybe buy a map later, I am not sure",
+                "Should I buy a map from the villager?",
+                "Стоит ли продавать пшеницу фермеру?")) {
+            assertFalse(router.explicitlyRequestsTrading(text), text);
+        }
+    }
+
+    @Test
+    void anAffirmativeTradeAfterAContrastStillCounts() {
+        TurnRouter router = new TurnRouter(IntentVocabulary.load());
+        for (String text : List.of(
+                "Don't sell the wheat, but buy a map from the villager",
+                "Не продавай пшеницу, но купи карту у жителя",
+                "Buy a map please")) {
+            assertTrue(router.explicitlyRequestsTrading(text), text);
+        }
+    }
+
+    @Test
+    void aPastTenseOrDescribedTradeIsNotAnInstruction() {
+        TurnRouter router = new TurnRouter(IntentVocabulary.load());
+        for (String text : List.of("I bought a map yesterday", "The trade went well", "вчера купил карту")) {
+            assertFalse(router.explicitlyRequestsTrading(text), text);
+        }
+    }
+
+    @Test
     void unclearTextDefaultsToActionWithAllGroups() {
         RouteDecision d = player("hmm okay then lets see", false);
         assertEquals(TurnMode.ACTION, d.mode(), "a lone 'then' is not an objective");

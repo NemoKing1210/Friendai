@@ -43,12 +43,13 @@ public final class TurnRouter {
         return vocabulary.isPlanApproval(playerText);
     }
 
-    /** True only when the text contains a recognized trading action verb, not merely a trading topic. */
+    /**
+     * True only when the owner gives a trade as an instruction: a trading verb in the imperative, outside quotes,
+     * not negated, and not part of a question, advice request or conditional. Routing never decides this on its own —
+     * a blocked plan, a fallback route or a request to see a plan must not read as consent to spend.
+     */
     public boolean explicitlyRequestsTrading(String playerText) {
-        if (playerText == null || playerText.isBlank()) return false;
-        String lower = playerText.length() > MAX_TEXT ? playerText.substring(0, MAX_TEXT) : playerText;
-        return vocabulary.verbsIn(tokens(lower.toLowerCase(Locale.ROOT))).values().stream()
-                .anyMatch(groups -> groups.contains(ToolGroup.TRADING));
+        return vocabulary.isAffirmativeTradeInstruction(playerText);
     }
 
     public RouteDecision route(RouteSignals s) {

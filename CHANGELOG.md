@@ -20,6 +20,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- The companion no longer treats talk about trading as permission to spend. A quoted line, a refusal ("don't sell my
+  wheat"), a hypothetical, advice or a question ("should I buy a map?"), and a plan it has only shown you, all leave
+  your items alone; a trade goes through only after you plainly tell it to buy, sell or barter.
 - Two voice commands spoken one after another are both delivered, in the order you said them, even when the second
   one finishes recognizing first; a recording still being recognized is no longer thrown away when you start the next
   one, a settings change still drops it, and at most three can wait, with a clear notice for the fourth.

@@ -90,7 +90,7 @@ const CATS = [
     items: [
       "find_traders|Locate villagers.", "inspect_trader|Read a trader's offers.", "refresh_trades|Re-check offers.", "wait_for_restock|Wait until stock returns.",
       "known_trades|List remembered trades.", "plan_trade|Plan a trade.", "trade_item|Execute a trade.", "level_trader|Level a villager up.", "barter|Barter with piglins.",
-      "~Spend authority|Ephemeral spending rights are revalidated.", "~Idle refresh|Server refreshes traders while idle." ] },
+      "~Spend authority|Ephemeral spending rights are revalidated, and only your own plain instruction to buy, sell or barter opens one: a question, a refusal, a hypothetical or a quoted line never does.", "~Idle refresh|Server refreshes traders while idle." ] },
   { id: "body", domain: "hands", name: "Body & Interaction", icon: "🙂", color: COLORS.quartz,
     desc: "Expression and contact: looking, gesturing, sitting, riding and using entities.",
     items: [

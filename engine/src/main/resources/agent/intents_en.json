@@ -91,5 +91,8 @@
     "build it",
     "make it"
   ],
+  "trade_negation_markers": ["not", "no", "never", "don't", "do not", "dont", "cannot", "can't", "won't", "will not", "shouldn't", "should not"],
+  "trade_conditional_markers": ["if", "unless", "whether", "would", "could", "might", "maybe", "perhaps", "suppose", "supposing", "imagine", "in case", "what if", "hypothetically", "ideally"],
+  "trade_determiners": ["the", "a", "an", "this", "that", "these", "those", "my", "your", "his", "her", "its", "our", "their", "some", "any", "every", "each", "no", "one"],
   "plan_request_markers": ["plan", "plans", "planned", "planning", "step by step", "make a plan", "organize", "organise", "figure out how"]
 }
