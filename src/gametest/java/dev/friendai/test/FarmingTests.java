@@ -3,6 +3,8 @@ package dev.friendai.test;
 import dev.friendai.debug.DebugAction;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.features.acquisition.ObtainStep;
+import dev.friendai.features.acquisition.minecraft.ObtainSubtaskFactory;
 import dev.friendai.features.farming.CellKind;
 import dev.friendai.features.farming.FarmReport;
 import dev.friendai.features.farming.FarmSnapshot;
@@ -16,6 +18,7 @@ import dev.friendai.features.farming.minecraft.task.TendFarmTask;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.persistence.TaskRestoreRegistry;
+import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskState;
@@ -484,6 +487,52 @@ public class FarmingTests {
                 h.setBlock(x, 2, z, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, age));
             }
         }
+    }
+
+    /**
+     * An acquisition order for two carrots on a mixed plot picked carrots only: the wheat beside them stays ripe, the
+     * empty soil is not sown, and the third carrot is left for whoever asks for it.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2400)
+    public void aHarvestOrderPicksOnlyTheRequestedCropAndCount(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 4; x <= 10; x++) {
+            h.setBlock(x, 1, 4, Blocks.FARMLAND);
+        }
+        for (int x = 4; x <= 6; x++) {
+            h.setBlock(x, 2, 4, Blocks.CARROTS.defaultBlockState().setValue(CropBlock.AGE, 7));
+        }
+        for (int x = 7; x <= 9; x++) {
+            h.setBlock(x, 2, 4, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 4);
+        c.inventory().addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        Task harvest = new MinecraftObtainSubtaskFactory()
+                .create(
+                        new TaskContext(c, h.getLevel()),
+                        new ObtainStep.Harvest(2, "minecraft:carrots"),
+                        new ObtainSubtaskFactory.Options("local", null, null, 64, 128, 800))
+                .task();
+        runner.start(harvest, "farm");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "not finished: " + result.status + " " + result.summary);
+            int carrotsLeft = 0;
+            for (int x = 4; x <= 6; x++) {
+                if (age(h, x, 2, 4) == 7) carrotsLeft++;
+            }
+            h.assertValueEqual(carrotsLeft, 1, "carrots left for the next order: " + result.summary);
+            for (int x = 7; x <= 9; x++) {
+                h.assertValueEqual(age(h, x, 2, 4), 7, "wheat untouched at x=" + x + ": " + result.summary);
+            }
+            h.assertTrue(h.getBlockState(new BlockPos(10, 2, 4)).isAir(), "the empty soil was not sown");
+            h.assertTrue(
+                    result.summary.contains("minecraft:carrot"), "the report names the picked crop: " + result.summary);
+            h.assertFalse(
+                    result.summary.contains("minecraft:wheat"), "the report does not claim wheat: " + result.summary);
+        });
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 1200)

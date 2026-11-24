@@ -144,6 +144,50 @@ class FarmPlannerTest {
     }
 
     @Test
+    void aHarvestOrderPicksOnlyItsCropUpToTheLimit() {
+        FarmSnapshot field = FarmFixtures.withHoe(
+                FarmFixtures.field(Map.of(WHEAT_SEEDS, 3, FarmFixtures.CARROT, 3), "rrR.", "Rr."), true);
+        FarmPlan plan = FarmPlanner.plan(
+                field, new FarmGoal(null, true, true, 0, 512, "minecraft:carrots", 2), FarmFixtures.book());
+
+        List<FarmStep.Harvest> harvests = plan.steps().stream()
+                .filter(FarmStep.Harvest.class::isInstance)
+                .map(FarmStep.Harvest.class::cast)
+                .toList();
+        assertEquals(2, harvests.size());
+        assertEquals(
+                List.of("0,0", "1,0"),
+                harvests.stream().map(h -> h.cell().dx() + "," + h.cell().dz()).toList());
+        harvests.forEach(h -> assertEquals("minecraft:carrots", h.cell().crop()));
+        assertEquals(2, count(plan, FarmStep.Replant.class));
+        assertTrue(sows(plan).isEmpty(), "a harvest run does not sow the empty soil");
+        assertEquals(0, plan.unsown());
+        assertTrue(plan.steps().stream().noneMatch(FarmStep.Till.class::isInstance), "a harvest run does not till");
+        // The third carrot and both wheat cells are left for someone who asked for them.
+        assertTrue(plan.steps().stream()
+                .noneMatch(step ->
+                        step instanceof FarmStep.Harvest h && !h.cell().crop().equals("minecraft:carrots")));
+    }
+
+    @Test
+    void aHarvestOrderWithoutALimitPicksEveryCellOfItsCrop() {
+        FarmSnapshot field = FarmFixtures.field(Map.of(), "rrr", "RRR");
+        FarmPlan plan = FarmPlanner.plan(
+                field, new FarmGoal(null, false, false, 0, 512, "minecraft:carrots", 0), FarmFixtures.book());
+        assertEquals(3, count(plan, FarmStep.Harvest.class));
+        assertEquals(3, count(plan, FarmStep.Replant.class));
+    }
+
+    @Test
+    void aHarvestOrderForAnAbsentCropPlansNothing() {
+        FarmPlan plan = FarmPlanner.plan(
+                FarmFixtures.field(Map.of(WHEAT_SEEDS, 3), "RR."),
+                new FarmGoal(null, false, false, 0, 512, "minecraft:carrots", 4),
+                FarmFixtures.book());
+        assertTrue(plan.steps().isEmpty());
+    }
+
+    @Test
     void shortageKeepsUsefulPartialPlan() {
         FarmPlan plan = plan(FarmFixtures.field(Map.of(), "RR.."));
         assertEquals(2, count(plan, FarmStep.Harvest.class));

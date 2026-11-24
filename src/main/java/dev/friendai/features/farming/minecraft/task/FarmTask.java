@@ -26,6 +26,10 @@ public final class FarmTask implements Task {
     private final @Nullable Item crop;
     private final boolean till;
     private final boolean boneMeal;
+    /** A harvest run picks only this crop block, up to {@code harvestLimit} of them; null keeps the ordinary pass. */
+    private @Nullable String harvestCrop;
+
+    private int harvestLimit;
     /** Whether the pass follows the field: moves to the nearest work when empty, and covers work left past its edge. */
     private boolean movesToNearestWork;
 
@@ -65,6 +69,16 @@ public final class FarmTask implements Task {
         return this;
     }
 
+    /**
+     * A harvest run for acquisition: in each pass pick only this crop block, at most {@code limit} of them, and leave
+     * the rest of the plot — other crops, empty soil, tilling — alone. The cells it does pick are replanted as usual.
+     */
+    public FarmTask harvesting(String crop, int limit) {
+        this.harvestCrop = crop;
+        this.harvestLimit = limit;
+        return this;
+    }
+
     @Override
     public String type() {
         return "farm";
@@ -73,7 +87,7 @@ public final class FarmTask implements Task {
     @Override
     public void start(TaskContext c) {
         dimension = c.level().dimension().identifier().toString();
-        pass = new FarmPass(center, radius, crop, till, boneMeal);
+        pass = new FarmPass(center, radius, crop, till, boneMeal, harvestCrop, harvestLimit);
     }
 
     @Override
@@ -93,7 +107,7 @@ public final class FarmTask implements Task {
             if (work.isPresent() && (nothing || beyondThisPass(work.get().at()))) {
                 passesLeft--;
                 center = work.get().at();
-                pass = new FarmPass(center, radius, crop, till, boneMeal);
+                pass = new FarmPass(center, radius, crop, till, boneMeal, harvestCrop, harvestLimit);
                 return TaskStatus.RUNNING;
             }
         }

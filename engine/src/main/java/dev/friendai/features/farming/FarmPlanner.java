@@ -31,7 +31,7 @@ public final class FarmPlanner {
         for (FieldCell cell : ofKind(snapshot, CellKind.GROWING)) {
             represented.merge(cell.crop(), 1, Integer::sum);
         }
-        for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.RIPE))) {
+        for (FieldCell cell : ripening(goal, snapshot)) {
             steps.add(new FarmStep.Harvest(cell));
             represented.merge(cell.crop(), 1, Integer::sum);
             if (cell.seed() != null) {
@@ -77,40 +77,43 @@ public final class FarmPlanner {
             represented.merge(pick.crop(), 1, Integer::sum);
             return pick.seed();
         };
-        for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.EMPTY_SOIL))) {
-            String seed = sow.apply(cell.soil());
-            if (seed == null) {
-                unsown++;
-            } else {
-                steps.add(new FarmStep.Sow(cell, seed));
+        // A harvest run for one chosen crop touches only that crop: no sowing, no tilling, no bone meal.
+        if (!goal.harvestingOnly()) {
+            for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.EMPTY_SOIL))) {
+                String seed = sow.apply(cell.soil());
+                if (seed == null) {
+                    unsown++;
+                } else {
+                    steps.add(new FarmStep.Sow(cell, seed));
+                }
             }
-        }
-        if (goal.till()) {
-            if (!snapshot.hasHoe()) {
-                notes.add("missing hoe");
-            } else {
-                for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.TILLABLE)).stream()
-                        .limit(TILL_CAP)
-                        .toList()) {
-                    steps.add(new FarmStep.Till(cell));
-                    String seed = sow.apply(Soil.FARMLAND);
-                    if (seed == null) {
-                        unsown++;
-                    } else {
-                        steps.add(new FarmStep.Sow(cell, seed));
+            if (goal.till()) {
+                if (!snapshot.hasHoe()) {
+                    notes.add("missing hoe");
+                } else {
+                    for (FieldCell cell : serpentine(ofKind(snapshot, CellKind.TILLABLE)).stream()
+                            .limit(TILL_CAP)
+                            .toList()) {
+                        steps.add(new FarmStep.Till(cell));
+                        String seed = sow.apply(Soil.FARMLAND);
+                        if (seed == null) {
+                            unsown++;
+                        } else {
+                            steps.add(new FarmStep.Sow(cell, seed));
+                        }
                     }
                 }
             }
-        }
-        if (goal.useBoneMeal()) {
-            if (snapshot.boneMeal() <= 0) {
-                notes.add("no bone meal");
-            } else {
-                List<FieldCell> growing = serpentine(ofKind(snapshot, CellKind.GROWING));
-                growing.stream()
-                        .sorted(Comparator.comparingInt(FieldCell::age).reversed())
-                        .limit(snapshot.boneMeal())
-                        .forEach(cell -> steps.add(new FarmStep.Bonemeal(cell)));
+            if (goal.useBoneMeal()) {
+                if (snapshot.boneMeal() <= 0) {
+                    notes.add("no bone meal");
+                } else {
+                    List<FieldCell> growing = serpentine(ofKind(snapshot, CellKind.GROWING));
+                    growing.stream()
+                            .sorted(Comparator.comparingInt(FieldCell::age).reversed())
+                            .limit(snapshot.boneMeal())
+                            .forEach(cell -> steps.add(new FarmStep.Bonemeal(cell)));
+                }
             }
         }
 
@@ -118,6 +121,24 @@ public final class FarmPlanner {
                 new ArrayList<>(steps.size() > goal.maxSteps() ? steps.subList(0, goal.maxSteps()) : steps);
         shortfall.forEach((item, count) -> capped.add(new FarmStep.NeedSeeds(item, count)));
         return new FarmPlan(capped, unsown, notes);
+    }
+
+    /**
+     * The ripe cells this pass works, in visit order. An ordinary pass takes the whole field; a harvest run takes only
+     * the chosen crop, at most {@code harvestLimit} cells (0 = no cap), so an order for a few carrots does not strip
+     * the wheat beside them.
+     */
+    private static List<FieldCell> ripening(FarmGoal goal, FarmSnapshot snapshot) {
+        List<FieldCell> cells = ofKind(snapshot, CellKind.RIPE);
+        if (!goal.harvestingOnly()) {
+            return serpentine(cells);
+        }
+        List<FieldCell> chosen = serpentine(cells.stream()
+                .filter(cell -> goal.harvestCrop().equals(cell.crop()))
+                .toList());
+        return goal.harvestLimit() > 0 && chosen.size() > goal.harvestLimit()
+                ? chosen.subList(0, goal.harvestLimit())
+                : chosen;
     }
 
     /** Crops that may go on this soil: only the goal's crop when one is set. */

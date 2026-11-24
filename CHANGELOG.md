@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.16] - 2026-11-24
+
+### Fixed
+
+- An order for a few carrots no longer strips the whole field: the companion harvests only the crop it was asked for and only as many as it needs, leaving other crops, empty soil and tilling alone.
+
 ## [0.233.15] - 2026-11-24
 
 ### Fixed

@@ -71,6 +71,10 @@ public final class FarmPass {
     private final @Nullable Item crop;
     private final boolean till;
     private final boolean boneMeal;
+    /** A harvest run picks only this crop, up to {@code harvestLimit} blocks; null keeps the ordinary pass. */
+    private final @Nullable String harvestCrop;
+
+    private final int harvestLimit;
 
     private final Map<String, Integer> harvested = new LinkedHashMap<>();
     private final Set<BlockPos> attempted = new HashSet<>();
@@ -109,6 +113,9 @@ public final class FarmPass {
     private int planted;
     private int tilled;
     private int noSeeds;
+    /** Harvested blocks this pass has taken, so a harvest run's limit covers replans too. */
+    private int harvestsDone;
+
     private boolean noHoe;
     private boolean stopped;
     private boolean done;
@@ -119,11 +126,24 @@ public final class FarmPass {
     }
 
     public FarmPass(BlockPos center, int radius, @Nullable Item crop, boolean till, boolean boneMeal) {
+        this(center, radius, crop, till, boneMeal, null, 0);
+    }
+
+    public FarmPass(
+            BlockPos center,
+            int radius,
+            @Nullable Item crop,
+            boolean till,
+            boolean boneMeal,
+            @Nullable String harvestCrop,
+            int harvestLimit) {
         this.center = center.immutable();
         this.radius = Math.max(1, Math.min(16, radius));
         this.crop = crop;
         this.till = till;
         this.boneMeal = boneMeal;
+        this.harvestCrop = harvestCrop;
+        this.harvestLimit = Math.max(0, harvestLimit);
     }
 
     /** Works a little each tick; true when the pass is over. */
@@ -203,7 +223,7 @@ public final class FarmPass {
                 .count();
         int total = Math.max(completed + skipped + next + pending, completed + skipped + cells.size());
         return List.of(new WorkSet(
-                crop == null ? "Farm plot" : "Farm " + crop.toString(),
+                crop == null ? harvestCrop == null ? "Farm plot" : "Farm " + harvestCrop : "Farm " + crop.toString(),
                 WorkKind.PLOT,
                 total,
                 completed,
@@ -278,9 +298,27 @@ public final class FarmPass {
         if (book == null) {
             book = CropIndex.of(c.level());
         }
+        if (harvestCrop != null && harvestLimit > 0 && harvestsDone >= harvestLimit) {
+            // The run has picked what the order asked for: replanning would start on the next block of the same crop.
+            queue.clear();
+            shortfall = List.of();
+            lastUnsown = 0;
+            planned = true;
+            replanRequested = false;
+            workedSincePlan = false;
+            return;
+        }
+        int remaining = harvestLimit > 0 ? Math.max(0, harvestLimit - harvestsDone) : 0;
         FarmPlan plan = FarmPlanner.plan(
                 FarmSnapshotBuilder.build(c, center, radius, attempted),
-                new FarmGoal(crop == null ? null : itemId(crop), till, boneMeal, 0, FarmGoal.DEFAULT_MAX_STEPS),
+                new FarmGoal(
+                        crop == null ? null : itemId(crop),
+                        till,
+                        boneMeal,
+                        0,
+                        FarmGoal.DEFAULT_MAX_STEPS,
+                        harvestCrop,
+                        remaining),
                 book);
         queue.clear();
         List<FarmStep.NeedSeeds> needs = new ArrayList<>();
@@ -345,6 +383,7 @@ public final class FarmPass {
                 for (Map.Entry<String, Integer> entry : breakerDrops.entrySet()) {
                     harvested.merge(entry.getKey(), entry.getValue(), Integer::sum);
                 }
+                harvestsDone++;
             }
             breaker.stop(c);
             attempted.add(breakerPos);
@@ -366,6 +405,7 @@ public final class FarmPass {
             if (state == Approach.State.IN_REACH && c.companion().hands().canInteract(berries)) {
                 berryBefore = c.companion().inventory().countItem(Items.SWEET_BERRIES);
                 berrySettling = berries;
+                harvestsDone++;
                 c.companion().hands().use(berries);
                 settle = new DropSettle(SETTLE_TICKS, DropSettle.INTERACT_RADIUS, BERRIES);
                 return Step.BUSY;

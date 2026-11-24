@@ -83,7 +83,7 @@ public final class MinecraftObtainSubtaskFactory
                 var center = context.resources().knownOrVisible(context.companion(), crop, RESOURCE_RADIUS, 1).stream()
                         .findFirst()
                         .orElse(context.companion().blockPosition());
-                yield new FarmTask(center, FARM_RADIUS, null, false);
+                yield new FarmTask(center, FARM_RADIUS, null, false).harvesting(harvest.crop(), harvest.count());
             }
             case ObtainStep.Shear shear -> new ShearTask(entityType(shear.mob()), shear.count());
             case ObtainStep.Milk milk -> new MilkTask(milk.count(), null);
