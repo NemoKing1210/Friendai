@@ -20,7 +20,8 @@ public record WorldFacts(
         Set<Long> verifiedSiteIds,
         Set<Long> excludedSiteIds,
         Map<String, Integer> attemptedSources,
-        Map<String, Integer> toolBlocks) {
+        Map<String, Integer> toolBlocks,
+        Map<String, Integer> fuelBurnTicks) {
     public WorldFacts(
             Map<String, Integer> blocksNearby,
             Map<String, Integer> mobsNearby,
@@ -45,6 +46,7 @@ public record WorldFacts(
                 verifiedSiteIds,
                 excludedSiteIds,
                 attemptedSources,
+                Map.of(),
                 Map.of());
     }
 
@@ -67,6 +69,8 @@ public record WorldFacts(
                 List.of(),
                 Set.of(),
                 Set.of(),
+                Map.of(),
+                Map.of(),
                 Map.of());
     }
 
@@ -90,6 +94,7 @@ public record WorldFacts(
                 resourceCandidates,
                 Set.of(),
                 Set.of(),
+                Map.of(),
                 Map.of(),
                 Map.of());
     }
@@ -117,6 +122,7 @@ public record WorldFacts(
                 verifiedSiteIds,
                 excludedSiteIds,
                 Map.of(),
+                Map.of(),
                 Map.of());
     }
 
@@ -132,6 +138,7 @@ public record WorldFacts(
         excludedSiteIds = excludedSiteIds == null ? Set.of() : Set.copyOf(excludedSiteIds);
         attemptedSources = copy(attemptedSources);
         toolBlocks = copy(toolBlocks);
+        fuelBurnTicks = copy(fuelBurnTicks);
     }
 
     public static WorldFacts empty() {
@@ -152,7 +159,8 @@ public record WorldFacts(
                 verifiedSiteIds,
                 excludedSiteIds,
                 sources,
-                toolBlocks);
+                toolBlocks,
+                fuelBurnTicks);
     }
 
     /**
@@ -172,7 +180,29 @@ public record WorldFacts(
                 verifiedSiteIds,
                 excludedSiteIds,
                 attemptedSources,
-                blocks);
+                blocks,
+                fuelBurnTicks);
+    }
+
+    /**
+     * The same scan facts with how long one item of each known fuel burns. Empty means no table was read: the planner
+     * then keeps its conservative one-fuel-per-eight estimate rather than guessing burn times.
+     */
+    public WorldFacts withFuelBurnTicks(Map<String, Integer> ticks) {
+        return new WorldFacts(
+                blocksNearby,
+                mobsNearby,
+                containerItems,
+                matureCrops,
+                stationsNearby,
+                exploreAllowed,
+                dimensionHasOre,
+                resourceCandidates,
+                verifiedSiteIds,
+                excludedSiteIds,
+                attemptedSources,
+                toolBlocks,
+                ticks);
     }
 
     private static Map<String, Integer> copy(Map<String, Integer> source) {

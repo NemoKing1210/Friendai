@@ -789,6 +789,73 @@ class ObtainPlannerTest {
     }
 
     @Test
+    void fuelIsBudgetedByBurnTimeRatherThanOnePerEightInputs() {
+        FakeRecipeBook book = bookWithSmeltableStone();
+        WorldFacts furnaceOnly = worldWith(Set.of(Station.FURNACE.noun()), Map.of(), false);
+        Map<String, Integer> inventory = Map.of(COBBLESTONE, 8, "minecraft:oak_planks", 2);
+
+        ObtainPlan shortBurning = ObtainPlanner.plan(
+                STONE,
+                8,
+                inventory,
+                book,
+                FakeSourceBook.vanillaLike(),
+                furnaceOnly.withFuelBurnTicks(Map.of("minecraft:oak_planks", 300)));
+        assertFalse(
+                shortBurning.ok(),
+                "eight 200-tick smelts need 1600 ticks; two planks at 300 ticks cannot cover them: "
+                        + shortBurning.steps());
+
+        ObtainPlan longBurning = ObtainPlanner.plan(
+                STONE,
+                8,
+                inventory,
+                book,
+                FakeSourceBook.vanillaLike(),
+                furnaceOnly.withFuelBurnTicks(Map.of("minecraft:oak_planks", 1600)));
+        assertTrue(longBurning.ok(), longBurning.missing().toString());
+        assertTrue(
+                longBurning.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                longBurning.steps().toString());
+    }
+
+    @Test
+    void aCampfireRecipeNeedsNoCarriedFuel() {
+        FakeRecipeBook book = book().add(new Recipe(
+                "test:stone_from_campfire", STONE, 1, List.of(Ingredient.of(COBBLESTONE)), Station.CAMPFIRE, 600));
+
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE,
+                4,
+                Map.of(COBBLESTONE, 4),
+                book,
+                FakeSourceBook.vanillaLike(),
+                worldWith(Set.of(Station.CAMPFIRE.noun()), Map.of(), false));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                plan.steps().toString());
+    }
+
+    @Test
+    void aFuelTheRuntimeKnowsButTheLegacyListDoesNotIsUsed() {
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE,
+                8,
+                Map.of(COBBLESTONE, 8, "minecraft:dried_kelp", 8),
+                bookWithSmeltableStone(),
+                FakeSourceBook.vanillaLike(),
+                worldWith(Set.of(Station.FURNACE.noun()), Map.of(), false)
+                        .withFuelBurnTicks(Map.of("minecraft:dried_kelp", 200)));
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(
+                plan.steps().stream().anyMatch(ObtainStep.Smelt.class::isInstance),
+                plan.steps().toString());
+    }
+
+    @Test
     void mergesConsecutiveSteps() {
         ObtainPlan plan = plan(WOODEN_PICKAXE, 1, Map.of(), world(Map.of(OAK_LOG, 8), false));
         List<ObtainStep> mines = plan.steps().stream()

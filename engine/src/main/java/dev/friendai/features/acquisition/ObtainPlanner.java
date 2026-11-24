@@ -840,13 +840,33 @@ public final class ObtainPlanner {
             return world.stationsNearby().contains(station.noun());
         }
 
-        /** Plans one cheap fuel item per eight smelted inputs. */
+        /**
+         * Plans enough fuel for the recipe's real duration: each candidate is budgeted by how long one of it burns
+         * when the world scan knew that, else by the conservative one-item-per-eight-inputs estimate. A campfire
+         * needs no fuel at all, and a fuel the runtime knows but the legacy list does not is still a candidate.
+         */
         private boolean addFuel(
-                Sim sim, Attempt attempt, int inputs, int depth, Set<String> path, boolean allowExplore) {
-            int count = Math.max(1, (inputs + 7) / 8);
+                Sim sim, Attempt attempt, Recipe recipe, int times, int depth, Set<String> path, boolean allowExplore) {
+            if (recipe.station() == Station.CAMPFIRE) {
+                return true;
+            }
+            int fallback = Math.max(1, (times + 7) / 8);
+            int ticks = (int) Math.min(Integer.MAX_VALUE, (long) times * Math.max(0, recipe.cookTicks()));
+            Map<String, Integer> burn = world.fuelBurnTicks();
+            java.util.List<String> candidates = new java.util.ArrayList<>(FUELS);
+            // A fuel the runtime knows is a candidate when it is already within reach; every known fuel would
+            // multiply the search for nothing when none of it can be obtained.
+            burn.keySet().stream()
+                    .filter(id -> !candidates.contains(id))
+                    .filter(id ->
+                            sim.available(id) > 0 || world.containerItems().getOrDefault(id, 0) > 0)
+                    .sorted()
+                    .forEach(candidates::add);
             Attempt best = null;
             Sim bestSim = null;
-            for (String fuel : FUELS) {
+            for (String fuel : candidates) {
+                int per = burn.getOrDefault(fuel, 0);
+                int count = per > 0 && ticks > 0 ? Math.max(1, (ticks + per - 1) / per) : fallback;
                 Sim copy = copyFor(sim);
                 if (copy == null) {
                     break;
@@ -1070,7 +1090,7 @@ public final class ObtainPlanner {
                     }
                 }
                 if (inputItem == null
-                        || !addFuel(sim, attempt, times, depth, path, allowExplore)
+                        || !addFuel(sim, attempt, recipe, times, depth, path, allowExplore)
                         || !ensureStation(recipe.station(), depth, path, sim, attempt, allowExplore)) {
                     return null;
                 }

@@ -102,7 +102,9 @@ public final class WorldScan {
                         verifiedSiteIds,
                         excludedSiteIds,
                         Map.of())
-                .withToolBlocks(carriedToolBlocks(companion));
+                .withToolBlocks(carriedToolBlocks(companion))
+                .withFuelBurnTicks(
+                        dev.friendai.features.cooking.minecraft.FuelPolicy.burnTable(level, companion.blockPosition()));
     }
 
     public static WorldFacts scan(

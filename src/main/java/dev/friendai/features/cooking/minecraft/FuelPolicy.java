@@ -49,7 +49,45 @@ public final class FuelPolicy {
             () -> ItemMatcher.parse("minecraft:bamboo"),
             () -> ItemMatcher.parse("#minecraft:wooden_slabs"));
 
+    /**
+     * One item's burn time as the runtime reports it, by item id, for the planner's pure fuel budget. The table
+     * depends on the loaded data, not on a position, so it is built once per recipe manager — the same key the
+     * crafting index uses. A data component that cannot be resolved here is simply left out.
+     */
+    private static final java.util.Map<Object, java.util.Map<String, Integer>> BURN_TABLES =
+            new java.util.WeakHashMap<>();
+
     private FuelPolicy() {}
+
+    /** How many ticks one item of each cooking fuel known to this level burns, bounded and cached per data set. */
+    public static synchronized java.util.Map<String, Integer> burnTable(ServerLevel level, BlockPos pos) {
+        if (level == null) {
+            return java.util.Map.of();
+        }
+        Object key = level.recipeAccess();
+        java.util.Map<String, Integer> cached = BURN_TABLES.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        java.util.Map<String, Integer> table = new java.util.LinkedHashMap<>();
+        for (net.minecraft.world.item.Item item : net.minecraft.core.registries.BuiltInRegistries.ITEM) {
+            ItemStack probe = new ItemStack(item);
+            if (!probe.has(DataComponents.COOKING_FUEL)) {
+                continue;
+            }
+            int ticks = burnTicks(level, pos, probe);
+            if (ticks > 0) {
+                table.put(
+                        net.minecraft.core.registries.BuiltInRegistries.ITEM
+                                .getKey(item)
+                                .toString(),
+                        ticks);
+            }
+        }
+        java.util.Map<String, Integer> frozen = java.util.Map.copyOf(table);
+        BURN_TABLES.put(key, frozen);
+        return frozen;
+    }
 
     public static boolean isFuel(ItemStack stack) {
         return !stack.isEmpty() && stack.has(DataComponents.COOKING_FUEL);

@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.9] - 2026-11-24
+
+### Fixed
+
+- The companion now brings enough fuel for a cooking order, counting what each fuel actually burns instead of one item per eight: a batch is no longer started with a quarter of the fuel it needs, a campfire cooks without carried fuel, and a fuel added by a data pack is used when it is at hand.
+
 ## [0.233.8] - 2026-11-24
 
 ### Fixed
