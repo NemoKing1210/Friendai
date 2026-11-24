@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.0] - 2026-11-24
+
+### Added
+
+- Mining orders now plan against the remaining durability of the tools the companion carries: a nearly worn pickaxe with a compatible spare completes the whole order, and without a spare the companion prepares a replacement before setting out instead of stopping after a few blocks.
+- A mining trip for a material keeps a little tool life in reserve for the walk there, and a block whose drop needs a tool the companion does not carry is no longer broken at all.
+
 ## [0.232.7] - 2026-11-24
 
 ### Fixed

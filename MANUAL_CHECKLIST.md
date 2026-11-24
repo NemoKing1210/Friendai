@@ -848,3 +848,12 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Delete the fact in the menu and ask the owner about it: the companion says nothing is remembered, not the
       removed line.
 
+
+## Mining orders plan against tool life (TODO 162)
+
+- [ ] Carry a pickaxe with two uses left and a second pickaxe of the same kind, then ask for a stack of cobblestone:
+      the order finishes in one trip and no third pickaxe appears.
+- [ ] Carry only the nearly worn pickaxe with no material for a new one and ask for the same stack: the companion
+      reports the shortfall and the pickaxe it needs instead of breaking the tool on the first blocks.
+- [ ] Carry no pickaxe and point the companion at stone: it refuses to break it (no destroyed drops) and names the
+      tool it needs.

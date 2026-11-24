@@ -923,6 +923,54 @@ public class ObtainTests {
         });
     }
 
+    /**
+     * The done-when of the tool-life work: a nearly worn pickaxe plus a compatible spare finish the order, and the
+     * plan never sends the companion to make a third tool the bag did not need.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_24, maxTicks = 4000)
+    public void aWornPickaxeAndASpareMineTheWholeOrderWithoutACraft(GameTestHelper h) {
+        GameTestSupport.platformAt(h, 300, 20);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 3, 301, 8);
+        companion.setOwner(java.util.UUID.randomUUID());
+        for (int y = 301; y <= 302; y++) {
+            for (int z = 4; z <= 12; z++) h.setBlock(8, y, z, Blocks.STONE);
+        }
+        ItemStack worn = new ItemStack(Items.WOODEN_PICKAXE);
+        worn.setDamageValue(worn.getMaxDamage() - 3);
+        companion.inventory().addItem(worn);
+        companion.inventory().addItem(new ItemStack(Items.WOODEN_PICKAXE));
+        for (int y = 301; y <= 302; y++) {
+            for (int z = 4; z <= 12; z++) {
+                h.assertTrue(
+                        GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(8, y, z))),
+                        "stone should be visible at y " + y + " z " + z);
+            }
+        }
+        Result result = new Result();
+        ExecutionCoordinator runner = obtain(companion, result, obtainTask("minecraft:cobblestone", 9, false, false));
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status != null, "obtain should finish");
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            h.assertTrue(
+                    companion.inventory().countItem(Items.COBBLESTONE) >= 9,
+                    "cobblestone: " + companion.inventory().countItem(Items.COBBLESTONE));
+            h.assertTrue(
+                    pickaxes(companion) <= 2,
+                    "the spare is enough: no third pickaxe may be made, have " + pickaxes(companion));
+        });
+    }
+
+    private static int pickaxes(CompanionEntity companion) {
+        int count = dev.friendai.task.inventory.InventoryOps.count(
+                companion.inventory(),
+                ItemMatcher.parse("minecraft:wooden_pickaxe").orElseThrow());
+        for (ItemStack stack : List.of(companion.getMainHandItem(), companion.getOffhandItem())) {
+            if (stack.is(Items.WOODEN_PICKAXE)) count += stack.getCount();
+        }
+        return count;
+    }
+
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
@@ -1098,6 +1146,32 @@ public class ObtainTests {
     @GameTest
     public void indexBuiltOnce(GameTestHelper h) {
         h.assertTrue(DropIndex.of(h.getLevel()) == DropIndex.of(h.getLevel()), "index was rebuilt");
+        h.succeed();
+    }
+
+    /** The scan reports what every carried stack can still break, so planning starts from real tool life. */
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void scanReportsTheRemainingLifeOfCarriedTools(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ItemStack inHand = new ItemStack(Items.STONE_PICKAXE);
+        inHand.setDamageValue(10);
+        c.setItemSlot(EquipmentSlot.MAINHAND, inHand);
+        ItemStack spare = new ItemStack(Items.STONE_PICKAXE);
+        spare.setDamageValue(5);
+        c.inventory().addItem(spare);
+        c.inventory().addItem(new ItemStack(Items.WOODEN_AXE));
+
+        WorldFacts world = WorldScan.scan(h.getLevel(), c, 16, false, false);
+
+        h.assertValueEqual(
+                inHand.getMaxDamage() - 10 + spare.getMaxDamage() - 5,
+                world.toolBlocks().getOrDefault("minecraft:stone_pickaxe", 0),
+                "equipped and carried stacks of one tool add up");
+        h.assertValueEqual(
+                new ItemStack(Items.WOODEN_AXE).getMaxDamage(),
+                world.toolBlocks().getOrDefault("minecraft:wooden_axe", 0),
+                "an unused tool counts its whole life");
         h.succeed();
     }
 

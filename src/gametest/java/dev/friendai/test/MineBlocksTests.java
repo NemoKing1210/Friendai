@@ -414,6 +414,38 @@ public class MineBlocksTests {
         });
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 200)
+    public void aBlockWhoseDropNeedsAMissingToolIsNotBroken(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos stone = new BlockPos(4, 2, 2);
+        h.setBlock(stone, Blocks.STONE);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(stone)), "stone should be visible");
+        Result result = new Result();
+        ExecutionCoordinator runner = runner(c, result);
+        // The acquisition job asks for a harvestable target: a block it cannot harvest is not mined at all.
+        runner.start(
+                new MineBlocksTask(
+                        new BlockFilter(BlockMatcher.parse("minecraft:stone").orElseThrow(), List.of()),
+                        1,
+                        32,
+                        null,
+                        true,
+                        false,
+                        true,
+                        null,
+                        0),
+                "mine_blocks");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.FAILED, "not finished: " + result.status + " " + result.summary);
+            h.assertTrue(
+                    result.summary.startsWith("no suitable tool to collect minecraft:stone"),
+                    "summary was " + result.summary);
+            h.assertTrue(countBlocks(h, Blocks.STONE, stone) == 1, "stone was broken without a tool");
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 600)
     public void equipsBestTool(GameTestHelper h) {
         GameTestSupport.platform(h, 16);

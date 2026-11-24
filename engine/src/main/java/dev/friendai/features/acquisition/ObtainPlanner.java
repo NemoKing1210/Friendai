@@ -114,6 +114,7 @@ public final class ObtainPlanner {
         Objects.requireNonNull(world, "world");
         Sim sim = new Sim();
         sim.mineBudget.putAll(world.blocksNearby());
+        sim.toolBlocks.putAll(world.toolBlocks());
         if (inventory != null) {
             inventory.forEach((item, amount) -> {
                 if (item != null && amount != null && amount > 0) {
@@ -215,6 +216,8 @@ public final class ObtainPlanner {
         final Set<String> searchReserved = new LinkedHashSet<>();
         final Map<String, Integer> mineBudget = new LinkedHashMap<>();
         final Map<String, Integer> tradeSpent = new LinkedHashMap<>();
+        /** Blocks each carried tool still breaks; an item with no entry has no known limit. */
+        final Map<String, Integer> toolBlocks = new LinkedHashMap<>();
 
         Sim copy() {
             Sim copy = new Sim();
@@ -226,6 +229,7 @@ public final class ObtainPlanner {
             copy.searchReserved.addAll(searchReserved);
             copy.mineBudget.putAll(mineBudget);
             copy.tradeSpent.putAll(tradeSpent);
+            copy.toolBlocks.putAll(toolBlocks);
             return copy;
         }
 
@@ -246,6 +250,8 @@ public final class ObtainPlanner {
             mineBudget.putAll(other.mineBudget);
             tradeSpent.clear();
             tradeSpent.putAll(other.tradeSpent);
+            toolBlocks.clear();
+            toolBlocks.putAll(other.toolBlocks);
         }
 
         int available(String item) {
@@ -666,30 +672,59 @@ public final class ObtainPlanner {
             return world.dimensionHasOre() && OreDepths.depthFor(item).isPresent();
         }
 
-        /** True when a carried or reserved item satisfies the tool need. */
-        private boolean carriedTool(ToolNeed need, Sim sim) {
+        /**
+         * Uses up to {@code blocks} of the carried tools' remaining life, best first, and reports how many it covered.
+         * A tool the scanner never measured has no known limit and covers the rest at once.
+         */
+        private int takeToolCharges(Sim sim, ToolNeed need, int blocks) {
             if (need.kind() == ToolKind.HAND) {
-                return true;
+                return blocks;
             }
+            List<String> tools = new ArrayList<>();
             for (Map.Entry<String, Integer> entry : sim.items.entrySet()) {
                 if (entry.getValue() > 0
                         && !sim.reserved.contains(entry.getKey())
                         && need.satisfiedBy(sources.toolOf(entry.getKey()))) {
-                    return true;
+                    tools.add(entry.getKey());
                 }
             }
-            for (String item : sim.reserved) {
-                if (need.satisfiedBy(sources.toolOf(item))) {
-                    return true;
+            tools.sort(java.util.Comparator.comparingInt(id -> sim.toolBlocks.getOrDefault(id, Integer.MAX_VALUE)));
+            int taken = 0;
+            for (String id : tools) {
+                if (taken >= blocks) break;
+                Integer charges = sim.toolBlocks.get(id);
+                if (charges == null) return blocks;
+                if (charges <= 0) continue;
+                int use = Math.min(charges, blocks - taken);
+                taken += use;
+                int left = charges - use;
+                if (left <= 0) {
+                    // The stack is spent: the tool must leave the simulation too, or the replacement it now needs
+                    // would be answered by the very tool that has no life left.
+                    sim.toolBlocks.remove(id);
+                    sim.items.remove(id);
+                } else {
+                    sim.toolBlocks.put(id, left);
                 }
             }
-            return false;
+            return taken;
         }
 
-        /** Makes sure a tool satisfying the need is available, planning it when it is not carried. */
+        /**
+         * Makes sure the tool can break {@code blocks} of blocks, counting what the carried tools have left and
+         * planning a replacement — or as many as the job needs, up to {@link ToolCharge#MAX_PLANNED_TOOLS} — when
+         * they cannot. A nearly worn pickaxe no longer looks ready for a long ore job.
+         */
         private boolean ensureTool(
-                ToolNeed need, int depth, Set<String> path, Sim sim, Attempt attempt, boolean allowExplore) {
-            if (carriedTool(need, sim)) {
+                ToolNeed need,
+                int blocks,
+                int depth,
+                Set<String> path,
+                Sim sim,
+                Attempt attempt,
+                boolean allowExplore) {
+            int wanted = Math.max(1, blocks);
+            if (takeToolCharges(sim, need, wanted) >= wanted) {
                 return true;
             }
             String item = sources.toolItem(need)
@@ -698,9 +733,13 @@ public final class ObtainPlanner {
             if (item == null) {
                 return false;
             }
+            int perTool = ToolCharge.perTool(need);
+            int tools = perTool <= 0
+                    ? 1
+                    : Math.min(ToolCharge.MAX_PLANNED_TOOLS, Math.max(1, (wanted + perTool - 1) / perTool));
             // A tool is its own chain: a gold trip may need an iron pickaxe whose chain is as long as any
             // other, and the shared path already guards real cycles.
-            Attempt tool = need(item, 1, 0, path, sim, true, allowExplore);
+            Attempt tool = need(item, tools, 0, path, sim, true, allowExplore);
             if (tool.conditional) {
                 attempt.merge(tool);
                 return false;
@@ -709,7 +748,7 @@ public final class ObtainPlanner {
                 return false;
             }
             attempt.merge(tool);
-            sim.add(item, 1);
+            sim.add(item, tools);
             sim.reserved.add(item);
             return true;
         }
@@ -1077,7 +1116,8 @@ public final class ObtainPlanner {
             public Candidate take(Search search, Sim sim, int want, int depth, Set<String> path, boolean emitCraft) {
                 int blocks = Math.max(1, (int) Math.ceil(want / source.perBlock()));
                 Attempt attempt = new Attempt();
-                if (!ensureTool(source.tool(), depth, path, sim, attempt, allowExplore)) {
+                if (!ensureTool(
+                        source.tool(), ToolCharge.required(blocks, explore), depth, path, sim, attempt, allowExplore)) {
                     if (attempt.conditional) return new Candidate(this, attempt, sim, 0);
                     return null;
                 }

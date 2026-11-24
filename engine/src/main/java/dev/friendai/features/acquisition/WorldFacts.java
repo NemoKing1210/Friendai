@@ -19,7 +19,35 @@ public record WorldFacts(
         List<ResourceCandidate> resourceCandidates,
         Set<Long> verifiedSiteIds,
         Set<Long> excludedSiteIds,
-        Map<String, Integer> attemptedSources) {
+        Map<String, Integer> attemptedSources,
+        Map<String, Integer> toolBlocks) {
+    public WorldFacts(
+            Map<String, Integer> blocksNearby,
+            Map<String, Integer> mobsNearby,
+            Map<String, Integer> containerItems,
+            Map<String, Integer> matureCrops,
+            Set<String> stationsNearby,
+            boolean exploreAllowed,
+            boolean dimensionHasOre,
+            List<ResourceCandidate> resourceCandidates,
+            Set<Long> verifiedSiteIds,
+            Set<Long> excludedSiteIds,
+            Map<String, Integer> attemptedSources) {
+        this(
+                blocksNearby,
+                mobsNearby,
+                containerItems,
+                matureCrops,
+                stationsNearby,
+                exploreAllowed,
+                dimensionHasOre,
+                resourceCandidates,
+                verifiedSiteIds,
+                excludedSiteIds,
+                attemptedSources,
+                Map.of());
+    }
+
     public WorldFacts(
             Map<String, Integer> blocksNearby,
             Map<String, Integer> mobsNearby,
@@ -62,6 +90,7 @@ public record WorldFacts(
                 resourceCandidates,
                 Set.of(),
                 Set.of(),
+                Map.of(),
                 Map.of());
     }
 
@@ -87,6 +116,7 @@ public record WorldFacts(
                 resourceCandidates,
                 verifiedSiteIds,
                 excludedSiteIds,
+                Map.of(),
                 Map.of());
     }
 
@@ -101,6 +131,7 @@ public record WorldFacts(
         verifiedSiteIds = verifiedSiteIds == null ? Set.of() : Set.copyOf(verifiedSiteIds);
         excludedSiteIds = excludedSiteIds == null ? Set.of() : Set.copyOf(excludedSiteIds);
         attemptedSources = copy(attemptedSources);
+        toolBlocks = copy(toolBlocks);
     }
 
     public static WorldFacts empty() {
@@ -120,7 +151,28 @@ public record WorldFacts(
                 resourceCandidates,
                 verifiedSiteIds,
                 excludedSiteIds,
-                sources);
+                sources,
+                toolBlocks);
+    }
+
+    /**
+     * The same scan facts with what each carried tool can still break attached. Empty means the scanner did not look:
+     * the planner then treats every carried tool as ready instead of guessing a charge it was never given.
+     */
+    public WorldFacts withToolBlocks(Map<String, Integer> blocks) {
+        return new WorldFacts(
+                blocksNearby,
+                mobsNearby,
+                containerItems,
+                matureCrops,
+                stationsNearby,
+                exploreAllowed,
+                dimensionHasOre,
+                resourceCandidates,
+                verifiedSiteIds,
+                excludedSiteIds,
+                attemptedSources,
+                blocks);
     }
 
     private static Map<String, Integer> copy(Map<String, Integer> source) {

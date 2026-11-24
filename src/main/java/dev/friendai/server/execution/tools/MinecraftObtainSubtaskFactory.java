@@ -18,6 +18,7 @@ import dev.friendai.features.crafting.StationPolicy;
 import dev.friendai.features.crafting.minecraft.task.CraftTask;
 import dev.friendai.features.exploration.minecraft.task.ExploreTask;
 import dev.friendai.features.farming.minecraft.task.FarmTask;
+import dev.friendai.features.mining.minecraft.mining.BlockFilter;
 import dev.friendai.features.mining.minecraft.task.FellLogsTask;
 import dev.friendai.features.mining.minecraft.task.MineBlocksTask;
 import dev.friendai.features.trading.TradeOrder;
@@ -27,6 +28,7 @@ import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.world.block.BlockMatcher;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -61,7 +63,16 @@ public final class MinecraftObtainSubtaskFactory
             case ObtainStep.Mine mine ->
                 !context.companion().creativeMode() && isTreeLog(mine.block())
                         ? new FellLogsTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS, true)
-                        : new MineBlocksTask(blockMatcher(mine.block()), mine.count(), MINING_RADIUS);
+                        : new MineBlocksTask(
+                                new BlockFilter(blockMatcher(mine.block()), List.of()),
+                                mine.count(),
+                                MINING_RADIUS,
+                                null,
+                                true,
+                                false,
+                                true,
+                                null,
+                                0);
             case ObtainStep.VisitResource visit ->
                 new VisitResourceTask(visit.siteId(), visit.dimension(), options.exploreTicks());
             case ObtainStep.Hunt hunt ->

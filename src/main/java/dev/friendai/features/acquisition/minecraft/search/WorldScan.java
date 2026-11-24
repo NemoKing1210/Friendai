@@ -35,6 +35,32 @@ public final class WorldScan {
 
     private WorldScan() {}
 
+    /**
+     * How many blocks each carried tool can still break, by item id, so the planner can tell a worn tool from an
+     * unused one without reading the world again. Only damageable stacks count; a stack on its last use counts as one
+     * block and an unbreakable item is left out, which the planner reads as "no limit known".
+     */
+    private static Map<String, Integer> carriedToolBlocks(CompanionEntity companion) {
+        Map<String, Integer> blocks = new LinkedHashMap<>();
+        addToolBlocks(blocks, companion.getMainHandItem());
+        addToolBlocks(blocks, companion.getOffhandItem());
+        for (int slot = 0; slot < companion.inventory().getContainerSize(); slot++) {
+            addToolBlocks(blocks, companion.inventory().getItem(slot));
+        }
+        return blocks;
+    }
+
+    private static void addToolBlocks(Map<String, Integer> blocks, net.minecraft.world.item.ItemStack stack) {
+        if (stack.isEmpty() || !stack.isDamageableItem()) {
+            return;
+        }
+        int left = stack.getMaxDamage() - stack.getDamageValue();
+        if (left <= 0) {
+            return;
+        }
+        blocks.merge(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), left, Integer::sum);
+    }
+
     public static WorldFacts scan(
             ServerLevel level, CompanionEntity companion, int radius, boolean containers, boolean explore) {
         return scan(level, companion, radius, containers, explore, Set.of(), Set.of());
@@ -65,16 +91,18 @@ public final class WorldScan {
             if (station != Station.INVENTORY) stations.add(station.noun());
         }
         return new WorldFacts(
-                blocks,
-                mobs,
-                containerItems,
-                crops,
-                stations,
-                explore,
-                Level.OVERWORLD.equals(level.dimension()),
-                explore ? evidence.plannerCandidates(companion, 20) : java.util.List.of(),
-                verifiedSiteIds,
-                excludedSiteIds);
+                        blocks,
+                        mobs,
+                        containerItems,
+                        crops,
+                        stations,
+                        explore,
+                        Level.OVERWORLD.equals(level.dimension()),
+                        explore ? evidence.plannerCandidates(companion, 20) : java.util.List.of(),
+                        verifiedSiteIds,
+                        excludedSiteIds,
+                        Map.of())
+                .withToolBlocks(carriedToolBlocks(companion));
     }
 
     public static WorldFacts scan(

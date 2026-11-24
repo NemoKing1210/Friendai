@@ -905,4 +905,95 @@ class ObtainPlannerTest {
                         .anyMatch(mine -> mine.block().equals(DEEPSLATE)),
                 "a failed source that is the only route must stay plannable: " + plan.steps());
     }
+
+    // --- Tool life (TODO 162) ---
+
+    private static int craftCount(ObtainPlan plan, String item) {
+        return plan.steps().stream()
+                .filter(step ->
+                        step instanceof ObtainStep.Craft craft && craft.item().equals(item))
+                .mapToInt(step -> ((ObtainStep.Craft) step).count())
+                .sum();
+    }
+
+    @Test
+    void aWornPickaxeWithAFreshSpareCoversTheWholeSupply() {
+        WorldFacts facts = world(Map.of(STONE, 40), false).withToolBlocks(Map.of(WOODEN_PICKAXE, 64));
+        ObtainPlan plan = plan(COBBLESTONE, 40, Map.of(WOODEN_PICKAXE, 2), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(0, craftCount(plan, WOODEN_PICKAXE), "a spare covers the job: " + plan.steps());
+        assertEquals(1, plan.steps().size(), plan.steps().toString());
+    }
+
+    @Test
+    void aNearlyWornPickaxePlansAReplacementBeforeTheTrip() {
+        WorldFacts facts = worldWith(Set.of(Station.CRAFTING_TABLE.noun()), Map.of(STONE, 40), false)
+                .withToolBlocks(Map.of(WOODEN_PICKAXE, 5));
+        ObtainPlan plan = plan(COBBLESTONE, 40, Map.of(WOODEN_PICKAXE, 1, "minecraft:oak_planks", 3, STICK, 2), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(1, craftCount(plan, WOODEN_PICKAXE), plan.steps().toString());
+        int craft = indexOf(
+                plan,
+                step -> step instanceof ObtainStep.Craft made && made.item().equals(WOODEN_PICKAXE));
+        int mine = indexOf(
+                plan, step -> step instanceof ObtainStep.Mine dug && dug.block().equals(STONE));
+        assertTrue(mine > craft, "the replacement comes before the trip: " + plan.steps());
+    }
+
+    @Test
+    void aWornPickaxeWithNoMaterialForAReplacementLeavesTheTargetMissing() {
+        WorldFacts facts = world(Map.of(STONE, 40), false).withToolBlocks(Map.of(WOODEN_PICKAXE, 5));
+        ObtainPlan plan = plan(COBBLESTONE, 40, Map.of(WOODEN_PICKAXE, 1), facts);
+
+        assertFalse(plan.ok());
+        assertTrue(plan.missing().containsKey(COBBLESTONE), plan.missing().toString());
+    }
+
+    @Test
+    void aLongJobPlansOnlyUpToTheToolCap() {
+        WorldFacts facts = worldWith(Set.of(Station.CRAFTING_TABLE.noun()), Map.of(STONE, 400), false);
+        ObtainPlan plan = plan(COBBLESTONE, 400, Map.of("minecraft:oak_planks", 12, STICK, 8), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        // A fresh wooden pickaxe breaks 59 blocks, so 400 would need seven; one plan arranges four.
+        assertEquals(
+                ToolCharge.MAX_PLANNED_TOOLS,
+                craftCount(plan, WOODEN_PICKAXE),
+                plan.steps().toString());
+    }
+
+    @Test
+    void anUnmeasuredToolIsStillTreatedAsReady() {
+        WorldFacts facts = world(Map.of(STONE, 40), false);
+        ObtainPlan plan = plan(COBBLESTONE, 40, Map.of(WOODEN_PICKAXE, 1), facts);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertEquals(0, craftCount(plan, WOODEN_PICKAXE), "no measurement keeps the old readiness: " + plan.steps());
+    }
+
+    @Test
+    void aTripAwayReservesToolLifeForTheApproach() {
+        int blocks = 40;
+        int withReserve = blocks + ToolCharge.APPROACH_RESERVE;
+
+        ObtainPlan enough = plan(
+                RAW_IRON,
+                blocks,
+                Map.of(STONE_PICKAXE, 1),
+                world(Map.of(), true).withToolBlocks(Map.of(STONE_PICKAXE, withReserve)));
+        assertTrue(enough.ok(), enough.missing().toString());
+        assertEquals(0, craftCount(enough, STONE_PICKAXE), enough.steps().toString());
+
+        ObtainPlan shortByOne = plan(
+                RAW_IRON,
+                blocks,
+                Map.of(STONE_PICKAXE, 1),
+                world(Map.of(), true).withToolBlocks(Map.of(STONE_PICKAXE, withReserve - 1)));
+        assertTrue(shortByOne.ok(), shortByOne.missing().toString());
+        assertTrue(
+                craftCount(shortByOne, STONE_PICKAXE) > 0,
+                "the reserve is part of the tool need: " + shortByOne.steps());
+    }
 }
