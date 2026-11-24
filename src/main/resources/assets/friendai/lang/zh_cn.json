@@ -255,6 +255,7 @@
   "friendai.voice.error.too_long": "指令太长，无法发送。请用更少的词说一遍。",
   "friendai.voice.error.not_sent": "未发送：没有连接到服务器。语音指令由服务器上的伙伴接收。",
   "friendai.voice.error.rate_limited": "伙伴来不及接收这条指令。请稍后再试。",
+  "friendai.voice.error.queue_full": "语音命令过多，最后一条没有发送。",
   "friendai.voice.error.failed": "语音识别失败",
   "friendai.voice.error.auth": "语音服务拒绝了该 API 密钥。",
   "friendai.voice.error.quota": "语音服务繁忙或配额已用尽，请稍后再试。",

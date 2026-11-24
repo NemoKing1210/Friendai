@@ -114,7 +114,7 @@ public class FriendaiClient implements ClientModInitializer {
         ClientProtocolNetworking.register(RUNTIME);
 
         PushToTalkHandler pushToTalk =
-                new PushToTalkHandler(VoiceRuntime::stt, RUNTIME::sessionId, VoiceSubmission::submit);
+                new PushToTalkHandler(VoiceRuntime::stt, RUNTIME::sessionId, VoiceSubmission::reserve);
         RUNTIME.registerPushToTalk(pushToTalk);
         pushToTalk.register();
 
@@ -135,11 +135,12 @@ public class FriendaiClient implements ClientModInitializer {
                 FriendaiClient::clientConfig,
                 VoiceRuntime::stt,
                 RUNTIME::sessionId,
-                VoiceSubmission::submit,
+                VoiceSubmission::reserve,
                 () -> VoiceRuntime.wakeDetector(clientConfig().voice.wake.phrase));
         pushToTalk.onCapture(wake::setPushToTalkCapturing);
         RUNTIME.registerWakeWord(wake);
         ClientTickEvents.END_CLIENT_TICK.register(client -> wake.tick());
+        ClientTickEvents.END_CLIENT_TICK.register(client -> VoiceSubmission.tick());
     }
 
     /**

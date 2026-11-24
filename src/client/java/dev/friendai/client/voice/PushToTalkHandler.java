@@ -7,7 +7,6 @@ import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.ui.ClientKeys;
 import dev.friendai.features.speech.PcmConverter;
 import dev.friendai.features.speech.VoiceErrors;
-import dev.friendai.features.speech.VoiceTranscript;
 import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.foundation.text.UserMessage;
 import dev.friendai.infrastructure.config.ClientConfig;
@@ -245,28 +244,37 @@ public final class PushToTalkHandler {
             return;
         }
         final int generation = recording;
+        VoiceState.set(VoiceState.Kind.IDLE, null);
+        // The place is taken now, when the recording ended, so a later press cannot overtake this clip even when its
+        // recognition finishes first; a newer press only takes over the indicator.
+        VoiceSubmission.Reservation reservation = onTranscript.reserve(sessionId, VoiceSubmission.Origin.PUSH_TO_TALK);
+        if (reservation == null) {
+            // The queue refused this line and told the owner; nothing will be transcribed.
+            if (stream != null) {
+                stream.cancel();
+            }
+            return;
+        }
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         String language = FriendaiClient.clientConfig().voice.stt.language;
         java.util.concurrent.CompletableFuture<String> transcript =
                 stream != null ? stream.finish() : recognizer.transcribe(PcmConverter.toFloat(pcm), language);
         transcript.whenComplete((text, error) -> mc.execute(() -> {
-            if (!VoiceRuntime.isCurrentSession(sessionId) || generation != VoiceRuntime.captureGeneration()) {
-                // A newer press owns the HUD state; if only a config change bumped the generation,
-                // nobody else will clear the "transcribing" indicator.
-                if (recording == generation) {
-                    VoiceState.set(VoiceState.Kind.IDLE, null);
-                }
-                return;
+            // Only clear the indicator this recognition owns; a newer press or a re-armed wake word keeps its own.
+            boolean ownsIndicator =
+                    recording == generation && VoiceState.current().kind() == VoiceState.Kind.TRANSCRIBING;
+            if (ownsIndicator) {
+                VoiceState.set(VoiceState.Kind.IDLE, null);
             }
             if (error != null) {
                 FriendaiMod.LOGGER.warn("Speech recognition failed", error);
-                VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
-            } else {
-                VoiceState.set(VoiceState.Kind.IDLE, null);
-                VoiceSubmission.Outcome outcome = onTranscript.submit(
-                        sessionId, VoiceTranscript.normalize(text), VoiceSubmission.Origin.PUSH_TO_TALK);
-                VoiceSubmission.show(outcome, VoiceSubmission.Origin.PUSH_TO_TALK);
+                reservation.settle(null);
+                if (ownsIndicator && VoiceRuntime.isCurrentSession(sessionId)) {
+                    VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
+                }
+                return;
             }
+            reservation.settle(text);
         }));
     }
 

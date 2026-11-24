@@ -212,6 +212,8 @@ public final class VoiceRuntime {
             currentCloud = null;
             currentCloudKey = null;
         }
+        // A queued line belongs to the recognizer that heard it; it must not leave after the client shuts it down.
+        VoiceSubmission.reset();
         VoiceState.set(VoiceState.Kind.IDLE, null);
     }
 
@@ -234,6 +236,8 @@ public final class VoiceRuntime {
         closeRecognizer();
         currentCloud = null;
         currentCloudKey = null;
+        // The queued text was heard by the previous provider and settings; it is dropped, never dispatched.
+        VoiceSubmission.reset();
         VoiceState.set(VoiceState.Kind.IDLE, null);
     }
 

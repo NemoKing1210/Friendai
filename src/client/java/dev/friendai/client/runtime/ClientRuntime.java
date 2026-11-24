@@ -8,6 +8,7 @@ import dev.friendai.client.skin.SkinCache;
 import dev.friendai.client.tts.SpeechRuntime;
 import dev.friendai.client.voice.PushToTalkHandler;
 import dev.friendai.client.voice.VoiceRuntime;
+import dev.friendai.client.voice.VoiceSubmission;
 import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.foundation.session.ClientSessionId;
 import dev.friendai.infrastructure.config.ServerConfig;
@@ -93,6 +94,7 @@ public final class ClientRuntime implements AutoCloseable {
         lifecycle.ownSession(id, () -> closeProtocolSession(id, nextProtocolGate));
         lifecycle.ownSession(id, () -> VoiceRuntime.onDisconnect(id));
         lifecycle.ownSession(id, () -> SpeechRuntime.onDisconnect(id));
+        lifecycle.ownSession(id, () -> VoiceSubmission.onDisconnect(id));
         lifecycle.ownSession(id, MovementDebugState::reset);
         lifecycle.ownSession(id, SkinCache::clear);
         PushToTalkHandler handler;

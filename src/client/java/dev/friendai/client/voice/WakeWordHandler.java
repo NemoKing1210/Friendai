@@ -422,24 +422,30 @@ public final class WakeWordHandler {
             return;
         }
         int generation = host.nextGeneration();
+        // The place is taken when the utterance ended, so a second phrase recorded while this one is still
+        // recognizing cannot overtake it; the queue sends them in the order the owner spoke.
+        VoiceSubmission.Reservation reservation = onTranscript.reserve(sessionId, VoiceSubmission.Origin.WAKE_WORD);
+        if (reservation == null) {
+            restoreIndicator();
+            return;
+        }
         VoiceState.set(VoiceState.Kind.TRANSCRIBING, null);
         CompletableFuture<String> transcript = transcribe(recognizer, pcm, config.get().voice.stt.language);
         transcript.whenComplete((text, error) -> host.execute(() -> {
-            if (!host.isCurrent(sessionId, generation)) {
-                // A disconnect, a newer press or a disabled switch already owns the HUD; no turn is sent.
-                return;
-            }
             if (error != null) {
                 FriendaiMod.LOGGER.warn("Wake word speech recognition failed", error);
-                VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
+                reservation.settle(null);
+                if (host.isCurrent(sessionId, generation)) {
+                    VoiceState.set(VoiceState.Kind.ERROR, VoiceErrors.userMessage(error));
+                }
                 return;
             }
-            restoreIndicator();
-            if (text != null && !text.isBlank()) {
-                VoiceSubmission.Outcome outcome =
-                        onTranscript.submit(sessionId, text.strip(), VoiceSubmission.Origin.WAKE_WORD);
-                VoiceSubmission.show(outcome, VoiceSubmission.Origin.WAKE_WORD);
+            // A disconnect, a newer press or a disabled switch already owns the HUD, but the recording keeps its place:
+            // the queue drops it on its own when the connection is gone, so nothing stale is ever dispatched.
+            if (host.isCurrent(sessionId, generation)) {
+                restoreIndicator();
             }
+            reservation.settle(text);
         }));
     }
 

@@ -255,6 +255,7 @@
   "friendai.voice.error.too_long": "A ordem é longa demais para enviar. Diga com menos palavras.",
   "friendai.voice.error.not_sent": "Não enviada: sem conexão com o servidor. Ordens de voz chegam ao companheiro no servidor.",
   "friendai.voice.error.rate_limited": "O companheiro não conseguiu aceitar a ordem tão rápido. Tente de novo daqui a pouco.",
+  "friendai.voice.error.queue_full": "Comandos de voz demais ao mesmo tempo — o último não foi enviado.",
   "friendai.voice.error.failed": "O reconhecimento de fala falhou",
   "friendai.voice.error.auth": "O serviço de fala rejeitou a chave de API.",
   "friendai.voice.error.quota": "O serviço de fala está ocupado ou a cota se esgotou. Tente novamente mais tarde.",

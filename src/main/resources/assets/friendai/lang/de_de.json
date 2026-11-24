@@ -255,6 +255,7 @@
   "friendai.voice.error.too_long": "Der Befehl ist zu lang zum Senden. Sag ihn mit weniger Worten.",
   "friendai.voice.error.not_sent": "Nicht gesendet: keine Verbindung zum Server. Sprachbefehle erreichen den Gefährten auf dem Server.",
   "friendai.voice.error.rate_limited": "Der Gefährte konnte den Befehl nicht so schnell annehmen. Versuch es gleich noch einmal.",
+  "friendai.voice.error.queue_full": "Zu viele Sprachbefehle in kurzer Folge – der letzte wurde nicht gesendet.",
   "friendai.voice.error.failed": "Spracherkennung fehlgeschlagen",
   "friendai.voice.error.auth": "Der Sprachdienst hat den API-Schlüssel abgelehnt.",
   "friendai.voice.error.quota": "Der Sprachdienst ist ausgelastet oder das Kontingent ist erschöpft. Versuch es später noch einmal.",

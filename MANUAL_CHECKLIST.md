@@ -699,10 +699,14 @@ The automated suite used freshly recorded and legacy-format observations in a fi
 ## Voice command outcomes (TODO 136)
 
 - [ ] Hold push-to-talk and dictate a command longer than 500 bytes (about 250 Cyrillic characters): the HUD says the command is too long, and nothing of it runs — the line is not shortened into a different order.
-- [ ] Send one command and immediately another within a second: the second shows the "could not take it that fast" notice while the first still runs, and no whisper of the refused line appears in chat.
+- [ ] Send one command and immediately another: both run, in the order you said them; the second may start a second or two later, and the "could not take it that fast" notice does not appear because the client waits out the server's window.
+- [ ] Say a command, then start dictating the next one while the first is still being recognized: the first one still runs, even though the newer recording finished first.
+- [ ] Queue three commands quickly and start a fourth recording before the queue drains: the fourth is refused with the "queue is full" notice, and nothing is silently lost.
+- [ ] While the companion is building, say "stop" as its own command right after another order: both are delivered in that order and the stop ends the work.
+- [ ] Change the speech recognition provider or language in the settings while a recording is being recognized: that recording is dropped without running, and the next one works normally.
 - [ ] Dismiss the companion with `/friendai dismiss`, then speak: the HUD asks you to summon a companion, and no order is queued.
 - [ ] Teleport the companion well out of hearing and speak: the HUD says it is too far away, and the companion does not start work.
 - [ ] Speak a normal command: "Sent to your companion" appears with a green dot, and the transcript line stays in your private chat.
 - [ ] Stop the server (or leave the world) while a command is being recognized: the HUD says it was not sent instead of showing it as accepted.
 
-The automated client suite drove the same paths with fixture audio on a loopback dedicated server; oversized, rate-limited and dismissed-companion cases ran there, while microphone input and the HUD wording need a real device.
+The automated client suite drove the same paths with fixture audio on a loopback dedicated server; oversized, rate-limited, dismissed-companion, out-of-order recognition, a settings change and a reconnect ran there, while microphone input, the queue-full notice and the HUD wording need a real device.

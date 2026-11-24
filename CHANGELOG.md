@@ -17,6 +17,9 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- Two voice commands spoken one after another are both delivered, in the order you said them, even when the second
+  one finishes recognizing first; a recording still being recognized is no longer thrown away when you start the next
+  one, a settings change still drops it, and at most three can wait, with a clear notice for the fourth.
 - A chest that is full of one item but has a stack with room left in it now takes more of that item, and a chest whose
   contents were recorded before the mod counted its slots is no longer treated as empty: the companion opens it, sees
   how much room it really has, and moves on to another chest instead of leaving your items in the wrong place.

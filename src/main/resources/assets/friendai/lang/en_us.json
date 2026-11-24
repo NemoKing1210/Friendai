@@ -255,6 +255,7 @@
   "friendai.voice.error.too_long": "The command is too long to send. Say it in fewer words.",
   "friendai.voice.error.not_sent": "Not sent: no connection to the server. Voice commands reach the companion on the server.",
   "friendai.voice.error.rate_limited": "The companion could not take the command that fast. Try again in a moment.",
+  "friendai.voice.error.queue_full": "Too many voice commands at once — the last one was not sent. Wait a moment and say it again.",
   "friendai.voice.error.failed": "Speech recognition failed",
   "friendai.voice.error.auth": "The speech service rejected the API key.",
   "friendai.voice.error.quota": "The speech service is busy or the quota is exhausted. Try again later.",

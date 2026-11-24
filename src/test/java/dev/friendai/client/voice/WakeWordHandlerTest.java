@@ -3,6 +3,7 @@ package dev.friendai.client.voice;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -21,8 +22,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The wake-word pipeline with a fake microphone and a fake detector: a hit opens one capture, a finished utterance
- * becomes exactly one transcript, and every way of leaving early — a false positive, a disarm, a disconnect, a
- * disabled setting, a microphone that refuses to open — sends no turn at all.
+ * takes one place in the submission queue, and every way of leaving early — a false positive, a disarm, a disconnect,
+ * a disabled setting, a microphone that refuses to open — sends no turn at all. A recording whose connection is gone
+ * still settles its place; the queue, not the handler, decides that nothing may leave.
  */
 class WakeWordHandlerTest {
     /** 0.15 s at 16 kHz: small enough to keep the test quick, long enough to clear the 0.3 s minimum. */
@@ -60,10 +62,7 @@ class WakeWordHandlerTest {
                 () -> config,
                 () -> stt,
                 () -> session,
-                (id, text, origin) -> {
-                    transcripts.add(text);
-                    return VoiceSubmission.Outcome.SENT;
-                },
+                (id, origin) -> text -> transcripts.add(text),
                 () -> detector,
                 policy);
     }
@@ -241,7 +240,7 @@ class WakeWordHandlerTest {
     }
 
     @Test
-    void aTranscriptThatArrivesAfterADisconnectIsDropped() {
+    void aTranscriptThatArrivesAfterADisconnectSettlesWithoutTakingTheIndicator() {
         CompletableFuture<String> pending = new CompletableFuture<>();
         stt.result = pending;
         handler.tick();
@@ -252,26 +251,28 @@ class WakeWordHandlerTest {
         host.sessionCurrent = false;
         pending.complete(TRANSCRIPT);
 
-        assertEquals(List.of(), transcripts);
-        assertEquals(VoiceState.Kind.IDLE, VoiceState.current().kind());
+        assertEquals(List.of(TRANSCRIPT), transcripts, "the place is settled even when its connection is gone");
+        assertEquals(VoiceState.Kind.IDLE, VoiceState.current().kind(), "a dead connection must not take the HUD");
     }
 
     @Test
-    void aTranscriptSupersededByANewerCaptureIsDropped() {
+    void aTranscriptSupersededByANewerCaptureKeepsItsPlaceButNotTheIndicator() {
         CompletableFuture<String> pending = new CompletableFuture<>();
         stt.result = pending;
         handler.tick();
         speak();
 
-        // A push-to-talk press bumps the capture generation, so the wake turn is stale.
+        // A push-to-talk press bumps the capture generation, so the wake turn no longer owns the HUD.
         host.nextGeneration();
         pending.complete(TRANSCRIPT);
 
-        assertEquals(List.of(), transcripts);
+        assertEquals(List.of(TRANSCRIPT), transcripts, "a completed recording keeps the place it took when it ended");
+        assertEquals(
+                VoiceState.Kind.TRANSCRIBING, VoiceState.current().kind(), "the newer capture keeps the indicator");
     }
 
     @Test
-    void aRecognitionFailureBecomesOneVisibleError() {
+    void aRecognitionFailureSettlesWithNothingAndShowsOneError() {
         CompletableFuture<String> failing = new CompletableFuture<>();
         stt.result = failing;
         handler.tick();
@@ -280,7 +281,8 @@ class WakeWordHandlerTest {
         failing.completeExceptionally(new IllegalStateException("recognizer failed"));
 
         assertEquals(VoiceState.Kind.ERROR, VoiceState.current().kind());
-        assertEquals(List.of(), transcripts);
+        assertEquals(1, transcripts.size());
+        assertNull(transcripts.get(0), "a failed recognition settles its place without text");
     }
 
     @Test

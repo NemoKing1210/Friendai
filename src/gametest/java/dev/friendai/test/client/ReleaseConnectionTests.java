@@ -57,6 +57,9 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
     private static final String OVERSIZED_TRANSCRIPT = "a".repeat(VoiceTranscript.MAX_WIRE_BYTES + 100);
     private static final String RATE_LIMITED_TRANSCRIPT = "hello while the voice gate is closed";
     private static final String NO_COMPANION_TRANSCRIPT = "hello after the companion went away";
+    private static final String FIRST_SPOKEN = "first command spoken before the second";
+    private static final String SECOND_SPOKEN = "second command finished recognizing first";
+    private static final String SETTINGS_TRANSCRIPT = "hello from a recording a settings change dropped";
 
     @Override
     public void runTest(ClientGameTestContext context) {
@@ -109,7 +112,9 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                             context,
                             "old voice callback has run on the reconnected client",
                             mc -> pending.completionHandled.isDone());
-                    require(!pending.forwarded.get(), "the pending old voice turn sent a transcript after reconnect");
+                    require(
+                            pending.reserved.get(),
+                            "the recording made before the reconnect never took a place in the queue");
 
                     await(
                             context,
@@ -124,10 +129,7 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                                 context,
                                 "new voice turn reaches the dedicated server's gateway",
                                 mc -> turns.stream().anyMatch(text -> text.contains("by voice]: " + NEW_TRANSCRIPT)));
-                        require(fresh.forwarded.get(), "fresh voice turn did not send its negotiated transcript");
-                        require(
-                                fresh.submission.get() == VoiceSubmission.Outcome.SENT,
-                                "the current connection reported the fresh transcript as " + fresh.submission.get());
+                        require(fresh.reserved.get(), "the fresh recording did not take a place in the queue");
                         require(
                                 turns.stream().noneMatch(text -> text.contains(OLD_TRANSCRIPT)),
                                 "the dedicated server received stale speech");
@@ -135,25 +137,18 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                         context.runOnClient(mc -> fresh.close());
                     }
 
+                    // Two independent commands whose recognition finishes in reverse order both reach the server,
+                    // in the order the owner spoke them.
+                    expectRecordingOrder(context, turns);
+                    // A settings change invalidates the recognizer: its recording is dropped, never dispatched.
+                    expectInvalidatedRecording(context, turns);
                     // The client refuses a line that cannot fit the wire limit, so nothing is sent and the HUD says
                     // why.
-                    expectRefusedTurn(
-                            context,
-                            turns,
-                            OVERSIZED_TRANSCRIPT,
-                            "friendai.voice.error.too_long",
-                            VoiceSubmission.Outcome.TOO_LONG);
-                    // The server admits one line per voice gate window and reports the refusal for the next one.
-                    server.runOnServer(s -> runtime(s)
-                            .protocolConnections()
-                            .voiceLimiter()
-                            .tryAcquire(second.getServerPlayer().getUUID()));
-                    expectRefusedTurn(
-                            context,
-                            turns,
-                            RATE_LIMITED_TRANSCRIPT,
-                            "friendai.voice.error.rate_limited",
-                            VoiceSubmission.Outcome.SENT);
+                    expectRefusedTurn(context, turns, OVERSIZED_TRANSCRIPT, "friendai.voice.error.too_long");
+                    // The server admits one line per voice gate window and reports the refusal for the next one. The
+                    // fixture keeps the window closed until the answer arrives, because the client spaces its own
+                    // sends and would otherwise slip through.
+                    expectGatedTurn(context, server, turns, second);
                     // A speaker whose companion is gone learns it from the server's answer, not from silence. The gate
                     // is cleared first so this turn reaches the routing decision inside its window.
                     server.runOnServer(s -> {
@@ -163,12 +158,7 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                                 runtime(s).companions().dismiss(player),
                                 "the fixture companion could not be dismissed");
                     });
-                    expectRefusedTurn(
-                            context,
-                            turns,
-                            NO_COMPANION_TRANSCRIPT,
-                            "friendai.voice.need_companion",
-                            VoiceSubmission.Outcome.SENT);
+                    expectRefusedTurn(context, turns, NO_COMPANION_TRANSCRIPT, "friendai.voice.need_companion");
                 }
             } finally {
                 context.runOnClient(mc -> pending.close());
@@ -245,44 +235,134 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
     }
 
     /**
-     * Sends one fixture utterance and requires the HUD to name the refusal, with no turn reaching the brain. The local
-     * outcome differs by scenario: the client refuses an oversized line itself, while a closed gate or a missing
-     * companion can only be decided by the server.
+     * Two clips recorded back to back where the later one finishes recognizing first. Both belong to the owner, so
+     * both reach the brain, and the order is the order they were spoken in, never the order recognition finished in.
      */
+    private static void expectRecordingOrder(ClientGameTestContext context, ConcurrentLinkedQueue<String> turns) {
+        VoiceTurn first = new VoiceTurn();
+        VoiceTurn second = new VoiceTurn();
+        try {
+            context.runOnClient(mc -> first.start(context));
+            context.runOnClient(mc -> second.start(context));
+            require(first.reserved.get() && second.reserved.get(), "a completed recording found no place in the queue");
+
+            // The later clip is recognized first and has to wait behind the earlier one.
+            second.result.complete(SECOND_SPOKEN);
+            context.waitTicks(5);
+            require(first.settled.get() == null, "the later recording settled the earlier one's place");
+            first.result.complete(FIRST_SPOKEN);
+
+            await(
+                    context,
+                    "both spoken commands reach the dedicated server",
+                    mc -> firstTurnIndex(turns, FIRST_SPOKEN) >= 0 && firstTurnIndex(turns, SECOND_SPOKEN) >= 0);
+            int firstIndex = firstTurnIndex(turns, FIRST_SPOKEN);
+            int secondIndex = firstTurnIndex(turns, SECOND_SPOKEN);
+            require(
+                    firstIndex < secondIndex,
+                    "the commands arrived out of order (" + FIRST_SPOKEN + " at " + firstIndex + ", " + SECOND_SPOKEN
+                            + " at " + secondIndex + ")");
+        } finally {
+            context.runOnClient(mc -> first.close());
+            context.runOnClient(mc -> second.close());
+        }
+    }
+
+    /** A settings change drops the recording still being recognized instead of dispatching text it no longer owns. */
+    private static void expectInvalidatedRecording(ClientGameTestContext context, ConcurrentLinkedQueue<String> turns) {
+        VoiceTurn turn = new VoiceTurn();
+        try {
+            context.runOnClient(mc -> turn.start(context));
+            context.runOnClient(mc -> VoiceRuntime.invalidate());
+            turn.result.complete(SETTINGS_TRANSCRIPT);
+            await(context, "the invalidated recording settles", mc -> turn.settled.get() != null);
+
+            context.waitTicks(10);
+            require(
+                    turns.stream().noneMatch(text -> text.contains(SETTINGS_TRANSCRIPT)),
+                    "a recording dropped by a settings change reached the brain");
+        } finally {
+            context.runOnClient(mc -> turn.close());
+        }
+    }
+
+    /** Sends one fixture utterance and requires the HUD to name the refusal, with no turn reaching the brain. */
     private static void expectRefusedTurn(
-            ClientGameTestContext context,
-            ConcurrentLinkedQueue<String> turns,
-            String transcript,
-            String errorKey,
-            VoiceSubmission.Outcome expectedSubmission) {
+            ClientGameTestContext context, ConcurrentLinkedQueue<String> turns, String transcript, String errorKey) {
         VoiceTurn turn = new VoiceTurn();
         try {
             context.runOnClient(mc -> turn.start(context));
             turn.result.complete(transcript);
             try {
-                await(context, "voice outcome " + errorKey, mc -> {
-                    VoiceState.Snapshot state = VoiceState.current();
-                    return state.kind() == VoiceState.Kind.ERROR
-                            && state.message() != null
-                            && errorKey.equals(state.message().key());
-                });
+                await(context, "voice outcome " + errorKey, mc -> errorShown(errorKey));
             } catch (AssertionError timeout) {
-                VoiceState.Snapshot last = VoiceState.current();
                 throw new AssertionError(
-                        timeout.getMessage() + " (voice state " + last.kind() + " " + last.message() + ", submission "
-                                + turn.submission.get() + ")",
+                        timeout.getMessage() + " (voice state " + described() + ", recording " + turn.describe() + ")",
                         timeout);
             }
-            require(
-                    turn.submission.get() == expectedSubmission,
-                    "the refused transcript was reported as " + turn.submission.get() + " instead of "
-                            + expectedSubmission);
             require(
                     turns.stream().noneMatch(text -> text.contains(transcript)),
                     "a refused transcript reached the brain: " + transcript);
         } finally {
             context.runOnClient(mc -> turn.close());
         }
+    }
+
+    /**
+     * The server's voice gate refuses the line, and its answer is what the owner sees. The fixture keeps the window
+     * closed from the test thread because the client spaces its own sends to stay under it.
+     */
+    private static void expectGatedTurn(
+            ClientGameTestContext context,
+            TestDedicatedServerContext server,
+            ConcurrentLinkedQueue<String> turns,
+            TestDedicatedServerConnection connection) {
+        VoiceTurn turn = new VoiceTurn();
+        try {
+            context.runOnClient(mc -> turn.start(context));
+            turn.result.complete(RATE_LIMITED_TRANSCRIPT);
+            boolean refused = false;
+            for (int tick = 0; tick < WAIT_TICKS && !refused; tick++) {
+                server.runOnServer(s -> runtime(s)
+                        .protocolConnections()
+                        .voiceLimiter()
+                        .tryAcquire(connection.getServerPlayer().getUUID()));
+                refused = context.computeOnClient(mc -> errorShown("friendai.voice.error.rate_limited"));
+                if (!refused) {
+                    context.waitTicks(1);
+                }
+            }
+            require(refused, "the closed voice gate was not reported (voice state " + described() + ")");
+            require(
+                    turns.stream().noneMatch(text -> text.contains(RATE_LIMITED_TRANSCRIPT)),
+                    "a rate-limited transcript reached the brain");
+        } finally {
+            context.runOnClient(mc -> turn.close());
+        }
+    }
+
+    private static boolean errorShown(String key) {
+        VoiceState.Snapshot state = VoiceState.current();
+        return state.kind() == VoiceState.Kind.ERROR
+                && state.message() != null
+                && key.equals(state.message().key());
+    }
+
+    private static String described() {
+        VoiceState.Snapshot state = VoiceState.current();
+        return state.kind() + " " + state.message();
+    }
+
+    /** Where a spoken command first appears in the gateway's message history, or -1 while it is absent. */
+    private static int firstTurnIndex(ConcurrentLinkedQueue<String> turns, String transcript) {
+        int index = 0;
+        for (String text : turns) {
+            if (text.contains("by voice]: " + transcript)) {
+                return index;
+            }
+            index++;
+        }
+        return -1;
     }
 
     private static boolean wearingSkin(Minecraft minecraft, String hash) {
@@ -324,8 +404,8 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
     private static final class VoiceTurn implements WakeWordHandler.Capture, SpeechToText {
         private final CompletableFuture<String> result = new CompletableFuture<>();
         private final CompletableFuture<Void> completionHandled = new CompletableFuture<>();
-        private final AtomicBoolean forwarded = new AtomicBoolean();
-        private final AtomicReference<VoiceSubmission.Outcome> submission = new AtomicReference<>();
+        private final AtomicBoolean reserved = new AtomicBoolean();
+        private final AtomicReference<String> settled = new AtomicReference<>();
         private final AtomicBoolean keyword = new AtomicBoolean(true);
         private WakeWordHandler.ChunkSink sink;
         private WakeWordHandler handler;
@@ -340,11 +420,16 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
                     () -> config,
                     () -> this,
                     FriendaiClient.runtime()::sessionId,
-                    (session, transcript, origin) -> {
-                        VoiceSubmission.Outcome outcome = VoiceSubmission.submit(session, transcript, origin);
-                        submission.set(outcome);
-                        forwarded.set(outcome == VoiceSubmission.Outcome.SENT);
-                        return outcome;
+                    (session, origin) -> {
+                        VoiceSubmission.Reservation reservation = VoiceSubmission.reserve(session, origin);
+                        reserved.set(reservation != null);
+                        if (reservation == null) {
+                            return null;
+                        }
+                        return text -> {
+                            settled.set(String.valueOf(text));
+                            reservation.settle(text);
+                        };
                     },
                     () -> samples -> keyword.getAndSet(false));
             handler.tick();
@@ -380,6 +465,11 @@ public final class ReleaseConnectionTests implements FabricClientGameTest {
         public CompletableFuture<String> transcribe(float[] samples16k, String language) {
             transcribing = samples16k.length >= 4_800;
             return result;
+        }
+
+        /** What this recording did with its place, for a failed assertion's message. */
+        String describe() {
+            return "reserved=" + reserved.get() + ", settled=" + settled.get();
         }
 
         @Override
