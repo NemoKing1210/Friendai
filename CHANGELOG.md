@@ -20,6 +20,8 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- When trees give no logs, acquisition now stops retrying them after two trees in a row give nothing and uses reachable
+  loose logs sooner, while keeping the reason each tree could not be felled.
 - A planned order that stops halfway now says what it really did: a delivery that handed over three of eight wheat and
   then lost you reports the failed step and the counts, both in the plan notice and in the Tasks tab, so the next try
   asks only for the five that are left instead of starting over.

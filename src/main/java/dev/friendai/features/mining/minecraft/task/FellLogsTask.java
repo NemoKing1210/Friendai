@@ -7,7 +7,9 @@ import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.InventoryOps;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -21,19 +23,26 @@ import net.minecraft.core.BlockPos;
 public final class FellLogsTask implements Task {
     /** How many trees one request may fell before the count miner takes over. */
     public static final int DEFAULT_MAX_TREES = 8;
+    /** How many consecutive trees may yield no carried logs before the count miner takes over. */
+    public static final int DEFAULT_MAX_EMPTY_TREES = 2;
     /** How long one request may run before it reports what it gathered, in ticks. */
     public static final int DEFAULT_MAX_TICKS = 24_000;
+    /** Bound one retained child reason; the summary names at most three attempts. */
+    private static final int MAX_ATTEMPT_REASON = 160;
 
     private final BlockMatcher matcher;
     private final int count;
     private final int radius;
     private final boolean collect;
     private final Set<BlockPos> failedBases = new LinkedHashSet<>();
+    private final List<TreeAttempt> attempts = new ArrayList<>(DEFAULT_MAX_TREES);
 
     private BlockPos origin;
     private Optional<ItemMatcher> itemMatcher = Optional.empty();
     private Task current;
     private int trees;
+    private int emptyTrees;
+    private int consecutiveEmptyTrees;
     private int gained;
     private int felled;
     private int before;
@@ -68,7 +77,10 @@ public final class FellLogsTask implements Task {
         itemMatcher = ItemMatcher.parse(matcher.label());
         current = null;
         trees = 0;
+        emptyTrees = 0;
+        consecutiveEmptyTrees = 0;
         failedBases.clear();
+        attempts.clear();
         gained = 0;
         felled = 0;
         startCount = counted(c);
@@ -98,13 +110,26 @@ public final class FellLogsTask implements Task {
             if (status == TaskStatus.RUNNING) {
                 return TaskStatus.RUNNING;
             }
-            gained += Math.max(0, counted(c) - before);
+            int attemptYield = Math.max(0, counted(c) - before);
+            gained += attemptYield;
             summary = current.resultSummary();
-            boolean selectedTree = false;
-            if (current instanceof FellTreeSearchTask search && search.selectedBase() != null) {
-                selectedTree = true;
+            BlockPos selectedBase = current instanceof FellTreeSearchTask search ? search.selectedBase() : null;
+            boolean selectedTree = selectedBase != null;
+            if (selectedTree) {
+                selectedBase = selectedBase.immutable();
                 trees++;
-                if (failedBases.size() < DEFAULT_MAX_TREES) failedBases.add(search.selectedBase());
+                if (failedBases.size() < DEFAULT_MAX_TREES) failedBases.add(selectedBase);
+                if (attempts.size() < DEFAULT_MAX_TREES) {
+                    attempts.add(new TreeAttempt(selectedBase, status, attemptYield, clipReason(summary)));
+                }
+                if (attemptYield == 0) {
+                    emptyTrees++;
+                    consecutiveEmptyTrees++;
+                } else {
+                    consecutiveEmptyTrees = 0;
+                }
+            } else {
+                consecutiveEmptyTrees = 0;
             }
             safeStop(current, c);
             current = null;
@@ -114,7 +139,7 @@ public final class FellLogsTask implements Task {
             if (fallbackUsed) {
                 return fail("cut " + gained + " of " + count + " " + matcher.label() + ": " + summary);
             }
-            if (!selectedTree) {
+            if (!selectedTree || consecutiveEmptyTrees >= DEFAULT_MAX_EMPTY_TREES) {
                 return startFallback(c);
             }
         }
@@ -141,17 +166,46 @@ public final class FellLogsTask implements Task {
     }
 
     private TaskStatus succeed() {
-        summary = fallbackUsed
+        String text = fallbackUsed
                 ? "gathered " + gained + " " + matcher.label() + " logs (" + felled + " felled, " + (gained - felled)
                         + " mined)"
                 : "felled " + gained + " " + matcher.label() + " logs from " + trees
                         + (trees == 1 ? " tree" : " trees");
+        summary = withAttemptCauses(text);
         return TaskStatus.SUCCESS;
     }
 
     private TaskStatus fail(String reason) {
-        summary = reason;
+        summary = withAttemptCauses(reason);
         return TaskStatus.FAILED;
+    }
+
+    /** Names at most three zero-yield attempts while retaining the total bounded failure count. */
+    private String withAttemptCauses(String text) {
+        if (emptyTrees == 0) return text;
+        StringBuilder result = new StringBuilder(text).append("; tree attempts:");
+        int shown = 0;
+        for (TreeAttempt attempt : attempts) {
+            if (attempt.yielded() != 0) continue;
+            if (shown == 3) break;
+            shown++;
+            result.append(" tree at ")
+                    .append(coords(attempt.base()))
+                    .append(": ")
+                    .append(attempt.reason());
+        }
+        int omitted = emptyTrees - shown;
+        if (omitted > 0) result.append("; and ").append(omitted).append(" more");
+        return result.toString();
+    }
+
+    private static String clipReason(String reason) {
+        String text = reason == null || reason.isBlank() ? "no reason reported" : reason.trim();
+        return text.length() <= MAX_ATTEMPT_REASON ? text : text.substring(0, MAX_ATTEMPT_REASON - 3) + "...";
+    }
+
+    private static String coords(BlockPos pos) {
+        return pos.getX() + " " + pos.getY() + " " + pos.getZ();
     }
 
     private int counted(TaskContext c) {
@@ -203,8 +257,29 @@ public final class FellLogsTask implements Task {
 
     @Override
     public String debugStatus() {
-        return "trees=" + trees + "/" + DEFAULT_MAX_TREES + " gained=" + gained + "/" + count
-                + (current == null ? "" : " | " + current.debugStatus());
+        StringBuilder text = new StringBuilder("trees=")
+                .append(trees)
+                .append('/')
+                .append(DEFAULT_MAX_TREES)
+                .append(" gained=")
+                .append(gained)
+                .append('/')
+                .append(count)
+                .append(" failed=")
+                .append(emptyTrees);
+        if (!attempts.isEmpty()) {
+            TreeAttempt last = attempts.getLast();
+            text.append(" lastTree=")
+                    .append(coords(last.base()))
+                    .append('/')
+                    .append(last.outcome())
+                    .append("/yield=")
+                    .append(last.yielded())
+                    .append("/reason=")
+                    .append(last.reason());
+        }
+        if (current != null) text.append(" | ").append(current.debugStatus());
+        return text.toString();
     }
 
     @Override
@@ -232,4 +307,6 @@ public final class FellLogsTask implements Task {
                 blocker,
                 nextAction);
     }
+
+    private record TreeAttempt(BlockPos base, TaskStatus outcome, int yielded, String reason) {}
 }
