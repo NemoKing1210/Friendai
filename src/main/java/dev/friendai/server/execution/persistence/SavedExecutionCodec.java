@@ -30,6 +30,12 @@ public final class SavedExecutionCodec {
         if (saved.manualPause()) {
             root.addProperty("manualPause", true);
         }
+        if (saved.activeElapsedTicks() > 0) {
+            root.addProperty("activeElapsedTicks", saved.activeElapsedTicks());
+        }
+        if (saved.activeTimeoutSec() > 0) {
+            root.addProperty("activeTimeoutSec", saved.activeTimeoutSec());
+        }
         if (saved.activeTask() != null) {
             JsonObject task = new JsonObject();
             task.addProperty("type", saved.activeTask().type());
@@ -63,10 +69,9 @@ public final class SavedExecutionCodec {
         try {
             JsonObject root = JsonParser.parseString(encoded).getAsJsonObject();
             int version = root.get("version").getAsInt();
-            // An older document predates the saved pause or the retry progress, so it loads with the defaults.
-            if (version != SavedExecution.CURRENT_VERSION
-                    && version != SavedExecution.PREVIOUS_VERSION
-                    && version != SavedExecution.LEGACY_VERSION) return Optional.empty();
+            // An older document predates the pause, the retry progress or the active clock, so it loads with defaults.
+            if (version < SavedExecution.LEGACY_VERSION || version > SavedExecution.CURRENT_VERSION)
+                return Optional.empty();
             var queue = QueueSave.decode(root.getAsJsonObject("queue"), limits);
             if (queue.isEmpty()) return Optional.empty();
             boolean manualPause =
@@ -81,8 +86,28 @@ public final class SavedExecutionCodec {
             }
             Map<Long, RetryCheckpoints.Entry> retryProgress = readRetries(root);
             if (retryProgress == null) return Optional.empty();
+            int activeElapsedTicks = 0;
+            if (root.has("activeElapsedTicks")) {
+                activeElapsedTicks = root.get("activeElapsedTicks").getAsInt();
+                if (activeElapsedTicks < 0 || activeElapsedTicks > SavedExecution.MAX_ACTIVE_ELAPSED_TICKS) {
+                    return Optional.empty();
+                }
+            }
+            int activeTimeoutSec = 0;
+            if (root.has("activeTimeoutSec")) {
+                activeTimeoutSec = root.get("activeTimeoutSec").getAsInt();
+                if (activeTimeoutSec < 0 || activeTimeoutSec > SavedExecution.MAX_ACTIVE_TIMEOUT_SEC) {
+                    return Optional.empty();
+                }
+            }
             return Optional.of(new SavedExecution(
-                    SavedExecution.CURRENT_VERSION, queue.get(), activeTask, manualPause, retryProgress));
+                    SavedExecution.CURRENT_VERSION,
+                    queue.get(),
+                    activeTask,
+                    manualPause,
+                    retryProgress,
+                    activeElapsedTicks,
+                    activeTimeoutSec));
         } catch (RuntimeException invalid) {
             return Optional.empty();
         }

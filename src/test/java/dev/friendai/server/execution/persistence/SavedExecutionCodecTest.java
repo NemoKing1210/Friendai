@@ -44,7 +44,7 @@ class SavedExecutionCodecTest {
         SavedExecution decoded =
                 SavedExecutionCodec.decode(encoded, QueueLimits.DEFAULTS).orElseThrow();
 
-        assertTrue(encoded.contains("\"version\":3"));
+        assertTrue(encoded.contains("\"version\":" + SavedExecution.CURRENT_VERSION));
         assertFalse(encoded.contains("queue:v1:"));
         assertFalse(encoded.contains("queue:v2:"));
         assertEquals("gather", decoded.queue().queue().plan(plan).orElseThrow().goal());
@@ -64,7 +64,7 @@ class SavedExecutionCodecTest {
         assertEquals(SavedExecution.CURRENT_VERSION, decoded.version());
 
         String legacy = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, false))
-                .replace("\"version\":3", "\"version\":1");
+                .replace("\"version\":" + SavedExecution.CURRENT_VERSION, "\"version\":1");
         SavedExecution older =
                 SavedExecutionCodec.decode(legacy, QueueLimits.DEFAULTS).orElseThrow();
         assertFalse(older.manualPause(), "a document written before the pause existed cannot claim one");
@@ -116,10 +116,48 @@ class SavedExecutionCodecTest {
     }
 
     @Test
+    void theActiveClockTravelsWithTheCheckpointAndAnOlderDocumentStartsFresh() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        SavedExecution saved = new SavedExecution(
+                new QueueSave.Decoded(queue, 0),
+                new TaskState("mine_blocks", "checkpoint"),
+                false,
+                Map.of(),
+                1_200,
+                300);
+
+        SavedExecution decoded = SavedExecutionCodec.decode(SavedExecutionCodec.encode(saved), QueueLimits.DEFAULTS)
+                .orElseThrow();
+        assertEquals(1_200, decoded.activeElapsedTicks(), "the spent budget survives the round trip");
+        assertEquals(300, decoded.activeTimeoutSec(), "the timeout the budget was measured against survives too");
+
+        String older = SavedExecutionCodec.encode(saved)
+                .replace(",\"activeElapsedTicks\":1200", "")
+                .replace(",\"activeTimeoutSec\":300", "")
+                .replace("\"version\":" + SavedExecution.CURRENT_VERSION, "\"version\":3");
+        SavedExecution legacy =
+                SavedExecutionCodec.decode(older, QueueLimits.DEFAULTS).orElseThrow();
+        assertEquals(0, legacy.activeElapsedTicks(), "a document from before the clock cannot claim spent time");
+        assertEquals(0, legacy.activeTimeoutSec(), "and it keeps the current server timeout");
+    }
+
+    @Test
+    void anOutOfRangeActiveClockIsRejectedRatherThanClamped() {
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        String encoded = SavedExecutionCodec.encode(new SavedExecution(
+                new QueueSave.Decoded(queue, 0), new TaskState("mine_blocks", "checkpoint"), false, Map.of(), 5, 60));
+        String huge = encoded.replace("\"activeElapsedTicks\":5", "\"activeElapsedTicks\":99999999");
+        String longTimeout = encoded.replace("\"activeTimeoutSec\":60", "\"activeTimeoutSec\":999999");
+
+        assertTrue(SavedExecutionCodec.decode(huge, QueueLimits.DEFAULTS).isEmpty());
+        assertTrue(SavedExecutionCodec.decode(longTimeout, QueueLimits.DEFAULTS).isEmpty());
+    }
+
+    @Test
     void aDocumentWithoutRetryProgressStillLoads() {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         String versionTwo = SavedExecutionCodec.encode(new SavedExecution(new QueueSave.Decoded(queue, 0), null, false))
-                .replace("\"version\":3", "\"version\":2");
+                .replace("\"version\":" + SavedExecution.CURRENT_VERSION, "\"version\":2");
         SavedExecution older =
                 SavedExecutionCodec.decode(versionTwo, QueueLimits.DEFAULTS).orElseThrow();
         assertTrue(older.retryProgress().isEmpty());

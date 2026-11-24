@@ -62,11 +62,16 @@ public final class TaskPersistenceCoordinator {
         long activeJob = runner.persistenceActiveJobId();
         // Only progress whose job is still queued is worth saving; a job that settled takes its checkpoint with it.
         runner.retryCheckpoints().retainOnly(queue.jobs().stream().map(Job::id).toList());
+        // A checkpoint is a position in a budget, not a fresh start: the remaining active time and the timeout it was
+        // measured against travel with it.
+        boolean hasActiveTask = activeTask.isPresent();
         return Optional.of(new SavedExecution(
                 new QueueSave.Decoded(queue, activeJob),
                 activeTask.orElse(null),
                 manualPause,
-                runner.retryCheckpoints().snapshot()));
+                runner.retryCheckpoints().snapshot(),
+                hasActiveTask ? runner.persistenceActiveElapsedTicks() : 0,
+                hasActiveTask ? runner.persistenceActiveTimeoutSec() : 0));
     }
 
     public String encode(SavedExecution saved) {
@@ -242,7 +247,11 @@ public final class TaskPersistenceCoordinator {
                         factories,
                         planFactories,
                         activeTask,
-                        saved.retryProgress());
+                        saved.retryProgress(),
+                        // A rebuilt acquisition or a search that retries has started over, so its budget does too;
+                        // a task restored from its own checkpoint keeps the active time and timeout it already had.
+                        activeTask == null ? 0 : saved.activeElapsedTicks(),
+                        activeTask == null ? 0 : saved.activeTimeoutSec());
         reconcileFreeTimePlan(companion);
         if (creativeRejected)
             companion

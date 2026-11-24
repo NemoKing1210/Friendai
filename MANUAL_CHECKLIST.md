@@ -899,3 +899,13 @@ The automated suite pins the text split and the layout arithmetic; the click, th
       visible reason instead of starting the search again with a fresh budget.
 - [ ] Do the same with a multi-item `obtain_items` order while it is gathering: it resumes from what is already in
       the inventory and keeps the later crafted targets.
+
+## A restored task keeps its remaining time (TODO 167)
+
+- [ ] Start a long order (a big mining or building job) with a short task timeout, let it run most of the timeout,
+      save and quit, then reload and resume: the task finishes or reports the timeout after the time it had left,
+      not after a fresh full timeout.
+- [ ] Do the same while a fight is holding the order frozen: the frozen time and any time the owner is away do not
+      count, and the order resumes with the same remaining budget.
+- [ ] Change the task timeout setting while the world is closed, reload and resume: the restored task keeps the
+      timeout it started under, while the next task uses the new setting.

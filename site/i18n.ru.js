@@ -694,7 +694,7 @@ const RU = {
   "Combat and pace": "Бой и темп",
   "Mode, style, pace.": "Режим, стиль, темп.",
   "Saved task queue": "Сохранённая очередь задач",
-  "Bounded checkpoints, restored by stable keys; also keeps your own pause across a reload. A gather-and-craft order resumes as the same order, from what the companion now carries, and a search it was on is stopped instead of restarted with a fresh budget.": "Ограниченные чекпоинты, восстанавливаются по стабильным ключам; ещё и сохраняет вашу паузу между перезапусками. Заказ на добычу и крафт продолжается тем же заказом, из того, что спутник несёт сейчас, а прерванный поиск останавливается, а не начинается заново с новым бюджетом.",
+  "Bounded checkpoints, restored by stable keys; also keeps your own pause across a reload. A gather-and-craft order resumes as the same order, from what the companion now carries, and a search it was on is stopped instead of restarted with a fresh budget. A restored task keeps the time it had left, not a new full timeout.": "Ограниченные чекпоинты, восстанавливаются по стабильным ключам; ещё и сохраняет вашу паузу между перезапусками. Заказ на добычу и крафт продолжается тем же заказом, из того, что спутник несёт сейчас, а прерванный поиск останавливается, а не начинается заново с новым бюджетом. Восстановленная задача получает только оставшееся у неё время, а не новый полный тайм-аут.",
   "Carry data": "Данные переноски",
   "Body captured at death + last five deaths.": "Тело, снятое при смерти, и последние пять смертей.",
   "Anchors": "Якоря",

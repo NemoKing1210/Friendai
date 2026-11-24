@@ -95,6 +95,10 @@ public final class ActiveTaskController {
     static final int MAX_CRASH_MESSAGE_CHARS = 160;
     /** The raw message is scanned only up to this window, so a huge provider body cannot cost a crash a scan. */
     static final int MAX_CRASH_RAW_CHARS = 4096;
+    /** The largest restored active budget a save may claim; a bigger number is a corrupt or hostile document. */
+    public static final int MAX_RESTORED_ELAPSED_TICKS = 1_000_000;
+    /** The longest restored activation timeout a save may claim. */
+    public static final int MAX_RESTORED_TIMEOUT_SEC = 86_400;
 
     private final IntSupplier timeoutSec;
     private UnaryOperator<String> redactor;
@@ -141,8 +145,24 @@ public final class ActiveTaskController {
 
     /** Starts a task whose prior runner policy has already settled any active task. */
     public int start(Task task, TaskStartContext start) {
+        return start(task, start, 0, 0);
+    }
+
+    public int start(Task task, TaskStartContext start, int elapsedActiveTicks) {
+        return start(task, start, elapsedActiveTicks, 0);
+    }
+
+    /**
+     * Starts a task that already spent part of its active budget before a reload. The remaining budget is the saved
+     * activation's own timeout minus what it spent, so an unchanged save can never reset the clock; the stall watch
+     * starts from the restored tick rather than from scratch.
+     */
+    public int start(Task task, TaskStartContext start, int elapsedActiveTicks, int restoredTimeoutSec) {
         int id = start.id();
         long execution = allocateExecution();
+        int startTick = activeTicks - Math.max(0, Math.min(MAX_RESTORED_ELAPSED_TICKS, elapsedActiveTicks));
+        int timeout =
+                restoredTimeoutSec > 0 ? Math.min(restoredTimeoutSec, MAX_RESTORED_TIMEOUT_SEC) : timeoutSec.getAsInt();
         LogContext logContext = start.logContext().withExecution(execution, id, start.planId(), start.jobId());
         ExecutionTiming timing = ExecutionTiming.started(clock);
         TaskProgressThrottle progressThrottle = new TaskProgressThrottle();
@@ -158,12 +178,12 @@ public final class ActiveTaskController {
                 start.emitEvents(),
                 start.defaultActivity(),
                 start.interrupt(),
-                activeTicks,
+                startTick,
                 start.creativeActionContext(),
                 start.creativeSensitive(),
-                timeoutSec.getAsInt(),
+                timeout,
                 start.settings(),
-                new dev.friendai.task.ProgressWatch(activeTicks),
+                new dev.friendai.task.ProgressWatch(startTick),
                 logContext,
                 execution,
                 timing,
@@ -395,6 +415,21 @@ public final class ActiveTaskController {
 
     public ActiveTask frozenActive() {
         return frozen;
+    }
+
+    /**
+     * The active ticks the current activation has already spent, or the frozen activation's own count. Pending and
+     * suspended time is not active work, so it never appears here.
+     */
+    public int elapsedActiveTicks() {
+        if (current != null) return Math.max(0, activeTicks - current.startActiveTick());
+        return frozen == null ? 0 : frozenElapsed;
+    }
+
+    /** The timeout the current or frozen activation was started under, or zero when none is running. */
+    public int activeTimeoutSec() {
+        ActiveTask active = current != null ? current : frozen;
+        return active == null ? 0 : active.timeoutSec();
     }
 
     public int activeTicks() {

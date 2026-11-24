@@ -6,6 +6,13 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.233.5] - 2026-11-24
+
+### Fixed
+
+- A long task interrupted by a save no longer gets a fresh time limit after the world loads: it resumes with the working time it had left, so a task that was nearly out of time finishes or reports the timeout instead of running on for another full period.
+- Suspended or offline time still does not count against that budget, and the saved task keeps the limit it started under even if the server's timeout setting changed while the world was closed.
+
 ## [0.233.4] - 2026-11-24
 
 ### Fixed

@@ -478,7 +478,7 @@ const MEM_CARDS = [
     hub: { label: "Companion entity", icon: "🧍", color: COLORS.grass, desc: "Saved with the world; versioned by Mojang's entity data." },
     color: COLORS.grass, items: [
       "~Inventory 27 slots|Plus six gear slots.", "~Hunger and XP|Food, saturation, exhaustion, level.", "~Combat and pace|Mode, style, pace.",
-      "~Saved task queue|Bounded checkpoints, restored by stable keys; also keeps your own pause across a reload. A gather-and-craft order resumes as the same order, from what the companion now carries, and a search it was on is stopped instead of restarted with a fresh budget.", "~Carry data|Body captured at death + last five deaths.", "~Anchors|Owner to chunk, used to load on startup; restored eight at a time per tick." ] },
+      "~Saved task queue|Bounded checkpoints, restored by stable keys; also keeps your own pause across a reload. A gather-and-craft order resumes as the same order, from what the companion now carries, and a search it was on is stopped instead of restarted with a fresh budget. A restored task keeps the time it had left, not a new full timeout.", "~Carry data|Body captured at death + last five deaths.", "~Anchors|Owner to chunk, used to load on startup; restored eight at a time per tick." ] },
   { title: "Settings & caches", sub: "config/ and the game directory",
     hub: { label: "Settings", icon: "⚙️", color: COLORS.iron, desc: "API keys may be written as env:NAME so they never sit in a file." },
     color: COLORS.iron, items: [

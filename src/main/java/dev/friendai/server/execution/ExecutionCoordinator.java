@@ -139,6 +139,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private Task pendingRestoredTask;
 
     private long pendingRestoredJobId;
+    /** The active budget the pending restored task already spent before the save, and the timeout it ran under. */
+    private int pendingRestoredElapsedTicks;
+
+    private int pendingRestoredTimeoutSec;
+
     private final HoldRegistry holds = new HoldRegistry();
 
     public ExecutionCoordinator(CompanionEntity companion, IntSupplier timeoutSec, BooleanSupplier defaultFollow) {
@@ -362,6 +367,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     public void discardPendingRestored() {
         pendingRestoredTask = null;
         pendingRestoredJobId = 0;
+        pendingRestoredElapsedTicks = 0;
+        pendingRestoredTimeoutSec = 0;
     }
 
     private void startPendingRestoredTask() {
@@ -370,6 +377,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
         Task task = pendingRestoredTask;
         long jobId = pendingRestoredJobId;
+        int elapsed = pendingRestoredElapsedTicks;
+        int timeoutSec = pendingRestoredTimeoutSec;
         if (task == null) return;
         if (jobId == 0 && companion.owner().isEmpty()) {
             // Owner work restored from a save waits for its owner; the offline free-time policy resumes the runner
@@ -378,13 +387,15 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         }
         pendingRestoredTask = null;
         pendingRestoredJobId = 0;
+        pendingRestoredElapsedTicks = 0;
+        pendingRestoredTimeoutSec = 0;
         if (jobId == 0) {
-            restore(task);
+            restore(task, elapsed, timeoutSec);
             return;
         }
         Job job = queueDriver.queue().job(jobId).orElse(null);
         if (job == null || job.state() != JobState.RUNNING) return;
-        startRestoredTask(task, job);
+        startRestoredTask(task, job, elapsed, timeoutSec);
     }
 
     @Override
@@ -873,7 +884,16 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void restore(Task task) {
-        begin(task, task.type(), false, false);
+        restore(task, 0, 0);
+    }
+
+    public void restore(Task task, int elapsedActiveTicks) {
+        restore(task, elapsedActiveTicks, 0);
+    }
+
+    /** Restores a task that keeps the active budget and timeout it had before the save. */
+    public void restore(Task task, int elapsedActiveTicks, int timeoutSec) {
+        beginRestored(task, elapsedActiveTicks, timeoutSec);
     }
 
     public void interrupt(Task task, String toolName) {
@@ -1236,6 +1256,24 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Caller caller,
             CreativeActionContext actionContext,
             boolean creativeSensitive) {
+        return begin(task, name, emit, interrupt, caller, actionContext, creativeSensitive, 0, 0);
+    }
+
+    /** Starts a restored task whose activation keeps the active budget it already spent before the save. */
+    private int beginRestored(Task task, int elapsedActiveTicks, int timeoutSec) {
+        return begin(task, task.type(), false, false, null, null, false, elapsedActiveTicks, timeoutSec);
+    }
+
+    private int begin(
+            Task task,
+            String name,
+            boolean emit,
+            boolean interrupt,
+            Caller caller,
+            CreativeActionContext actionContext,
+            boolean creativeSensitive,
+            int elapsedActiveTicks,
+            int timeoutSec) {
         ServerSettings settings = settingsSupplier.get();
         TaskStartContext start = new TaskStartContext(
                 name,
@@ -1253,7 +1291,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 invocationContext,
                 "command");
         try {
-            return activeTasks.start(task, start);
+            return activeTasks.start(task, start, elapsedActiveTicks, timeoutSec);
         } catch (RuntimeException e) {
             LOGGER.warn("Task {} failed to start", name, e);
             if (emit) emit(sink -> sink.onFinished(start.id(), name, TaskStatus.FAILED, activeTasks.crashSummary(e)));
@@ -1878,6 +1916,21 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 : frozenTask() == null ? 0 : frozenTask().jobId();
     }
 
+    /**
+     * The active ticks the activation named by {@link #persistenceTaskState()} has already spent. A save is a position
+     * in the task's budget, so its remaining time depends on this number rather than on a fresh activation clock.
+     */
+    public int persistenceActiveElapsedTicks() {
+        if (pendingRestoredTask != null) return pendingRestoredElapsedTicks;
+        return activeTasks.elapsedActiveTicks();
+    }
+
+    /** The timeout the activation named by {@link #persistenceTaskState()} runs under, so a reload keeps its contract. */
+    public int persistenceActiveTimeoutSec() {
+        if (pendingRestoredTask != null) return pendingRestoredTimeoutSec;
+        return activeTasks.activeTimeoutSec();
+    }
+
     public Optional<TaskState> persistenceTaskState() {
         if (pendingRestoredTask != null) return persistenceState(pendingRestoredTask, "pending restored task");
         ActiveTask active = activeTask() != null && activeTask().jobId() > 0
@@ -1910,7 +1963,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask) {
-        installRestoredState(decoded, restoredFactories, restoredPlanFactories, restoredTask, Map.of());
+        installRestoredState(decoded, restoredFactories, restoredPlanFactories, restoredTask, Map.of(), 0, 0);
     }
 
     /** The same install with the progress saved for jobs that had failed and may run again. */
@@ -1920,8 +1973,37 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask,
             Map<Long, RetryCheckpoints.Entry> retryProgress) {
+        installRestoredState(decoded, restoredFactories, restoredPlanFactories, restoredTask, retryProgress, 0, 0);
+    }
+
+    public void installRestoredState(
+            QueueSave.Decoded decoded,
+            Map<Long, StepFactory> restoredFactories,
+            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
+            Task restoredTask,
+            Map<Long, RetryCheckpoints.Entry> retryProgress,
+            int elapsedActiveTicks) {
+        installRestoredState(
+                decoded, restoredFactories, restoredPlanFactories, restoredTask, retryProgress, elapsedActiveTicks, 0);
+    }
+
+    /** The same install with the active budget and timeout the restored activation keeps from before the save. */
+    public void installRestoredState(
+            QueueSave.Decoded decoded,
+            Map<Long, StepFactory> restoredFactories,
+            Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
+            Task restoredTask,
+            Map<Long, RetryCheckpoints.Entry> retryProgress,
+            int elapsedActiveTicks,
+            int timeoutSec) {
         inTransition(() -> installRestoredStateActive(
-                decoded, restoredFactories, restoredPlanFactories, restoredTask, retryProgress));
+                decoded,
+                restoredFactories,
+                restoredPlanFactories,
+                restoredTask,
+                retryProgress,
+                elapsedActiveTicks,
+                timeoutSec));
     }
 
     private void installRestoredStateActive(
@@ -1929,11 +2011,15 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             Map<Long, StepFactory> restoredFactories,
             Map<Long, Map<String, PlanStepFactory>> restoredPlanFactories,
             Task restoredTask,
-            Map<Long, RetryCheckpoints.Entry> retryProgress) {
+            Map<Long, RetryCheckpoints.Entry> retryProgress,
+            int elapsedActiveTicks,
+            int timeoutSec) {
         syncSettings();
         retryCheckpoints.restore(retryProgress);
         pendingRestoredTask = null;
         pendingRestoredJobId = 0;
+        pendingRestoredElapsedTicks = 0;
+        pendingRestoredTimeoutSec = 0;
         queueDriver.restore(decoded, restoredFactories, restoredPlanFactories);
         activeTasks.reset();
         Job activeJob = decoded.activeJobId() == 0
@@ -1943,15 +2029,19 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (suspended) {
                 pendingRestoredTask = restoredTask;
                 pendingRestoredJobId = activeJob.id();
+                pendingRestoredElapsedTicks = elapsedActiveTicks;
+                pendingRestoredTimeoutSec = timeoutSec;
             } else {
-                startRestoredTask(restoredTask, activeJob);
+                startRestoredTask(restoredTask, activeJob, elapsedActiveTicks, timeoutSec);
             }
         } else if (restoredTask != null && activeJob == null) {
             if (suspended) {
                 pendingRestoredTask = restoredTask;
                 pendingRestoredJobId = 0;
+                pendingRestoredElapsedTicks = elapsedActiveTicks;
+                pendingRestoredTimeoutSec = timeoutSec;
             } else {
-                restore(restoredTask);
+                restore(restoredTask, elapsedActiveTicks, timeoutSec);
             }
         }
         for (Job job : List.copyOf(queueDriver.queue().jobs()))
@@ -1962,6 +2052,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private void startRestoredTask(Task restoredTask, Job activeJob) {
+        startRestoredTask(restoredTask, activeJob, 0, 0);
+    }
+
+    private void startRestoredTask(Task restoredTask, Job activeJob, int elapsedActiveTicks, int timeoutSec) {
         // A save names the principal, not the access: a grant withdrawn while the checkpoint waited must not resume.
         if (!stillAuthorized(activeJob)) {
             mutations.cancelJob(activeJob.id(), REVOKED);
@@ -1986,7 +2080,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                             settings,
                             new TaskContext(companion, (ServerLevel) companion.level(), this, actionContext, settings),
                             LogContext.NONE,
-                            "restore"));
+                            "restore"),
+                    elapsedActiveTicks,
+                    timeoutSec);
         } catch (RuntimeException e) {
             queueDriver.fail(activeJob.id(), activeTasks.crashSummary(e));
         }
