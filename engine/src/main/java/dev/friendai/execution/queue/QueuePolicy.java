@@ -25,8 +25,27 @@ public final class QueuePolicy {
         if (held(queue, job, facts)) return false;
         if (job.retryAtTick() > queue.clock()) return false;
         if (!dependenciesDone(queue, job)) return false;
-        for (Guard guard : job.guards()) if (!guard.holds(facts)) return false;
+        long startTick = progressStartTick(queue, job), startDistance = progressStartDistance(queue, job);
+        for (Guard guard : job.guards()) if (!guard.holds(facts, startTick, startDistance)) return false;
         return true;
+    }
+
+    /**
+     * The simulation tick one job's progress is measured from: a structured plan starts at its saved cursor, a flat
+     * plan at its own jobs' baseline, and a stand-alone job at the tick it was queued. Negative means not known, so a
+     * record written before the queue kept this baseline waits instead of measuring from the world's age.
+     */
+    public static long progressStartTick(JobQueue queue, Job job) {
+        PlanRecord plan = job.planId() == 0 ? null : queue.plan(job.planId()).orElse(null);
+        if (plan == null) return job.planId() == 0 ? job.queuedTick() : -1;
+        return plan.cursor() != null ? plan.cursor().startTick() : job.queuedTick();
+    }
+
+    /** The odometer reading one job's travel is measured from; negative when the queue never stored one. */
+    public static long progressStartDistance(JobQueue queue, Job job) {
+        PlanRecord plan = job.planId() == 0 ? null : queue.plan(job.planId()).orElse(null);
+        if (plan == null) return job.planId() == 0 ? job.queuedDistance() : -1;
+        return plan.cursor() != null ? plan.cursor().startDistance() : job.queuedDistance();
     }
 
     /**
@@ -35,19 +54,29 @@ public final class QueuePolicy {
      * action share this one disposition, so none of them acts while the owner has the work held.
      */
     public static Optional<QueueHold> blockingHold(JobQueue queue, Job job, GuardFacts facts) {
+        long startTick = progressStartTick(queue, job), startDistance = progressStartDistance(queue, job);
         if (job.planId() != 0) {
             QueueHold planHold = queue.hold(HoldKey.plan(job.planId())).orElse(null);
-            if (planHold != null && !planHold.satisfied(queue.clock(), facts)) return Optional.of(planHold);
+            if (planHold != null && !planHold.satisfied(queue.clock(), facts, startTick, startDistance)) {
+                return Optional.of(planHold);
+            }
         }
         QueueHold jobHold = queue.hold(HoldKey.job(job.id())).orElse(null);
-        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts)) return Optional.of(jobHold);
+        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts, startTick, startDistance)) {
+            return Optional.of(jobHold);
+        }
         return Optional.empty();
     }
 
     /** Whether a plan's own hold currently stops it, for work that has no materialized job yet. */
     public static boolean planHeld(JobQueue queue, long planId, GuardFacts facts) {
         QueueHold hold = queue.hold(HoldKey.plan(planId)).orElse(null);
-        return hold != null && !hold.satisfied(queue.clock(), facts);
+        PlanRecord plan = queue.plan(planId).orElse(null);
+        long startTick =
+                plan == null ? -1 : plan.cursor() != null ? plan.cursor().startTick() : plan.addedTick();
+        long startDistance =
+                plan == null || plan.cursor() == null ? -1 : plan.cursor().startDistance();
+        return hold != null && !hold.satisfied(queue.clock(), facts, startTick, startDistance);
     }
 
     public static boolean held(JobQueue queue, Job job, GuardFacts facts) {
@@ -58,8 +87,11 @@ public final class QueuePolicy {
      * Whether a `SKIP` job's guard is confirmed unmet, so the step may be dropped. Missing evidence is not an answer:
      * an unknown guard leaves the step in place for the next pass.
      */
-    public static boolean guardConfirmedUnmet(Job job, GuardFacts facts) {
-        for (Guard guard : job.guards()) if (guard.evaluate(facts) == Guard.Truth.FALSE) return true;
+    public static boolean guardConfirmedUnmet(JobQueue queue, Job job, GuardFacts facts) {
+        long startTick = progressStartTick(queue, job), startDistance = progressStartDistance(queue, job);
+        for (Guard guard : job.guards()) {
+            if (guard.evaluate(facts, startTick, startDistance) == Guard.Truth.FALSE) return true;
+        }
         return false;
     }
 
@@ -143,10 +175,13 @@ public final class QueuePolicy {
         QueueHold planHold = job.planId() == 0
                 ? null
                 : queue.hold(HoldKey.plan(job.planId())).orElse(null);
-        if (planHold != null && !planHold.satisfied(queue.clock(), facts))
+        long startTick = progressStartTick(queue, job), startDistance = progressStartDistance(queue, job);
+        // The hold is judged against the same progress frame as the guards, so a pause and its condition agree.
+        if (planHold != null && !planHold.satisfied(queue.clock(), facts, startTick, startDistance))
             return "plan " + planHold.describe(queue.clock());
         QueueHold jobHold = queue.hold(HoldKey.job(job.id())).orElse(null);
-        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts)) return jobHold.describe(queue.clock());
+        if (jobHold != null && !jobHold.satisfied(queue.clock(), facts, startTick, startDistance))
+            return jobHold.describe(queue.clock());
         if (job.retryAtTick() > queue.clock()) return "retries in " + (job.retryAtTick() - queue.clock()) + " ticks";
         for (long id : job.after()) {
             Job other = queue.job(id).orElse(null);
@@ -154,9 +189,9 @@ public final class QueuePolicy {
                 return "depends on #" + id + ", which " + (other == null ? "is missing" : stateWord(other));
         }
         return job.guards().stream()
-                .filter(g -> g.evaluate(facts) != Guard.Truth.TRUE)
+                .filter(g -> g.evaluate(facts, startTick, startDistance) != Guard.Truth.TRUE)
                 .findFirst()
-                .map(g -> g.evaluate(facts) == Guard.Truth.UNKNOWN
+                .map(g -> g.evaluate(facts, startTick, startDistance) == Guard.Truth.UNKNOWN
                         ? "cannot tell yet whether " + g.describe()
                         : "waits for " + g.describe())
                 .orElse("pending");

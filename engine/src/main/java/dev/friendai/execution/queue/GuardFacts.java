@@ -39,6 +39,16 @@ public interface GuardFacts {
         return 0;
     }
 
+    /** The simulation tick, or a negative value when the caller cannot read the clock. */
+    default long simulationTick() {
+        return -1;
+    }
+
+    /** Distance the companion has walked since its odometer began, in milli-blocks, or negative when unknown. */
+    default long travelledMilliBlocks() {
+        return -1;
+    }
+
     default boolean hasBlocks(String idOrTag, int radius, int count) {
         return countBlocks(idOrTag, radius) >= count;
     }

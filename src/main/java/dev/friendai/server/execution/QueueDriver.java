@@ -43,6 +43,7 @@ public final class QueueDriver {
     private long blockedSince = -1;
     private long nextPoll;
     private CompanionGuardFacts sharedFacts;
+    private long pendingTravelled = -1;
 
     QueueDriver(ExecutionCoordinator coordinator) {
         this.coordinator = coordinator;
@@ -133,15 +134,32 @@ public final class QueueDriver {
     GuardFacts refreshFacts(CompanionEntity companion) {
         if (sharedFacts == null) sharedFacts = new CompanionGuardFacts(companion);
         sharedFacts.refresh();
+        applyPendingTravelled();
         return sharedFacts;
     }
 
     GuardFacts refreshPlanFacts(CompanionEntity companion, PlanRecord plan) {
         if (sharedFacts == null) sharedFacts = new CompanionGuardFacts(companion);
-        long baseline = plan.cursor() == null ? 0 : plan.cursor().startDistance();
+        // A flat plan has no saved cursor, so its facts expose the time since it was added and no distance baseline
+        // rather than pretending the queue's own start is the plan's.
         sharedFacts.refresh(
-                plan.cursor() == null ? plan.addedTick() : plan.cursor().startTick(), baseline);
+                plan.cursor() == null ? plan.addedTick() : plan.cursor().startTick(),
+                plan.cursor() == null ? -1 : plan.cursor().startDistance());
+        applyPendingTravelled();
         return sharedFacts;
+    }
+
+    private void applyPendingTravelled() {
+        if (pendingTravelled >= 0 && sharedFacts != null) {
+            sharedFacts.restoreTravelled(pendingTravelled);
+            pendingTravelled = -1;
+        }
+    }
+
+    /** Remembers the odometer in the queue so plan baselines survive a save and reload. */
+    void rememberTravelled() {
+        if (sharedFacts == null) return;
+        queue.travelledDistance(Math.max(queue.travelledDistance(), sharedFacts.totalTravelledDistance()));
     }
 
     JobQueue.Result skipJob(long id) {
@@ -282,6 +300,8 @@ public final class QueueDriver {
         restoredPlanFactories.forEach((id, map) -> structuredFactories.put(id, Map.copyOf(map)));
         awaitingDecision.clear();
         nextPoll = 0;
+        // The saved odometer continues where it stopped, so a plan's saved baseline still measures.
+        pendingTravelled = queue.travelledDistance();
     }
 
     public Optional<Job> next(GuardFacts facts) {
@@ -316,7 +336,7 @@ public final class QueueDriver {
             if (QueuePolicy.held(queue, job, facts)
                     || !QueuePolicy.dependenciesDone(queue, job)
                     || job.retryAtTick() > queue.clock()) continue;
-            if (QueuePolicy.guardConfirmedUnmet(job, facts)) return job;
+            if (QueuePolicy.guardConfirmedUnmet(queue, job, facts)) return job;
         }
         return null;
     }

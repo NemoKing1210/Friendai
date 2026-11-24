@@ -38,7 +38,10 @@ public final class CompanionGuardFacts implements GuardFacts {
     private String dimension;
     private double totalDistance;
     private double lastX = Double.NaN, lastZ = Double.NaN;
-    private long lastSampleTick = Long.MIN_VALUE;
+    private String lastDimension = "";
+    /** Faster than any legitimate walk in one tick; a bigger hop is a teleport, not distance covered. */
+    private static final double MAX_STEP_PER_TICK = 16.0;
+
     private long planStartTick;
     private long planStartDistance;
     private long elapsedTicks;
@@ -71,19 +74,26 @@ public final class CompanionGuardFacts implements GuardFacts {
         ownerDistance = null;
         healthFraction = null;
         dimension = null;
-        long now = companion.level().getGameTime();
-        planStartTick = Math.max(0, startTick);
-        planStartDistance = Math.max(0, startDistance);
-        if (now != lastSampleTick) {
-            double x = companion.getX(), z = companion.getZ();
-            if (!Double.isNaN(lastX)) totalDistance += Math.hypot(x - lastX, z - lastZ);
-            lastX = x;
-            lastZ = z;
-            lastSampleTick = now;
-        }
-        elapsedTicks = Math.max(0, now - planStartTick);
-        travelledBlocks =
-                (int) Math.clamp((long) Math.floor(totalDistance - planStartDistance / 1000.0), 0, Integer.MAX_VALUE);
+        planStartTick = startTick;
+        planStartDistance = startDistance;
+        double x = companion.getX(), z = companion.getZ();
+        String where = dimension();
+        // A portal, a teleport or a load into another world is not travel on foot: the old odometer measured another
+        // place, so the jump adds nothing. The reading itself is kept, so every plan's saved baseline still measures
+        // the ground covered since it started. Sampling every pass is safe: a second pass at the same position adds
+        // nothing.
+        boolean jumped = !Double.isNaN(lastX)
+                && (!where.equals(lastDimension) || Math.hypot(x - lastX, z - lastZ) > MAX_STEP_PER_TICK);
+        if (!Double.isNaN(lastX) && !jumped) totalDistance += Math.hypot(x - lastX, z - lastZ);
+        lastX = x;
+        lastZ = z;
+        lastDimension = where;
+        // Both baselines live on the queue clock and the queue odometer, never on the world age or a shared meter.
+        long now = simulationTick();
+        elapsedTicks = planStartTick < 0 || now < 0 ? 0 : Math.max(0, now - planStartTick);
+        travelledBlocks = planStartDistance < 0
+                ? 0
+                : (int) Math.clamp((long) Math.floor(totalDistance - planStartDistance / 1000.0), 0, Integer.MAX_VALUE);
         refreshSurveys();
     }
 
@@ -103,6 +113,11 @@ public final class CompanionGuardFacts implements GuardFacts {
             surveyBudgetTick = now;
         }
     }
+    /** Continues the odometer from a saved reading, so a plan's saved baseline still measures after a reload. */
+    public void restoreTravelled(long milliBlocks) {
+        if (milliBlocks > 0) totalDistance = milliBlocks / 1000.0;
+    }
+
     /** Cumulative horizontal distance in milli-blocks, retaining a plan's fractional baseline. */
     public long totalTravelledDistance() {
         return Math.round(totalDistance * 1000.0);
@@ -111,6 +126,17 @@ public final class CompanionGuardFacts implements GuardFacts {
     @Override
     public int distanceTravelled() {
         return travelledBlocks;
+    }
+
+    @Override
+    public long simulationTick() {
+        // The queue clock, the same one a plan's cursor baseline is stored in.
+        return companion.executionCoordinator().queue().clock();
+    }
+
+    @Override
+    public long travelledMilliBlocks() {
+        return Math.round(totalDistance * 1000.0);
     }
 
     @Override

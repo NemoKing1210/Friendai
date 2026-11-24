@@ -668,7 +668,8 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         stoppedByOrder = false;
         for (PlanNode node : definition.nodes()) validateStructuredAuthorization(node);
         facts();
-        long startTick = companion.level().getGameTime();
+        // The queue clock, not the world clock: every progress guard of this plan measures the same ticks.
+        long startTick = queueDriver.queue().clock();
         long startDistance = queueDriver.totalTravelledDistance();
         long planId = queueDriver.enqueueStructuredPlan(goal, definition, options, startTick, startDistance);
         queueDriver.addStructuredFactories(planId, stepFactories);
@@ -793,6 +794,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         reportClockGap();
         refreshMaterialReserve();
         inTransition(this::tickActive);
+        queueDriver.rememberTravelled();
     }
 
     /**

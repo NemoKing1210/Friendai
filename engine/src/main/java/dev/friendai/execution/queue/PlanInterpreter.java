@@ -111,6 +111,8 @@ public final class PlanInterpreter {
     public static Transition advance(PlanDefinition plan, PlanCursor cursor, GuardFacts facts, ActionResult result) {
         if (plan == null || cursor == null || facts == null || result == null)
             throw new IllegalArgumentException("interpreter input");
+        long startTick = cursor.startTick();
+        long startDistance = cursor.startDistance();
         Mutable state = new Mutable(cursor);
         if (!cursor.pendingActionPath().isEmpty()) {
             if (result instanceof ActionResult.Failed failed) {
@@ -138,7 +140,7 @@ public final class PlanInterpreter {
                 if (frame.repeatBody()) {
                     PlanNode.Repeat repeat = (PlanNode.Repeat) nodeAtRoute(plan, frame.route());
                     int iteration = state.repeatIterations.getOrDefault(frame.ownerPath(), 1);
-                    Guard.Truth until = repeat.until().evaluate(facts);
+                    Guard.Truth until = repeat.until().evaluate(facts, startTick, startDistance);
                     if (until == Guard.Truth.UNKNOWN) {
                         // Missing evidence neither ends the loop nor starts another pass: put the frame back.
                         state.stack.add(frame);
@@ -161,7 +163,7 @@ public final class PlanInterpreter {
             PlanNode node = sequence.get(index);
             String nodePath = nodePath(frame, index + 1);
             if (node instanceof PlanNode.Conditional conditional) {
-                Guard.Truth condition = conditional.condition().evaluate(facts);
+                Guard.Truth condition = conditional.condition().evaluate(facts, startTick, startDistance);
                 if (condition == Guard.Truth.UNKNOWN) {
                     // No branch is selected from missing data; the cursor stays on this node.
                     return undecided(state, nodePath, conditional.condition());
@@ -182,7 +184,7 @@ public final class PlanInterpreter {
                 continue;
             }
             if (node instanceof PlanNode.Repeat repeat) {
-                Guard.Truth until = repeat.until().evaluate(facts);
+                Guard.Truth until = repeat.until().evaluate(facts, startTick, startDistance);
                 if (until == Guard.Truth.UNKNOWN) return undecided(state, nodePath + " → until", repeat.until());
                 state.replaceLast(withNext(frame, index + 1));
                 if (until == Guard.Truth.TRUE) {

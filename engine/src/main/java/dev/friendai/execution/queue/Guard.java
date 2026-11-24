@@ -89,6 +89,19 @@ public sealed interface Guard
     }
 
     /**
+     * Evaluation within one work item's progress frame: {@code startTick} and {@code startDistance} are its baseline
+     * (both in the units the facts report). A negative tick or distance means the baseline is not known, so a progress
+     * guard answers {@code UNKNOWN} instead of measuring from the world clock.
+     */
+    default Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+        return evaluate(facts);
+    }
+
+    default boolean holds(GuardFacts facts, long startTick, long startDistance) {
+        return evaluate(facts, startTick, startDistance) == Truth.TRUE;
+    }
+
+    /**
      * Plan ids this guard asks about, so the queue keeps the archive that answers them for as long as the reference
      * exists. Empty for every guard that names no plan.
      */
@@ -501,6 +514,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+            return Truth.all(conditions.stream()
+                    .map(g -> g.evaluate(facts, startTick, startDistance))
+                    .toList());
+        }
+
+        @Override
         public Set<Long> referencedPlanIds() {
             Set<Long> ids = new HashSet<>();
             conditions.forEach(g -> ids.addAll(g.referencedPlanIds()));
@@ -531,6 +551,13 @@ public sealed interface Guard
         @Override
         public Truth evaluate(GuardFacts facts) {
             return Truth.any(conditions.stream().map(g -> g.evaluate(facts)).toList());
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+            return Truth.any(conditions.stream()
+                    .map(g -> g.evaluate(facts, startTick, startDistance))
+                    .toList());
         }
 
         @Override
@@ -565,6 +592,11 @@ public sealed interface Guard
         @Override
         public Truth evaluate(GuardFacts facts) {
             return condition.evaluate(facts).negate();
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+            return condition.evaluate(facts, startTick, startDistance).negate();
         }
 
         @Override
@@ -668,6 +700,13 @@ public sealed interface Guard
         }
 
         @Override
+        public Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+            long odometer = facts.travelledMilliBlocks();
+            if (startDistance < 0 || odometer < 0 || odometer < startDistance) return Truth.UNKNOWN;
+            return (odometer - startDistance) / 1000 >= blocks ? Truth.TRUE : Truth.FALSE;
+        }
+
+        @Override
         public String describe() {
             return "travelled at least " + blocks + " blocks";
         }
@@ -688,6 +727,14 @@ public sealed interface Guard
         @Override
         public boolean holds(GuardFacts facts) {
             return facts.timeElapsed() >= ticks;
+        }
+
+        @Override
+        public Truth evaluate(GuardFacts facts, long startTick, long startDistance) {
+            long now = facts.simulationTick();
+            // A baseline the clock has not reached yet means the reading was lost, not that no time has passed.
+            if (startTick < 0 || now < startTick) return Truth.UNKNOWN;
+            return now - startTick >= ticks ? Truth.TRUE : Truth.FALSE;
         }
 
         @Override

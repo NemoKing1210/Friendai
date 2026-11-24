@@ -270,12 +270,12 @@ class GuardTruthTest {
         JobQueue queue = queueWithSkip();
         Job job = queue.jobs().getFirst();
         assertEquals(Guard.Truth.UNKNOWN, job.guards().getFirst().evaluate(facts));
-        assertFalse(QueuePolicy.guardConfirmedUnmet(job, facts), "unknown evidence leaves the step in place");
+        assertFalse(QueuePolicy.guardConfirmedUnmet(queue, job, facts), "unknown evidence leaves the step in place");
 
         facts.blockHere = false;
-        assertTrue(QueuePolicy.guardConfirmedUnmet(job, facts), "a confirmed absence lets the step be skipped");
+        assertTrue(QueuePolicy.guardConfirmedUnmet(queue, job, facts), "a confirmed absence lets the step be skipped");
         facts.blockHere = true;
-        assertFalse(QueuePolicy.guardConfirmedUnmet(job, facts));
+        assertFalse(QueuePolicy.guardConfirmedUnmet(queue, job, facts));
     }
 
     @Test
@@ -363,10 +363,10 @@ class GuardTruthTest {
                         "mine", new JsonObject(), null, List.of(guard), GuardAction.SKIP, null, 1, List.of()))
                 .id();
         Job job = queue.job(id).orElseThrow();
-        assertFalse(QueuePolicy.guardConfirmedUnmet(job, facts));
+        assertFalse(QueuePolicy.guardConfirmedUnmet(queue, job, facts));
         assertEquals("cannot tell yet whether " + guard.describe(), QueuePolicy.notReadyReason(queue, job, facts));
 
         facts.blocksWithin = Boolean.FALSE;
-        assertTrue(QueuePolicy.guardConfirmedUnmet(job, facts));
+        assertTrue(QueuePolicy.guardConfirmedUnmet(queue, job, facts));
     }
 }

@@ -24,7 +24,14 @@ public record Job(
         long retryAtTick,
         UUID principal,
         boolean creativeSensitive,
-        LogContext diagnostic) {
+        LogContext diagnostic,
+        /**
+         * The tick the job was queued at, so a `when` guard's clock starts with the work, not with the world.
+         * Negative when the baseline is unknown, as in a record written before the queue kept it.
+         */
+        long queuedTick,
+        /** The odometer reading when the job was queued, so a distance guard measures its own travel; negative if unknown. */
+        long queuedDistance) {
     public static final String MISSING_TOOL_RESULT = "tool is no longer available";
     /** A saved task whose committed progress cannot be read: repeating it could apply its effects twice. */
     public static final String UNREADABLE_PROGRESS_RESULT = "saved progress could not be read";
@@ -72,7 +79,9 @@ public record Job(
                 retryAtTick,
                 null,
                 true,
-                LogContext.NONE);
+                LogContext.NONE,
+                0,
+                0);
     }
 
     public Job(
@@ -112,7 +121,55 @@ public record Job(
                 retryAtTick,
                 principal,
                 true,
-                LogContext.NONE);
+                LogContext.NONE,
+                0,
+                0);
+    }
+
+    /** A loaded job whose queue never stored the tick it was queued at. */
+    public Job(
+            long id,
+            long planId,
+            String tool,
+            JsonObject args,
+            int priority,
+            boolean priorityExplicit,
+            long order,
+            JobState state,
+            List<Guard> guards,
+            GuardAction onUnmet,
+            FailurePolicy onFailure,
+            int maxAttempts,
+            int attempts,
+            List<Long> after,
+            String result,
+            long retryAtTick,
+            UUID principal,
+            boolean creativeSensitive,
+            long queuedTick,
+            long queuedDistance) {
+        this(
+                id,
+                planId,
+                tool,
+                args,
+                priority,
+                priorityExplicit,
+                order,
+                state,
+                guards,
+                onUnmet,
+                onFailure,
+                maxAttempts,
+                attempts,
+                after,
+                result,
+                retryAtTick,
+                principal,
+                creativeSensitive,
+                LogContext.NONE,
+                queuedTick,
+                queuedDistance);
     }
 
     /** The historical shape: a job without captured diagnostic provenance. */
@@ -154,7 +211,9 @@ public record Job(
                 retryAtTick,
                 principal,
                 creativeSensitive,
-                LogContext.NONE);
+                LogContext.NONE,
+                0,
+                0);
     }
 
     /** A copy that carries the invocation this job was created from; the save codec never reads it. */
@@ -178,7 +237,9 @@ public record Job(
                 retryAtTick,
                 principal,
                 creativeSensitive,
-                context == null ? LogContext.NONE : context);
+                context == null ? LogContext.NONE : context,
+                queuedTick,
+                queuedDistance);
     }
 
     public Job {
@@ -189,6 +250,8 @@ public record Job(
         tool = tool == null ? "" : tool;
         result = result == null ? "" : result;
         diagnostic = diagnostic == null ? LogContext.NONE : diagnostic;
+        queuedTick = Math.max(-1, queuedTick);
+        queuedDistance = Math.max(-1, queuedDistance);
     }
 
     @Override

@@ -13,6 +13,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
+- A condition about elapsed time or walked distance now measures that plan's or that step's own progress:
+  an order given in a long-played world no longer counts the world's age, two queued plans keep separate
+  clocks, walking through a portal is not counted as travel, and after a reload a partly walked route needs only
+  the distance that is left.
 - A condition about nearby blocks now answers about the place the companion actually stands in: walking away, changing
   dimension, breaking the last matching block or placing a new one changes the answer at once instead of reusing a
   stale one for a few seconds. A large search that cannot cover the whole area in one tick waits and says it cannot

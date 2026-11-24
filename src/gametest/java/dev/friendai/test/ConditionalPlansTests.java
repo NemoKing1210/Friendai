@@ -9,6 +9,7 @@ import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
 import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueueLimits;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
@@ -602,6 +603,94 @@ public final class ConditionalPlansTests {
         h.succeed();
     }
 
+    @GameTest(maxTicks = 300)
+    public void aFreshPlanMeasuresTimeOnItsOwnClock(GameTestHelper h) {
+        GameTestSupport.platform(h, 8);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        runner.enqueuePlan(
+                "early plan",
+                new PlanDefinition(List.of(new PlanNode.Action(step("early", new Guard.TimeElapsed(40))))),
+                PlanOptions.DEFAULT,
+                Map.of("early", factory("early", started)));
+
+        for (int i = 0; i < 20; i++) runner.tick();
+        h.assertTrue(started.isEmpty(), "the first action waits for its forty ticks: " + started);
+        for (int i = 0; i < 60 && started.isEmpty(); i++) runner.tick();
+        h.assertValueEqual(started, List.of("early"), "the early plan counts its own forty ticks: " + started);
+
+        // A plan added to a long-running queue starts its own clock: the queue's age is not its age.
+        runner.enqueuePlan(
+                "late plan",
+                new PlanDefinition(List.of(new PlanNode.Action(step("late", new Guard.TimeElapsed(40))))),
+                PlanOptions.DEFAULT,
+                Map.of("late", factory("late", started)));
+        for (int i = 0; i < 10; i++) runner.tick();
+        h.assertValueEqual(started, List.of("early"), "a new plan does not inherit an older clock: " + started);
+        for (int i = 0; i < 60 && started.size() < 2; i++) runner.tick();
+        h.assertValueEqual(started, List.of("early", "late"), "the late plan waits its own forty ticks: " + started);
+        h.succeed();
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void aDistanceBaselineSurvivesATeleportAndAReload(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        ExecutionCoordinator runner = companion.executionCoordinator();
+        List<String> started = new ArrayList<>();
+        QueuedStep walk = new QueuedStep(
+                "walk",
+                new JsonObject(),
+                null,
+                List.of(new Guard.DistanceTravelled(3)),
+                GuardAction.WAIT,
+                FailurePolicy.ASK,
+                1,
+                List.of());
+        long job = runner.enqueue(walk, context -> countingTask("walk", started));
+
+        for (int step = 0; step < 4; step++) {
+            companion.snapTo(companion.getX() + 0.5, companion.getY(), companion.getZ());
+            runner.tick();
+        }
+        h.assertTrue(started.isEmpty(), "two blocks are not three: " + started);
+
+        // A portal or a teleport moves the companion without covering ground.
+        companion.snapTo(companion.getX() + 40, companion.getY(), companion.getZ());
+        runner.tick();
+        h.assertTrue(started.isEmpty(), "a jump is not travel: " + started);
+
+        QueueSave.Decoded saved = QueueSave.decode(QueueSave.encode(runner.queue(), 0), QueueLimits.DEFAULTS)
+                .orElseThrow();
+        h.assertTrue(
+                saved.queue().travelledDistance() >= 2_000,
+                "the save carries the walked ground: " + saved.queue().travelledDistance());
+        runner.stop("simulated restart");
+
+        CompanionEntity reloaded = h.spawn(FriendaiEntities.COMPANION, 5, 2, 5);
+        ExecutionCoordinator again = new ExecutionCoordinator(reloaded, () -> 300, () -> false);
+        again.installRestoredState(saved, Map.of(job, context -> countingTask("walk", started)), Map.of(), null);
+        again.wakeQueue();
+        h.assertValueEqual(again.queue().jobCount(), 1, "the pending job is restored");
+        h.assertValueEqual(again.queue().travelledDistance(), 2_000L, "the odometer is restored");
+        // The first pass after a reload is where the companion stands now; walking counts from there.
+        again.tick();
+        reloaded.snapTo(reloaded.getX() + 0.5, reloaded.getY(), reloaded.getZ());
+        for (int i = 0; i < 15; i++) again.tick();
+        h.assertTrue(started.isEmpty(), "half a block after a reload is not the whole missing block: " + started);
+
+        reloaded.snapTo(reloaded.getX() + 0.5, reloaded.getY(), reloaded.getZ());
+        for (int i = 0; i < 30 && started.isEmpty(); i++) again.tick();
+        h.assertValueEqual(started, List.of("walk"), "the ground walked before the reload still counts: " + started);
+
+        reloaded.snapTo(reloaded.getX() + 0.5, reloaded.getY(), reloaded.getZ());
+        for (int i = 0; i < 20 && started.isEmpty(); i++) again.tick();
+        h.assertValueEqual(started, List.of("walk"), "the ground walked before the reload still counts: " + started);
+        again.stop("test cleanup");
+        h.succeed();
+    }
+
     private static void enqueueLogBranch(ExecutionCoordinator runner, List<String> started, Guard logNearby) {
         runner.enqueuePlan(
                 "is a log nearby",
@@ -629,6 +718,11 @@ public final class ConditionalPlansTests {
     private static QueuedStep step(String tool) {
         return new QueuedStep(
                 tool, new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
+    }
+
+    private static QueuedStep step(String tool, Guard... guards) {
+        return new QueuedStep(
+                tool, new JsonObject(), null, List.of(guards), GuardAction.WAIT, FailurePolicy.ASK, 1, List.of());
     }
 
     /** Records when the task starts and keeps the body for three ticks, so a dispatch can arrive while it runs. */

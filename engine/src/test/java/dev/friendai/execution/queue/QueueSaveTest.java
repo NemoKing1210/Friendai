@@ -275,6 +275,11 @@ class QueueSaveTest {
         }
 
         @Override
+        public long simulationTick() {
+            return 0;
+        }
+
+        @Override
         public boolean fluidAhead() {
             return fluidAhead;
         }

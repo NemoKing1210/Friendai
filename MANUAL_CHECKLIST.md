@@ -666,3 +666,11 @@ These need two players and a live world; the automated suite used a mock guest a
 - [ ] In a large open area ask for "more than 32 stone within 32 blocks" and watch the tick time in the debug overlay: the first checks answer "cannot tell yet" and the answer appears within a few seconds, with no single-tick stall.
 
 These need a live world with two dimensions; the automated suite used a fixed platform and a teleported companion.
+
+## Progress conditions (TODO 121)
+
+- [ ] Give an order with a `time_elapsed` condition in a world you have played for hours: it waits its own time, not the world's age.
+- [ ] Queue two plans with the same `time_elapsed` a minute apart: the second does not borrow the first's clock.
+- [ ] Queue a `distance_travelled` order, walk part of the way, let the game save and reload: the companion needs only the distance that is left.
+- [ ] Walk through a nether portal with the same order queued: entering the other world is not counted as walking, and the order still needs the blocks you asked for.
+- [ ] Pause the plan for a minute: on resume the pause is not counted as travel and the panel shows the remaining distance, not a completed one.

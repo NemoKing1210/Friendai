@@ -26,6 +26,7 @@ public final class QueueSave {
         root.addProperty("nextJob", queue.nextJobId());
         root.addProperty("nextPlan", queue.nextPlanId());
         root.addProperty("nextOrder", queue.nextOrder());
+        root.addProperty("travelled", queue.travelledDistance());
         JsonArray plans = new JsonArray();
         for (PlanRecord p : queue.plans()) {
             JsonObject o = new JsonObject();
@@ -58,6 +59,9 @@ public final class QueueSave {
             o.addProperty("attempts", j.attempts());
             o.addProperty("result", bounded(j.result(), 200));
             o.addProperty("retryAt", j.retryAtTick());
+            // A known baseline of zero is a baseline; only -1 means the queue never recorded one.
+            if (j.queuedTick() >= 0) o.addProperty("queued", j.queuedTick());
+            if (j.queuedDistance() >= 0) o.addProperty("queuedDistance", j.queuedDistance());
             if (j.principal() != null) o.addProperty("principal", j.principal().toString());
             if (!j.creativeSensitive()) o.addProperty("creativeSensitive", false);
             JsonArray guards = new JsonArray();
@@ -225,7 +229,8 @@ public final class QueueSave {
                     plans,
                     jobs,
                     archives,
-                    holds);
+                    holds,
+                    root.has("travelled") ? root.get("travelled").getAsLong() : 0);
             for (String notice : holdNotices) q.addHoldNotice(notice);
             return Optional.of(new Decoded(q, active));
         } catch (RuntimeException ignored) {
@@ -257,7 +262,10 @@ public final class QueueSave {
                 field(j, "result"),
                 j.get("retryAt").getAsLong(),
                 j.has("principal") ? java.util.UUID.fromString(field(j, "principal")) : null,
-                !j.has("creativeSensitive") || j.get("creativeSensitive").getAsBoolean());
+                !j.has("creativeSensitive") || j.get("creativeSensitive").getAsBoolean(),
+                // A file written before the queue kept this tick does not pretend to know it: -1 is "unknown".
+                j.has("queued") ? j.get("queued").getAsLong() : -1,
+                j.has("queuedDistance") ? j.get("queuedDistance").getAsLong() : -1);
     }
 
     private static JsonObject cursorJson(PlanCursor cursor) {

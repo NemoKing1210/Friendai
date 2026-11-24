@@ -44,13 +44,19 @@ public record QueueHold(Kind kind, String reason, long wakeTick, Guard until) {
 
     /** Whether a ready check may pass this hold; a pause is always false. */
     public boolean satisfied(long clock, GuardFacts facts) {
+        // No progress frame was supplied: a time or distance deferral waits instead of measuring from the world.
+        return satisfied(clock, facts, -1, -1);
+    }
+
+    /** The deferral's condition evaluated in the held work item's progress frame. */
+    public boolean satisfied(long clock, GuardFacts facts, long startTick, long startDistance) {
         if (kind == Kind.PAUSE) {
             return false;
         }
         if (clock < wakeTick) {
             return false;
         }
-        return until == null || until.holds(facts);
+        return until == null || until.holds(facts, startTick, startDistance);
     }
 
     /** Remaining simulation ticks, clamped at zero. */

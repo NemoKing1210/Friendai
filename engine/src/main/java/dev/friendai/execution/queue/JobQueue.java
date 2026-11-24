@@ -46,6 +46,7 @@ public final class JobQueue {
 
     private static final int MAX_STORED_RESULT = 300;
     private long nextJob = 1, nextPlan = 1, nextOrder = 100, clock;
+    private long travelledDistance;
 
     public JobQueue(QueueLimits limits) {
         this.limits = limits == null ? QueueLimits.DEFAULTS : limits;
@@ -60,9 +61,11 @@ public final class JobQueue {
             List<PlanRecord> savedPlans,
             List<Job> savedJobs,
             List<PlanArchive> savedArchives,
-            Map<HoldKey, QueueHold> savedHolds) {
+            Map<HoldKey, QueueHold> savedHolds,
+            long travelledDistance) {
         JobQueue queue = new JobQueue(limits);
         queue.clock = Math.max(0, clock);
+        queue.travelledDistance = Math.max(0, travelledDistance);
         for (PlanRecord plan : savedPlans) queue.plans.put(plan.id(), plan);
         for (Job job : savedJobs) queue.jobs.put(job.id(), job);
         queue.archives.addAll(savedArchives);
@@ -159,6 +162,15 @@ public final class JobQueue {
 
     public long clock() {
         return clock;
+    }
+
+    /** The companion's odometer in milli-blocks, carried by the save so plan baselines still measure after a reload. */
+    public long travelledDistance() {
+        return travelledDistance;
+    }
+
+    public void travelledDistance(long value) {
+        travelledDistance = Math.max(0, value);
     }
 
     public void advanceClock() {
@@ -321,7 +333,10 @@ public final class JobQueue {
                 "",
                 0,
                 step.principal(),
-                step.creativeSensitive());
+                step.creativeSensitive(),
+                LogContext.NONE,
+                clock,
+                travelledDistance);
         nextOrder += 100;
         jobs.put(id, job);
         return job;
@@ -361,7 +376,10 @@ public final class JobQueue {
                 "",
                 0,
                 step.principal(),
-                step.creativeSensitive());
+                step.creativeSensitive(),
+                LogContext.NONE,
+                clock,
+                travelledDistance);
         nextOrder += 100;
         jobs.put(id, remedy);
         List<Long> deps = new ArrayList<>(target.after());
@@ -387,7 +405,9 @@ public final class JobQueue {
                         target.retryAtTick(),
                         target.principal(),
                         target.creativeSensitive(),
-                        target.diagnostic()));
+                        target.diagnostic(),
+                        target.queuedTick(),
+                        target.queuedDistance()));
         return Result.ok("inserted prerequisite #" + id + " before #" + beforeId);
     }
 
@@ -421,7 +441,10 @@ public final class JobQueue {
                 "",
                 0,
                 step.principal(),
-                step.creativeSensitive());
+                step.creativeSensitive(),
+                LogContext.NONE,
+                clock,
+                travelledDistance);
         nextOrder += 100;
         jobs.put(id, job);
         return job;
@@ -497,7 +520,10 @@ public final class JobQueue {
                 "",
                 0,
                 step.principal(),
-                step.creativeSensitive());
+                step.creativeSensitive(),
+                LogContext.NONE,
+                clock,
+                travelledDistance);
         nextOrder += 100;
         jobs.put(id, job);
     }
@@ -545,7 +571,9 @@ public final class JobQueue {
                         retryAt,
                         old.principal(),
                         old.creativeSensitive(),
-                        old.diagnostic()));
+                        old.diagnostic(),
+                        old.queuedTick(),
+                        old.queuedDistance()));
     }
     /** Returns a job that was running when the world saved, but has no live task, to the pending pool. */
     public void requeue(long id) {
@@ -654,7 +682,9 @@ public final class JobQueue {
                         job.retryAtTick(),
                         job.principal(),
                         job.creativeSensitive(),
-                        job.diagnostic()));
+                        job.diagnostic(),
+                        job.queuedTick(),
+                        job.queuedDistance()));
         return Result.ok("#" + id + " priority is now " + priority);
     }
 
@@ -696,7 +726,9 @@ public final class JobQueue {
                                 job.retryAtTick(),
                                 job.principal(),
                                 job.creativeSensitive(),
-                                job.diagnostic()));
+                                job.diagnostic(),
+                                job.queuedTick(),
+                                job.queuedDistance()));
         return Result.ok("plan #" + planId + " priority is now " + priority);
     }
 
@@ -738,7 +770,9 @@ public final class JobQueue {
                         job.retryAtTick(),
                         principal,
                         creativeSensitive,
-                        job.diagnostic()));
+                        job.diagnostic(),
+                        job.queuedTick(),
+                        job.queuedDistance()));
         return Result.ok("updated #" + id);
     }
 
@@ -908,7 +942,9 @@ public final class JobQueue {
                 retryAt,
                 j.principal(),
                 j.creativeSensitive(),
-                j.diagnostic());
+                j.diagnostic(),
+                j.queuedTick(),
+                j.queuedDistance());
     }
 
     public Result cancelPlan(long planId) {
