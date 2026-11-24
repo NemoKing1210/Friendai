@@ -21,6 +21,7 @@ import dev.friendai.execution.queue.QueuePolicy;
 import dev.friendai.execution.queue.QueueSave;
 import dev.friendai.execution.queue.QueueText;
 import dev.friendai.execution.queue.QueuedStep;
+import dev.friendai.execution.queue.RetryPolicy;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
@@ -88,6 +89,9 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
 
     /** The last direct job the companion started, kept so the owner can retry it once it stopped or failed. */
     private Started lastStarted;
+
+    /** How that job ended, so a Retry click names a job whose outcome is known instead of replaying whatever is last. */
+    private RetryPolicy.Last lastDirect;
 
     /** The tool invocation the runner is executing right now; runner-local, never read by a worker. */
     private LogContext invocationContext = LogContext.NONE;
@@ -532,12 +536,6 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                         activeTask() == null ? null : activeTask().task().describe());
     }
 
-    /**
-     * Queues the last direct job again, unchanged, when it is no longer running or waiting. The owner asks for this
-     * from the menu after a task failed or was stopped; nothing else about the queue is touched.
-     *
-     * @return true when a retry was queued, false when there is nothing to retry or the queue still holds it
-     */
     /** Publishes a decision the running task already made; see {@link TaskContext#decision}. */
     public void decision(String event, String reason, java.util.Map<String, String> facts) {
         inTransition(() -> activeTasks.reportDecision(event, reason, facts));
@@ -554,20 +552,82 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         inTransition(() -> activeTasks.reportPhase(phase, percent, reason, detail, stamp));
     }
 
-    public boolean retryLast() {
-        Started last = lastStarted;
-        if (last == null) return false;
+    /** The answer to the owner's Retry, with the tool it concerns so a refusal can name it. */
+    public record RetryAnswer(RetryPolicy.Outcome outcome, String tool) {
+        public RetryAnswer {
+            tool = tool == null ? "" : tool;
+        }
+
+        public boolean queued() {
+            return outcome == RetryPolicy.Outcome.QUEUED;
+        }
+    }
+
+    /**
+     * Queues the last direct job again, unchanged, when {@code jobId} names it and it ended without doing the work.
+     * A targeted request carries the id and the status the owner saw, so an older click cannot replay a newer job and
+     * a job that succeeded meanwhile is not repeated. The older untargeted form applies the same rules to the
+     * remembered job.
+     *
+     * @return the outcome; only {@link RetryPolicy.Outcome#QUEUED} queued a job
+     */
+    public RetryAnswer retryLast(long jobId, String expectedOutcome) {
+        RetryPolicy.Last last = lastDirect;
+        String tool = last == null ? "" : last.tool();
+        boolean stillQueued = last != null
+                && queueDriver
+                        .queue()
+                        .job(last.jobId())
+                        .filter(job -> !JobQueue.terminal(job))
+                        .isPresent();
         // The idle fallback (follow/stay) does not block a retry: enqueueing it replaces that task anyway.
-        if (activeTask() != null && !activeTask().defaultActivity() && !movementOrder(activeTask())) return false;
-        // A cancelled or failed job is still listed until the queue sweeps it; only live work blocks a retry.
-        if (queueDriver
-                .queue()
-                .job(last.jobId())
-                .filter(job -> !dev.friendai.execution.queue.JobQueue.terminal(job))
-                .isPresent()) return false;
-        long jobId = enqueue(last.step(), last.factory);
-        queueDriver.queue().stampProvenance(jobId, last.context());
-        return true;
+        boolean busy = activeTask() != null && !activeTask().defaultActivity() && !movementOrder(activeTask());
+        RetryPolicy.Outcome outcome = RetryPolicy.decide(
+                Optional.ofNullable(last), new RetryPolicy.Request(jobId, expectedOutcome), stillQueued, busy);
+        if (outcome != RetryPolicy.Outcome.QUEUED) return new RetryAnswer(outcome, tool);
+        Started started = lastStarted;
+        if (started == null || started.jobId() != last.jobId()) {
+            // The job is remembered but its step is not, so there is nothing to replay from this session.
+            return new RetryAnswer(RetryPolicy.Outcome.NOTHING, tool);
+        }
+        long newJobId = enqueue(started.step(), started.factory);
+        queueDriver.queue().stampProvenance(newJobId, started.context());
+        return new RetryAnswer(RetryPolicy.Outcome.QUEUED, tool);
+    }
+
+    /** {@code true} when the last direct job was queued again; see {@link #retryLast(long, String)}. */
+    public boolean retryLast() {
+        return retryLast(0, "").queued();
+    }
+
+    /** Remembers which direct job is current, so a Retry click cannot reach a job the owner never saw. */
+    private void noteDirectStarted(long jobId, String tool) {
+        lastDirect = new RetryPolicy.Last(jobId, tool, RetryPolicy.Ending.RUNNING);
+    }
+
+    /** Records how the remembered direct job ended; endings of other jobs leave it alone. */
+    void noteDirectEnded(long jobId, RetryPolicy.Ending ending) {
+        RetryPolicy.Last last = lastDirect;
+        if (last == null || last.jobId() != jobId) return;
+        lastDirect = new RetryPolicy.Last(jobId, last.tool(), ending);
+    }
+
+    /** A job that ended on its own: a success must not be replayed and a measured remainder changes the answer. */
+    private void noteDirectEnded(long jobId, TaskStatus status, boolean retried, Optional<TaskWorkResult> workResult) {
+        if (retried) return;
+        RetryPolicy.Ending ending;
+        if (status == TaskStatus.SUCCESS) ending = RetryPolicy.Ending.SUCCEEDED;
+        else if (workResult != null
+                && workResult.isPresent()
+                && workResult.get().lines().stream().anyMatch(line -> line.verified() > 0))
+            ending = RetryPolicy.Ending.PARTIAL;
+        else ending = RetryPolicy.Ending.FAILED;
+        noteDirectEnded(jobId, ending);
+    }
+
+    /** A job stopped from outside, before it could report an outcome. */
+    void noteDirectCancelled(long jobId) {
+        noteDirectEnded(jobId, RetryPolicy.Ending.FAILED);
     }
 
     public long enqueue(QueuedStep step, StepFactory factory) {
@@ -603,6 +663,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             job = queueDriver.queue().stampProvenance(job.id(), invocationContext);
         }
         queueDriver.addFactory(job.id(), factory);
+        noteDirectStarted(job.id(), job.tool());
         wakeQueue();
         if (activeTask() == null || activeTask().defaultActivity() || movementOrder(activeTask())) startNextQueued();
         return job.id();
@@ -992,6 +1053,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             if (candidate != null) emit(sink -> sink.onPlace(candidate, active.toolName()));
         }
         if (active.interrupt()) {
+            if (active.jobId() > 0 && active.planId() == 0) noteDirectCancelled(active.jobId());
             if (active.emit())
                 emit(sink -> sink.onFinished(
                         active.id(),
@@ -1008,6 +1070,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             boolean retried = false;
             if (status == TaskStatus.SUCCESS) queueDriver.finish(active.jobId(), result);
             else retried = queueDriver.fail(active.jobId(), result).retried();
+            if (active.planId() == 0) noteDirectEnded(active.jobId(), status, retried, workResult);
             if (!retried)
                 emit(sink -> sink.onJobFinished(
                         active.jobId(),
@@ -1112,6 +1175,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         activeTasks.stop(new StopRequest(reason), baseContext());
         if (a.jobId() > 0) {
             queueDriver.cancelJob(a.jobId());
+            if (a.planId() == 0) noteDirectCancelled(a.jobId());
             emit(sink -> sink.onJobFinished(
                     a.jobId(), a.planId(), a.toolName(), TaskDisposition.CANCELLED, reason, a.execution()));
             if (a.planId() == 0 && a.emit())
@@ -1153,6 +1217,18 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     private boolean startNextQueued() {
+        return startNextQueued(0);
+    }
+
+    /**
+     * One scheduler step settles at most {@link #MAX_ACTIVATION_SETTLEMENTS} refusing jobs; the rest wait for the next
+     * poll. A queue full of jobs that cannot start must not keep one tick busy.
+     */
+    private boolean startNextQueued(int settled) {
+        if (settled >= MAX_ACTIVATION_SETTLEMENTS) {
+            queueDriver.deferNextPoll(POLL_INTERVAL_TICKS);
+            return false;
+        }
         if ((queueDriver.queue().jobCount() == 0
                         && queueDriver.queue().plans().stream().noneMatch(plan -> plan.cursor() != null))
                 || paused
@@ -1161,7 +1237,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         expireDeadlines();
         Optional<Job> candidate = queueDriver.nextReady();
         if (candidate.isEmpty()) {
-            if (tryIdleRepair()) return startNextQueued();
+            if (tryIdleRepair()) return startNextQueued(settled + 1);
             maybeNoticeBlocked();
             return false;
         }
@@ -1171,14 +1247,17 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         Job job = candidate.get();
         StepFactory factory = queueDriver.factory(job.id());
         if (factory == null) {
+            // A factory that is not registered cannot appear later, so the job ends on its first attempt.
+            String reason = "task factory is unavailable for " + job.tool();
+            queueDriver.failPermanently(job.id(), reason);
+            refuseActivation(job, reason, TaskDisposition.FAILED);
             if (isStructuredPlan(job.planId())) {
                 queueDriver.cancelPlan(job.planId());
-                queueDriver.finishPlan(job.planId(), "task factory is unavailable for " + job.tool(), false);
-            } else {
-                queueDriver.fail(job.id(), "task factory is unavailable");
-                if (job.planId() > 0) queueDriver.notifyBlocked(job.planId(), job.id(), "task factory is unavailable");
+                queueDriver.finishPlan(job.planId(), reason, false);
+            } else if (job.planId() > 0) {
+                queueDriver.notifyBlocked(job.planId(), job.id(), reason);
             }
-            return startNextQueued();
+            return startNextQueued(settled + 1);
         }
         CreativeActionContext actionContext = actionContext(job.principal(), job.creativeSensitive());
         if (companion.creativeMode()
@@ -1195,16 +1274,21 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             PlanStepFactory planFactory = queueDriver.planFactory(job.planId(), job.tool());
             if (planFactory == null || !planFactory.authorized(authorizationContext, step(job))) {
                 queueDriver.cancelPlan(job.planId());
+                refuseActivation(job, revoked, TaskDisposition.CANCELLED);
                 queueDriver.finishPlan(job.planId(), revoked, false);
-                return startNextQueued();
+                return startNextQueued(settled + 1);
             }
         } else if (!factory.authorized(authorizationContext)) {
             // Deterministic refusal: retrying with the same principal would only fail again.
             queueDriver.cancelJob(job.id(), revoked);
+            refuseActivation(job, revoked, TaskDisposition.CANCELLED);
             if (job.planId() > 0) queueDriver.finishPlan(job.planId(), revoked, false);
-            return startNextQueued();
+            return startNextQueued(settled + 1);
         }
-        if (job.planId() == 0) lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
+        if (job.planId() == 0) {
+            lastStarted = new Started(job.id(), step(job), factory, job.diagnostic());
+            noteDirectStarted(job.id(), job.tool());
+        }
         try {
             ServerSettings settings = settingsSupplier.get();
             Task task = factory.create(
@@ -1233,6 +1317,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         } catch (RuntimeException e) {
             String reason = e instanceof IllegalArgumentException ? e.getMessage() : activeTasks.crashSummary(e);
             var failed = queueDriver.fail(job.id(), reason);
+            if (!failed.retried()) {
+                // A failed start is a refusal nobody else publishes: the task never ran a tick, so the running-task
+                // path has no outcome for it and the retry button has nothing to replay.
+                refuseActivation(job, reason, TaskDisposition.FAILED);
+            }
             if (!failed.retried() && isStructuredPlan(job.planId()))
                 handleStructuredActionFailure(job.planId(), job.id(), reason);
             else if (!failed.retried() && job.planId() > 0) {
@@ -1242,7 +1331,28 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                 } else if (queueDriver.queue().planStatus(job.planId()) == PlanStatus.FAILED)
                     queueDriver.finishPlan(job.planId(), reason, false);
             }
-            return startNextQueued();
+            return startNextQueued(settled + 1);
+        }
+    }
+
+    /** Activation refusals one scheduler step may settle before the rest wait for the next poll. */
+    private static final int MAX_ACTIVATION_SETTLEMENTS = 8;
+
+    /**
+     * One terminal outcome for a queued job that never produced a running task, through the same sink a finished task
+     * uses. Without it a refusal that arrives after a tool already returned the job id leaves no history row and never
+     * reaches the model. A direct job has no plan boundary to carry it, so its row is the only trace and the job leaves
+     * the queue right away.
+     */
+    private void refuseActivation(Job job, String reason, TaskDisposition disposition) {
+        String bounded = QueueText.truncate(reason, QueueText.MAX_BLOCKED_REASON);
+        emit(sink ->
+                sink.onJobFinished(job.id(), job.planId(), job.tool(), disposition, bounded, 0L, Optional.empty()));
+        if (job.planId() == 0) {
+            noteDirectEnded(job.id(), RetryPolicy.Ending.REFUSED);
+            emit(sink -> sink.onFinished((int) job.id(), 0L, job.tool(), disposition, bounded, Optional.empty(), 0L));
+            queueDriver.remove(job.id());
+            queueDriver.clearFactory(job.id());
         }
     }
 
@@ -1323,6 +1433,7 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         if (job == null) return;
         emit(sink -> sink.onDiagnostic(TaskLogEvents.queuedCancelEvent(job.diagnostic(), job.tool(), reason)));
         if (job.planId() == 0) {
+            noteDirectCancelled(job.id());
             emit(sink -> sink.onCancelled((int) job.id(), 0, job.tool(), reason));
         } else {
             emit(sink -> sink.onJobFinished(job.id(), job.planId(), job.tool(), TaskDisposition.CANCELLED, reason, 0));
@@ -1350,7 +1461,10 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
             activeTasks.takeFrozen();
             activeTasks.resumeFrozen(old);
         } else {
-            if (old != null) stopFrozen("frozen task is no longer queued");
+            if (old != null) {
+                if (old.planId() == 0) noteDirectCancelled(old.jobId());
+                stopFrozen("frozen task is no longer queued");
+            }
             startNextOrDefault();
         }
     }

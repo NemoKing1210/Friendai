@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -1492,10 +1493,20 @@ public class TreeFellingTests {
         int surfaceY = 60;
         GameTestSupport.platformAt(h, surfaceY, 32);
         CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, surfaceY + 1, 2);
-        c.inventory().setItem(0, new ItemStack(Items.IRON_AXE));
-        for (int slot = 1; slot < c.inventory().getContainerSize(); slot++) {
+        c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
             c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
         }
+        int emptySlots = 0;
+        for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+            if (c.inventory().getItem(slot).isEmpty()) emptySlots++;
+        }
+        h.assertValueEqual(emptySlots, 0, "the bag must be full before felling");
+        h.assertValueEqual(c.inventory().countItem(Items.DARK_OAK_LOG), 0, "no logs may be preloaded");
+        h.assertValueEqual(
+                c.inventory().canAddItem(new ItemStack(Items.DARK_OAK_LOG)),
+                false,
+                "a full bag must reject another log");
         int[] treeX = {6, 12};
         List<BlockPos> burnedTrees = new ArrayList<>();
         for (int x : treeX) {
@@ -1537,13 +1548,8 @@ public class TreeFellingTests {
                     for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
                         c.inventory().setItem(slot, ItemStack.EMPTY);
                     }
-                    c.inventory().setItem(0, new ItemStack(Items.IRON_AXE));
-                    for (BlockPos log : burnedTrees) {
-                        for (ItemEntity drop :
-                                h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(log).inflate(3))) {
-                            if (drop.getItem().is(Items.DARK_OAK_LOG)) drop.discard();
-                        }
-                    }
+                    c.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_AXE));
+                    discardTreeDrops(h, burnedTrees);
                 }
             }
             h.assertTrue(result.status != null, "waiting for cut-but-uncollected fallback");
@@ -1580,6 +1586,14 @@ public class TreeFellingTests {
             logs.add(log);
         }
         return logs;
+    }
+
+    private static void discardTreeDrops(GameTestHelper h, List<BlockPos> logs) {
+        for (BlockPos log : logs) {
+            for (ItemEntity drop : h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(log).inflate(3))) {
+                if (drop.getItem().is(Items.DARK_OAK_LOG)) drop.discard();
+            }
+        }
     }
 
     private static BlockMatcher darkOak() {

@@ -45,6 +45,9 @@ final class ProtocolClientRequestGateTest {
         assertTrue(ready.accept().capabilities().supportsFamily(ProtocolFamily.CONTROL));
         assertFalse(gate.allowsFamily(ProtocolFamily.MEMORY));
         assertTrue(gate.createRequest(new MemoryRequest.Open()).isEmpty());
+        // A peer from before the targeted retry keeps control, but not the newer operation.
+        assertTrue(gate.allowsFamily(ProtocolFamily.CONTROL));
+        assertFalse(gate.supports("friendai:control.retry"));
 
         ProtocolClientRequestGate incompatible = new ProtocolClientRequestGate(ProtocolCapabilities.friendai(), true);
         ProtocolClientRequestGate.Rejected rejected =

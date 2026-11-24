@@ -47,6 +47,11 @@ public final class ProtocolClientSession {
         return state == State.ACCEPTED && negotiated.supports("friendai:appearance");
     }
 
+    /** Whether the accepted peer advertised a specific capability, for operations newer than a whole family. */
+    public boolean supports(String capability) {
+        return state == State.ACCEPTED && negotiated.supports(capability);
+    }
+
     public State reject() {
         if (state == State.AWAITING_HELLO) state = State.REJECTED;
         return state;

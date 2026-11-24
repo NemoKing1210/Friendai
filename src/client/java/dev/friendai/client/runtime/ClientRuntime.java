@@ -134,6 +134,11 @@ public final class ClientRuntime implements AutoCloseable {
         return protocolAccepted(expectedSession) && protocolGate.allowsAppearance();
     }
 
+    /** Whether the accepted peer offers one capability, for an operation the client sends only when it is there. */
+    public synchronized boolean supportsCapability(ClientSessionId expectedSession, String capability) {
+        return protocolAccepted(expectedSession) && protocolGate.supports(capability);
+    }
+
     public synchronized java.util.Optional<ProtocolClientRequestGate.EncodedRequest> createProtocolRequest(
             ClientSessionId expectedSession, ClientRequest request) {
         if (!lifecycle.accepts(expectedSession) || !expectedSession.equals(protocolSessionId) || protocolGate == null)

@@ -6,6 +6,15 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.229.1] - 2026-11-24
+
+### Fixed
+
+- When trees give no logs, acquisition now stops retrying them after two trees in a row give nothing and uses reachable
+  loose logs sooner, while keeping the reason each tree could not be felled.
+
+## [0.229.0] - 2026-11-24
+
 ### Added
 
 - You can ask to see a plan before any work starts ("make a plan for a house, do nothing yet"): the companion shows
@@ -20,8 +29,10 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ### Fixed
 
-- When trees give no logs, acquisition now stops retrying them after two trees in a row give nothing and uses reachable
-  loose logs sooner, while keeping the reason each tree could not be felled.
+- An order that was queued but never started now says why: if the step is refused when it is finally due — its tool
+  is gone, your permission was revoked, or the request no longer fits the world — the Tasks list gets a failed row
+  naming the step and the reason, the companion hears about it on its next turn, and the next queued order still runs.
+  Nothing is built, moved or spent by the refused attempt.
 - A planned order that stops halfway now says what it really did: a delivery that handed over three of eight wheat and
   then lost you reports the failed step and the counts, both in the plan notice and in the Tasks tab, so the next try
   asks only for the five that are left instead of starting over.

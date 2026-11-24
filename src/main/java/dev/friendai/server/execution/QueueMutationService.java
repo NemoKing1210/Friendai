@@ -110,8 +110,10 @@ final class QueueMutationService {
             cleanup =
                     coordinator.combineCleanup(cleanup, frozen.task().cleanupAfterCancel(coordinator.context(frozen)));
             coordinator.stopFrozen("creative authority changed");
+            if (frozen.planId() == 0) coordinator.noteDirectCancelled(frozen.jobId());
         }
         if (active != null) {
+            if (active.planId() == 0) coordinator.noteDirectCancelled(active.jobId());
             coordinator.activeTasks().stop(new StopRequest("creative authority changed"), coordinator.context(active));
         }
         coordinator.queueDriver().clear();
@@ -313,6 +315,7 @@ final class QueueMutationService {
 
     private void publishStopped(ActiveTask active, String reason) {
         if (active.planId() == 0) {
+            coordinator.noteDirectCancelled(active.jobId());
             coordinator.emit(sink -> sink.onCancelled(active.id(), active.execution(), active.toolName(), reason));
         } else {
             coordinator.emit(sink -> sink.onJobFinished(

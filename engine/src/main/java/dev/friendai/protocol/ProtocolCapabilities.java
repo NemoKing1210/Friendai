@@ -14,6 +14,7 @@ public final class ProtocolCapabilities {
     private static final Pattern NAMESPACED_ID = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
     private static final Set<String> KNOWN = Set.of(
             "friendai:control",
+            "friendai:control.retry",
             "friendai:memory",
             "friendai:places",
             "friendai:instructions",
@@ -47,6 +48,7 @@ public final class ProtocolCapabilities {
     public static ProtocolCapabilities friendai() {
         return of(
                 "friendai:control",
+                "friendai:control.retry",
                 "friendai:memory",
                 "friendai:places",
                 "friendai:instructions",
