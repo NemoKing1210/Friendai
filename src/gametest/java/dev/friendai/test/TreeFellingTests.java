@@ -1487,6 +1487,101 @@ public class TreeFellingTests {
         });
     }
 
+    @GameTest(structure = GameTestArenas.ARENA_32, maxTicks = 4000)
+    public void acquisitionFallsBackWhenFelledLogsCannotBeCollected(GameTestHelper h) {
+        int surfaceY = 60;
+        GameTestSupport.platformAt(h, surfaceY, 32);
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, surfaceY + 1, 2);
+        c.inventory().setItem(0, new ItemStack(Items.IRON_AXE));
+        for (int slot = 1; slot < c.inventory().getContainerSize(); slot++) {
+            c.inventory().setItem(slot, new ItemStack(Items.STONE, 64));
+        }
+        int[] treeX = {6, 12};
+        List<BlockPos> burnedTrees = new ArrayList<>();
+        for (int x : treeX) {
+            burnedTrees.addAll(burningDarkOakTree(h, x, surfaceY, 6));
+        }
+        List<BlockPos> loose = new ArrayList<>();
+        for (int x = 5; x <= 9; x++) {
+            BlockPos log = new BlockPos(x, surfaceY + 1, 12);
+            h.setBlock(log, Blocks.DARK_OAK_LOG);
+            loose.add(log);
+        }
+        for (int x : treeX) observeBlockedTree(h, c, x, surfaceY, 6);
+        for (BlockPos log : loose) {
+            var above =
+                    h.absoluteVec(new net.minecraft.world.phys.Vec3(log.getX() + 0.5, surfaceY + 6, log.getZ() + 0.5));
+            c.teleportTo(above.x, above.y, above.z);
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "loose log visible at " + log);
+        }
+        var origin = h.absoluteVec(new net.minecraft.world.phys.Vec3(2.5, surfaceY + 1, 2.5));
+        c.teleportTo(origin.x, origin.y, origin.z);
+        FellLogsTask task = new FellLogsTask(darkOak(), 3, 32, true);
+        Result result = new Result();
+        ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 300, () -> false);
+        runner.setEventSink(result);
+        runner.start(task, "obtain_logs");
+        boolean[] sawCutWithoutPickup = {false};
+        h.succeedWhen(() -> {
+            runner.tick();
+            int trees = treesObserved(task.debugStatus());
+            boolean looseUntouched =
+                    loose.stream().allMatch(pos -> h.getBlockState(pos).is(Blocks.DARK_OAK_LOG));
+            if (!sawCutWithoutPickup[0]
+                    && trees == 2
+                    && looseUntouched
+                    && c.inventory().countItem(Items.DARK_OAK_LOG) == 0) {
+                sawCutWithoutPickup[0] = burnedTrees.stream()
+                        .allMatch(pos -> h.getBlockState(pos).isAir());
+                if (sawCutWithoutPickup[0]) {
+                    for (int slot = 0; slot < c.inventory().getContainerSize(); slot++) {
+                        c.inventory().setItem(slot, ItemStack.EMPTY);
+                    }
+                    c.inventory().setItem(0, new ItemStack(Items.IRON_AXE));
+                    for (BlockPos log : burnedTrees) {
+                        for (ItemEntity drop :
+                                h.getLevel().getEntitiesOfClass(ItemEntity.class, new AABB(log).inflate(3))) {
+                            if (drop.getItem().is(Items.DARK_OAK_LOG)) drop.discard();
+                        }
+                    }
+                }
+            }
+            h.assertTrue(result.status != null, "waiting for cut-but-uncollected fallback");
+            h.assertValueEqual(result.status, TaskStatus.SUCCESS, result.summary);
+            h.assertTrue(
+                    sawCutWithoutPickup[0],
+                    "selected trees must be cut without yielding carried logs; status="
+                            + result.status + ", summary=" + result.summary + ", debug=" + task.debugStatus()
+                            + ", burned="
+                            + burnedTrees.stream()
+                                    .map(pos -> pos + "=" + h.getBlockState(pos))
+                                    .toList()
+                            + ", carried=" + c.inventory().countItem(Items.DARK_OAK_LOG));
+            h.assertValueEqual(treesObserved(task.debugStatus()), 2, "fallback after two cut-but-uncollected trees");
+            h.assertValueEqual(c.inventory().countItem(Items.DARK_OAK_LOG), 3, "fallback supplied the remaining logs");
+            h.assertTrue(result.summary.contains("0 felled, 3 mined"), "summary was " + result.summary);
+            h.assertTrue(result.summary.contains("tree at"), "failed tree evidence missing: " + result.summary);
+        });
+    }
+
+    private static List<BlockPos> burningDarkOakTree(GameTestHelper h, int x, int surfaceY, int z) {
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                h.setBlock(new BlockPos(x + dx, surfaceY, z + dz), Blocks.LAVA);
+            }
+        }
+        for (int[] offset : new int[][] {{-2, 0}, {2, 0}, {0, -2}, {0, 2}}) {
+            h.setBlock(new BlockPos(x + offset[0], surfaceY, z + offset[1]), Blocks.BARRIER);
+        }
+        List<BlockPos> logs = new ArrayList<>();
+        for (int y = surfaceY + 2; y <= surfaceY + 3; y++) {
+            BlockPos log = new BlockPos(x, y, z);
+            h.setBlock(log, Blocks.DARK_OAK_LOG);
+            logs.add(log);
+        }
+        return logs;
+    }
+
     private static BlockMatcher darkOak() {
         return BlockMatcher.parse("minecraft:dark_oak_log").orElseThrow();
     }
