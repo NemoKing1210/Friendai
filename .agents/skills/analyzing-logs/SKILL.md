@@ -1,19 +1,19 @@
 ---
 name: analyzing-logs
-description: Use when the maintainer asks to analyze Friendai game or companion logs for errors, wrong logic, stalls or slowdowns ("анализ логов", "разбери логи", "что не так в логах").
+description: Use when the maintainer asks to analyze Friendai game or companion logs for errors, wrong logic, stalls or slowdowns ("анализ логов", "разбери логи", "что не так в логах"). Reports the findings and files each one that needs work as a new TODO.md item.
 ---
 
 # Analyzing game logs
 
 ## Overview
 
-Read the session's evidence, follow each suspicious record back to the turn or task that caused it, and decide — against the code — whether the log shows a defect, a misleading report, or expected behavior. The output is a report and proposals; nothing is edited.
+Read the session's evidence, follow each suspicious record back to the turn or task that caused it, and decide — against the code — whether the log shows a defect, a misleading report, or expected behavior. The output is a report and one new `TODO.md` item per finding that needs work; nothing else is edited.
 
 The log surface is described in `README.md`, "Logs" (paths, settings, commands) and `ARCHITECTURE.md`, `foundation/diagnostics` plus the task-diagnostics paragraph (what each record kind carries). Read both before the first query.
 
-## Read-only and privacy contract
+## Write contract and privacy
 
-- No code, guide, `TODO.md`, configuration or log edits. Do not change the logging level.
+- **The only file this skill writes is `TODO.md`**, and only by appending new items (see "Filing TODO items"). No code, guide, configuration or log edits; never change the logging level.
 - Raising the level on a server that carries other players' chat needs their knowledge; never do it on your own.
 - Quote the minimum: a `seq`, an `event`, a short `msg` or one `data` field. Never a whole prompt or reply body, a full stack, coordinates the finding does not need, or any secret.
 - A bundle or a `detailed` file is not pasted anywhere outside the local report unread.
@@ -104,6 +104,16 @@ Decide and state which of the three it is: a **defect** (the code does something
 
 When the maintainer names one symptom, run the triage that applies to it, trace every matching record, and list the queries you skipped instead of pretending the full sweep ran.
 
+## Filing TODO items
+
+Every finding that needs code or product work gets one new item; a finding that is expected, or already covered by an open item, gets none and the report says why. The rules in `AGENTS.md`, "Working from TODO.md", apply; this is the only file the skill writes.
+
+- **Check the file before the first edit.** `git status --porcelain TODO.md` must print nothing, because a dirty file may hold another session's edit or claim — stop and report it. `grep -n 'Retired numbers' TODO.md` gives **N**, the highest number ever issued; the next free number is **N+1**. Never derive it from the visible items, because a cleared range stays retired.
+- **Append at the bottom of `## Items`**, newest last, one blank line between blocks. Each item is `- [ ] **<number>. <title>.**` followed by the evidence (`path:line`, and the log file plus `seq`/`cause`) and a **Done when** clause. Write in English, matching the surrounding items.
+- **File one item per finding**, sized so a session can take it whole; fold closely related findings into one item with sub-points instead of issuing numbers for slices. The report keeps the detail; the item carries what the next session needs.
+- **Never touch an existing item**: no edit, tick, claim (`[~]`), rename, renumber or delete, no sub-item moved, and no change to the `**Retired numbers.**` line — a range is retired when the list is cleared, not when items are added.
+- **Commit only `TODO.md`** as `docs(todo): file log audit findings as items <first>-<last>`; the report stays uncommitted (`docs/` is git-ignored). If `TODO.md` was clean at the start but changed under you during the run, keep your lines, let git resolve the overlap, and never overwrite the other session's work.
+
 ## Report
 
 Write `docs/superpowers/audits/YYYY-MM-DD-logs-<scope>.md`, in English:
@@ -117,9 +127,9 @@ window: <date/time range, boot id or session file>
 files: <paths read>
 ```
 
-Then the findings in the shared schema (`area`, `severity`, `category`, `location`, `evidence`, `impact`, `proposal`, `verification`), with log evidence as file plus `seq`/`cause`; then `## Not read` (files skipped, queries skipped, rotations not opened); then `## Proposed TODO items`.
+Then the findings in the shared schema (`area`, `severity`, `category`, `location`, `evidence`, `impact`, `proposal`, `verification`), with log evidence as file plus `seq`/`cause`; then `## Not read` (files skipped, queries skipped, rotations not opened); then `## TODO items filed` — the numbers and the commit, or why a finding got none.
 
-Finish with a short Russian chat summary: the window and files, counts by severity, the top findings, the report path. `docs/` is git-ignored; never commit the report.
+Finish with a short Russian chat summary: the window and files, counts by severity, the top findings, the filed item numbers and the commit, the report path. `docs/` is git-ignored; never commit the report.
 
 ## Red flags — STOP
 
@@ -132,4 +142,6 @@ Finish with a short Russian chat summary: the window and files, counts by severi
 | "I'll turn on `trace` to see more" | Never on your own, especially on a server with other players' chat. |
 | "The record says it failed, so the code is broken" | It may be a correct refusal or a misleading label. Read the emitter. |
 | "One suspicious line is one finding" | A pattern in a `plan`/`task` history is the finding; a single line may be a normal path. |
-| "I'll fix the wording while I'm here" | Report only; fixes need approval. |
+| "I'll fix the code or wording while I'm here" | Report and file an item; only `TODO.md` gains lines. |
+| "The file's highest number is the next free one" | Take N from the `**Retired numbers.**` line and file N+1; a cleared range stays retired. |
+| "I'll tick the item because I also fixed it" | This skill only files; the work and its tick belong to `executing-todo-items`. |

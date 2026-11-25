@@ -40,7 +40,7 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 9. **Leave the result flexible, reliable and extensible.** Decisions live in pure policy or data, not in branches scattered through adapters. Work per tick is bounded, timeouts are in ticks, state can be held and resumed, failures are typed results, and persistence versions and protects what it writes.
 10. **Better ideas are welcome, within bounds.** Improve the item you are doing when it lowers risk or deletes code, and say what changed and why. A new dependency, package restructure, schema redesign, cross-cutting refactor or rewrite is the maintainer's decision — propose it, do not smuggle it in. Never "fix" modules the item does not touch.
 
-To review what closed items actually shipped across the whole codebase, or to explain a session from its logs, use the [`auditing-codebase`](.agents/skills/auditing-codebase/SKILL.md) and [`analyzing-logs`](.agents/skills/analyzing-logs/SKILL.md) skills. Both report and propose; neither changes code, `TODO.md` or configuration without the maintainer's approval.
+To review what closed items actually shipped across the whole codebase, or to explain a session from its logs, use the [`auditing-codebase`](.agents/skills/auditing-codebase/SKILL.md) and [`analyzing-logs`](.agents/skills/analyzing-logs/SKILL.md) skills. The audit skill reports and proposes; the log skill reports and files each finding that needs work as a new `TODO.md` item. Neither changes code, configuration or an existing item without the maintainer's approval.
 
 ## Commands
 
