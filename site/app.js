@@ -652,7 +652,7 @@ const DOC = {
           "~category and event|`brain`, `tool`, `task`, `queue`, `speech`, `log` and their event names.",
           "~level|debug, info, warn, error.",
           "~durationMs and data|Bounded values, redacted before they are truncated.",
-          "~Spans and timings|`TaskLogSpan`, `ExecutionTiming`, holds versus gaps, bounded stall snapshots."
+          "~Spans and timings|`TaskLogSpan`, `ExecutionTiming`, holds versus gaps (`clock.gap` says `slow-tick` only for work it measured, otherwise `unknown`), bounded stall snapshots."
         ] },
       { title: "Levels, retention and privacy", sub: "What is written, how much, and what never is", color: COLORS.redstone,
         hub: { label: "Policy", icon: "🛡️", color: COLORS.redstone, desc: "Configured keys become `***` before any sink, on the pipeline and on the log4j bridge." },

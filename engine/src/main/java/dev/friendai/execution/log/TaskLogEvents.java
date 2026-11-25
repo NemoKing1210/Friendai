@@ -180,20 +180,29 @@ public final class TaskLogEvents {
 
     /** Captures a gap under the interrupted activation without inferring why time passed. */
     public static TaskLogEvent clockGap(LogContext context, long gapMs, Map<String, String> facts) {
+        return clockGap(context, gapMs, "unknown", facts);
+    }
+
+    /**
+     * Captures a gap under the interrupted activation with the reason its observer could measure. A caller that has no
+     * evidence passes {@code unknown}, which is the honest answer for a server-wide pause or a wall-clock jump: the
+     * runner can prove its own work covered the interval, never that it did not cover time it never saw.
+     */
+    public static TaskLogEvent clockGap(LogContext context, long gapMs, String reason, Map<String, String> facts) {
         LogContext identity = context == null ? LogContext.NONE : context;
+        String cause = reason == null || reason.isBlank() ? "unknown" : reason;
+        long gap = Math.max(0L, gapMs);
         Map<String, String> data = new LinkedHashMap<>();
-        data.put("reason", "unknown");
-        data.put("gapMs", Long.toString(Math.max(0L, gapMs)));
         if (facts != null) data.putAll(facts);
-        data.put("reason", "unknown");
-        data.put("gapMs", Long.toString(Math.max(0L, gapMs)));
+        data.put("reason", cause);
+        data.put("gapMs", Long.toString(gap));
         return new TaskLogEvent(
                 identity,
                 identity.execution() > 0 ? TaskLogEvent.Parent.EXECUTION : TaskLogEvent.Parent.INVOCATION,
                 LogEvents.CLOCK_GAP,
                 data.getOrDefault("tool", ""),
-                "unknown",
-                Math.max(0L, gapMs),
+                cause,
+                gap,
                 data);
     }
 

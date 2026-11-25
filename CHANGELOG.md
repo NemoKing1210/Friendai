@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.234.1] - 2026-11-25
+
+### Fixed
+
+- A stall in the companion log now says whether an expensive task tick or a paused game caused it: the record names `slow-tick` only when the measured work covers the pause and otherwise reports `unknown` with the times it did measure.
+
 ## [0.234.0] - 2026-11-25
 
 ### Changed

@@ -651,6 +651,53 @@ public class ActiveTaskLifecycleTests {
         h.succeed();
     }
 
+    /**
+     * The runner names a gap only for the work it measured itself. A task tick that took the whole interval is
+     * attributable to that tick; a pause or a wall-clock jump leaves no measured work, so the record says unknown
+     * instead of blaming the task. Wall time never becomes delivered ticks.
+     */
+    @GameTest(maxTicks = 40)
+    public void aSlowTickIsAttributedWhileAPauseStaysUnknown(GameTestHelper h) {
+        CompanionEntity companion = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2);
+        MutableClock clock = new MutableClock();
+        ExecutionCoordinator runner = DiagnosticClockTestAccess.create(companion, clock);
+        Events events = new Events();
+        runner.setEventSink(events);
+        DiagnosticTask task = new DiagnosticTask();
+        task.afterTick = () -> clock.millis += 4000;
+        runner.start(task, "slow_diagnostic");
+        try {
+            runner.tick();
+            task.afterTick = () -> {};
+            runner.tick();
+            TaskLogEvent slow = events.named(LogEvents.CLOCK_GAP).getFirst();
+            h.assertValueEqual("slow-tick", slow.facts().get("reason"), "a slow task tick explains the gap");
+            h.assertValueEqual("4000", slow.facts().get("gapMs"), "the measured interval");
+            h.assertTrue(
+                    Long.parseLong(slow.facts().get("workMs")) >= 4000,
+                    "the runner's own work covers it: " + slow.facts());
+            h.assertTrue(
+                    Long.parseLong(slow.facts().get("taskTickMs")) >= 4000,
+                    "the expensive task tick is named: " + slow.facts());
+            h.assertValueEqual("slow_diagnostic", slow.facts().get("tool"), "the interrupted activation");
+            h.assertValueEqual(2, task.ticks, "wall time never turns into delivered ticks");
+
+            clock.millis += 10;
+            runner.tick();
+            h.assertValueEqual(1, events.named(LogEvents.CLOCK_GAP).size(), "a normal tick resets the suppression");
+            clock.millis += 6000;
+            runner.tick();
+            TaskLogEvent paused = events.named(LogEvents.CLOCK_GAP).getLast();
+            h.assertValueEqual("unknown", paused.facts().get("reason"), "a pause leaves no measured work to blame");
+            h.assertValueEqual("0", paused.facts().get("workMs"), "the runner did nothing across the interval");
+            h.assertValueEqual("0", paused.facts().get("heldTicks"), "a pause is not a hold");
+            h.assertValueEqual(4, task.ticks, "the pause consumed no task ticks either");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
     @GameTest(maxTicks = 40)
     public void aPrerequisiteFinishesBeforeTheDependentStep(GameTestHelper h) {
         GameTestSupport.platform(h, 8);

@@ -5,6 +5,7 @@ import dev.friendai.agent.verify.LoopMetrics;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.TaskDisposition;
 import dev.friendai.execution.TaskWorkResult;
+import dev.friendai.execution.log.ExecutionTiming;
 import dev.friendai.execution.log.TaskLogEvent;
 import dev.friendai.execution.log.TaskLogEvents;
 import dev.friendai.execution.queue.GuardFacts;
@@ -123,9 +124,20 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private long materialReserveTick = Long.MIN_VALUE;
     private int materialReserveTaskId = -1;
 
+    /** A gap shorter than this is an ordinary slow frame, not a stall worth a record. */
+    private static final long GAP_THRESHOLD_MS = 1_000L;
+
+    /** A tick this short cannot explain a gap even when the wall clock moved by less than that. */
+    private static final long MIN_ATTRIBUTABLE_WORK_MS = 250L;
+
+    /** How much of the gap the measured work may leave unexplained before the reason stays unknown. */
+    private static final long GAP_ATTRIBUTION_SLACK_MS = 100L;
+
     private final DiagnosticClock diagnosticClock;
     private long lastTickWall = -1L;
     private boolean clockGapReported;
+    /** How long the last completed runner tick itself took, so a gap can be attributed to work this tick really did. */
+    private long lastTickWorkNanos;
 
     private record Started(long jobId, QueuedStep step, StepFactory factory, LogContext context) {}
 
@@ -956,10 +968,12 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     }
 
     public void tick() {
+        long workStart = diagnosticClock.nanoTime();
         reportClockGap();
         refreshMaterialReserve();
         inTransition(this::tickActive);
         queueDriver.rememberTravelled();
+        lastTickWorkNanos = Math.max(0L, diagnosticClock.nanoTime() - workStart);
     }
 
     /**
@@ -1076,31 +1090,48 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         long now = diagnosticClock.wallMillis();
         if (lastTickWall > 0L) {
             long gap = now - lastTickWall;
-            if (gap > 1000L && !clockGapReported) {
+            if (gap > GAP_THRESHOLD_MS && !clockGapReported) {
                 clockGapReported = true;
                 ActiveTask interrupted = activeTask();
                 if (interrupted == null) interrupted = frozenTask();
+                long workMs = lastTickWorkNanos / 1_000_000L;
+                String reason = gapReason(gap, workMs);
+                Map<String, String> facts = new java.util.LinkedHashMap<>();
+                facts.put("workMs", Long.toString(workMs));
                 TaskLogEvent event;
                 if (interrupted == null) {
-                    event = TaskLogEvents.clockGap(gap);
+                    event = TaskLogEvents.clockGap(LogContext.NONE, gap, reason, facts);
                 } else {
                     String phase = interrupted.task().debugStatus();
                     if (phase == null || phase.isBlank())
                         phase = interrupted.task().describe();
-                    Map<String, String> facts = new java.util.LinkedHashMap<>();
+                    ExecutionTiming.Snapshot measured = interrupted.timing().snapshot();
                     facts.put("tool", interrupted.toolName());
                     facts.put("task", Integer.toString(interrupted.id()));
                     facts.put("plan", Long.toString(interrupted.planId()));
                     facts.put("job", Long.toString(interrupted.jobId()));
                     facts.put("phase", phase == null ? "" : phase);
-                    event = TaskLogEvents.clockGap(interrupted.logContext(), gap, facts);
+                    facts.put("taskTickMs", Long.toString(measured.tickNanos() / 1_000_000L));
+                    facts.put("activeTicks", Long.toString(measured.activeTicks()));
+                    facts.put("heldTicks", Long.toString(measured.heldTicks()));
+                    event = TaskLogEvents.clockGap(interrupted.logContext(), gap, reason, facts);
                 }
                 emit(sink -> sink.onDiagnostic(event));
-            } else if (gap <= 1000L) {
+            } else if (gap <= GAP_THRESHOLD_MS) {
                 clockGapReported = false;
             }
         }
         lastTickWall = now;
+    }
+
+    /**
+     * What the runner can actually prove about a gap. Its own measured tick covers the interval only when that tick
+     * was long enough to explain it; anything else — a paused integrated server, a process freeze, a wall-clock jump —
+     * leaves no evidence in this tick, so it stays {@code unknown} instead of being blamed on the task.
+     */
+    private static String gapReason(long gapMs, long workMs) {
+        if (workMs < MIN_ATTRIBUTABLE_WORK_MS) return "unknown";
+        return workMs + GAP_ATTRIBUTION_SLACK_MS >= gapMs ? "slow-tick" : "unknown";
     }
 
     public void releaseAllHolds() {

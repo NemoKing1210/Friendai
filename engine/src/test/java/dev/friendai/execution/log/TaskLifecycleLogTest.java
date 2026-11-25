@@ -144,6 +144,20 @@ class TaskLifecycleLogTest {
     }
 
     @Test
+    void aClockGapKeepsTheMeasuredReasonItWasGivenAndDefaultsToUnknown() {
+        TaskLogEvent slow = TaskLogEvents.clockGap(
+                executionContext(1L, 0L, 0L, 0L, 0L), 4_000L, "slow-tick", Map.of("workMs", "4000"));
+        assertEquals("slow-tick", slow.facts().get("reason"));
+        assertEquals("slow-tick", slow.status());
+        assertEquals("4000", slow.facts().get("gapMs"));
+        assertEquals(4_000L, slow.durationMs());
+
+        TaskLogEvent blank = TaskLogEvents.clockGap(LogContext.NONE, 2_000L, " ", Map.of());
+        assertEquals("unknown", blank.facts().get("reason"));
+        assertEquals("unknown", blank.status());
+    }
+
+    @Test
     void aPhaseFactCarriesOnlyWhatTheTaskActuallyMeasured() {
         TaskLogEvent phase = TaskLogEvents.phaseEvent(
                 executionContext(3L, 0L, 0L, 0L, 9L),
