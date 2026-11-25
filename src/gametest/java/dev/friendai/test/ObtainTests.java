@@ -26,6 +26,7 @@ import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolExecutor;
 import dev.friendai.execution.tool.ToolResult;
+import dev.friendai.features.acquisition.ObtainPlan;
 import dev.friendai.features.acquisition.ObtainPlanner;
 import dev.friendai.features.acquisition.Source;
 import dev.friendai.features.acquisition.ToolKind;
@@ -46,12 +47,14 @@ import dev.friendai.foundation.item.Tier;
 import dev.friendai.server.execution.ExecutionCoordinator;
 import dev.friendai.server.execution.TaskEventSink;
 import dev.friendai.server.execution.tools.MinecraftObtainSubtaskFactory;
+import dev.friendai.task.Task;
 import dev.friendai.task.TaskStatus;
 import dev.friendai.task.inventory.ItemMatcher;
 import dev.friendai.world.block.BlockMatcher;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -1058,6 +1061,168 @@ public class ObtainTests {
         return count;
     }
 
+    /**
+     * A datapack fixture gives {@code minecraft:command_block} eight ways to be made: two reachable from the arena and
+     * six dead ends, one of them a five-recipe chain. Three companions plan it in the same server tick against their own
+     * evidence. The measured pass stays within a tick-scale bound, each task publishes what its search cost, the
+     * planner reaches a viable branch instead of the dead ends, and a stop takes effect on the next tick. One shared
+     * material demand also costs less to plan than the same targets asked for one by one.
+     */
+    @GameTest(maxTicks = 200, structure = GameTestArenas.ARENA_32)
+    public void manyAlternativesPlanWithinABoundForSeveralCompanions(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        BlockPos[] logs = {new BlockPos(4, 2, 2), new BlockPos(4, 2, 7), new BlockPos(9, 2, 4)};
+        for (BlockPos log : logs) h.setBlock(log, Blocks.OAK_LOG);
+        BlockPos[] ores = {new BlockPos(6, 2, 12), new BlockPos(10, 2, 10)};
+        for (BlockPos ore : ores) h.setBlock(ore, Blocks.COAL_ORE);
+        BlockPos table = new BlockPos(12, 2, 2);
+        h.setBlock(table, Blocks.CRAFTING_TABLE);
+
+        CompanionEntity[] companions = new CompanionEntity[4];
+        ExecutionCoordinator[] runners = new ExecutionCoordinator[4];
+        Result[] results = new Result[4];
+        for (int i = 0; i < companions.length; i++) {
+            CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 2, 2, 2 + i);
+            for (BlockPos log : logs)
+                h.assertTrue(
+                        GameTestSupport.observeVisible(h, c, h.absolutePos(log)), "log should be visible at " + log);
+            for (BlockPos ore : ores)
+                h.assertTrue(
+                        GameTestSupport.observeVisible(h, c, h.absolutePos(ore)),
+                        "coal ore should be visible at " + ore);
+            h.assertTrue(GameTestSupport.observeVisible(h, c, h.absolutePos(table)), "table should be visible");
+            companions[i] = c;
+            results[i] = new Result();
+            Task task = i < companions.length - 1
+                    ? obtainTask("minecraft:command_block", 1, false, false)
+                    : new BatchObtainTask(
+                            List.of(
+                                    new CraftPlanner.Target("minecraft:wooden_pickaxe", 1),
+                                    new CraftPlanner.Target("minecraft:wooden_sword", 1)),
+                            false,
+                            false,
+                            new MinecraftObtainSubtaskFactory());
+            runners[i] = obtain(c, results[i], task);
+        }
+
+        long[] slowest = {0L};
+        StringBuilder[] seen = new StringBuilder[companions.length];
+        for (int i = 0; i < seen.length; i++) seen[i] = new StringBuilder();
+        h.succeedWhen(() -> {
+            // Two ticks: the first plans in every companion, the second lets the batch's gather child compare the
+            // evidence it was handed with its own scan. A finished order keeps the status it published while running.
+            for (int round = 0; round < 3; round++) {
+                long started = System.nanoTime();
+                for (ExecutionCoordinator runner : runners) runner.tick();
+                slowest[0] = Math.max(slowest[0], System.nanoTime() - started);
+                for (int i = 0; i < runners.length; i++) {
+                    Optional<Task> running = runners[i].current();
+                    if (running.isPresent()) {
+                        seen[i].append(running.get().debugStatus()).append(" | ");
+                    }
+                }
+            }
+            for (int i = 0; i < runners.length - 1; i++) {
+                String status = seen[i].toString();
+                h.assertTrue(status.contains("plan="), "the status carries the measured pass: " + head(status));
+                h.assertTrue(planEvaluations(status) > 0, "the pass evaluated sources: " + head(status));
+            }
+            // The batch hands its chosen plan to the gather child, which reuses it when the evidence still matches.
+            String batchStatus = seen[3].toString();
+            h.assertTrue(batchStatus.contains("plans="), "the batch reports its passes: " + head(batchStatus));
+            h.assertTrue(
+                    namedCount(batchStatus, "reused=") > 0,
+                    "the batch child starts from the chosen plan: " + head(batchStatus));
+
+            // One viable branch among the dead ends, planned on the real datapack recipes and this arena.
+            var level = h.getLevel();
+            WorldFacts facts =
+                    WorldScan.scan(level, companions[0], WorldScan.BLOCK_RADIUS, false, false, Set.of(), Set.of());
+            RecipeIndex book = RecipeIndex.of(level);
+            DropIndex drops = DropIndex.of(level);
+            ObtainPlan order = ObtainPlanner.plan("minecraft:command_block", 1, Map.of(), book, drops, facts, null);
+            h.assertTrue(
+                    order.actionable() || order.limited(),
+                    "a viable branch or a planning limit, never a dead end: " + order.missing());
+            h.assertFalse(order.limited(), "the fixture is small enough to finish: " + order.work());
+
+            // The same inventory and terrain, asked for as one batch and as several single orders.
+            List<CraftPlanner.Target> pair = List.of(
+                    new CraftPlanner.Target("minecraft:wooden_pickaxe", 1),
+                    new CraftPlanner.Target("minecraft:wooden_sword", 1));
+            var stations = Stations.available(level, companions[0]);
+            List<CraftPlanner.RawNeed> shared = CraftPlanner.materialsFor(pair, Map.of(), book, stations);
+            List<CraftPlanner.RawNeed> separate = new java.util.ArrayList<>(
+                    CraftPlanner.materialsFor(List.of(pair.get(0)), Map.of(), book, stations));
+            separate.addAll(CraftPlanner.materialsFor(List.of(pair.get(1)), Map.of(), book, stations));
+            h.assertTrue(
+                    shared.size() < separate.size(),
+                    "one batch shares the material: " + shared.size() + " needs versus " + separate.size());
+            int batchWork = planWork(shared, book, drops, facts);
+            int separateWork = planWork(separate, book, drops, facts);
+            h.assertTrue(
+                    batchWork < separateWork,
+                    "planning the shared need once costs less: batch=" + batchWork + " separate=" + separateWork);
+
+            // The pass stays at tick scale even with four companions planning at once.
+            long slowestMs = slowest[0] / 1_000_000L;
+            h.assertTrue(
+                    slowestMs < 1_000L, "four planning companions stay under a tick-scale bound: " + slowestMs + " ms");
+
+            for (ExecutionCoordinator runner : runners) runner.stopAll("test stop");
+            for (ExecutionCoordinator runner : runners) runner.tick();
+            for (ExecutionCoordinator runner : runners)
+                h.assertTrue(runner.current().isEmpty(), "a stop takes effect on the next tick");
+            h.succeed();
+        });
+    }
+
+    private static String head(String text) {
+        return text.length() <= 400 ? text : text.substring(0, 400) + "…";
+    }
+
+    /** The largest number the status prints after {@code key}, or -1 when it does not name it. */
+    private static int namedCount(String status, String key) {
+        int largest = -1;
+        int at = status.indexOf(key);
+        while (at >= 0) {
+            int start = at + key.length();
+            int end = start;
+            while (end < status.length() && Character.isDigit(status.charAt(end))) end++;
+            if (end > start) largest = Math.max(largest, Integer.parseInt(status.substring(start, end)));
+            at = status.indexOf(key, end == start ? at + key.length() : end);
+        }
+        return largest;
+    }
+
+    private static int planEvaluations(String status) {
+        int at = status.indexOf("plan=");
+        if (at < 0) return -1;
+        int end = status.indexOf('/', at);
+        if (end < 0) return -1;
+        try {
+            return Integer.parseInt(status.substring(at + "plan=".length(), end));
+        } catch (NumberFormatException notANumber) {
+            return -1;
+        }
+    }
+
+    /** What planning every candidate of these needs costs, the way the batch spends its candidates. */
+    private static int planWork(List<CraftPlanner.RawNeed> needs, RecipeIndex book, DropIndex drops, WorldFacts facts) {
+        int work = 0;
+        for (CraftPlanner.RawNeed need : needs) {
+            int planned = 0;
+            for (String candidate : need.candidates()) {
+                if (planned >= 3) break;
+                planned++;
+                work += ObtainPlanner.plan(candidate, need.count(), Map.of(), book, drops, facts, null)
+                        .work()
+                        .evaluations();
+            }
+        }
+        return work;
+    }
+
     private static final class Result implements TaskEventSink {
         TaskStatus status;
         String summary;
@@ -1130,7 +1295,7 @@ public class ObtainTests {
                 new MinecraftObtainSubtaskFactory());
     }
 
-    private static ExecutionCoordinator obtain(CompanionEntity c, Result result, ObtainTask task) {
+    private static ExecutionCoordinator obtain(CompanionEntity c, Result result, Task task) {
         ExecutionCoordinator runner = new ExecutionCoordinator(c, () -> 2400, () -> false);
         runner.setEventSink(result);
         runner.start(task, "obtain_item");

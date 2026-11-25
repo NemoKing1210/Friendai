@@ -152,6 +152,59 @@ public record WorldFacts(
     }
 
     /** The same scan facts with the sources an acquisition already failed to reach attached. */
+    /**
+     * True when the two snapshots describe the same planning evidence. Only how long ago an observation was made is
+     * left out: it rises every tick while the plan it feeds does not change, so a plan computed one tick ago is still
+     * about the same world when everything else matches.
+     */
+    public boolean samePlanEvidence(WorldFacts other) {
+        if (other == null) {
+            return false;
+        }
+        return blocksNearby.equals(other.blocksNearby)
+                && mobsNearby.equals(other.mobsNearby)
+                && containerItems.equals(other.containerItems)
+                && matureCrops.equals(other.matureCrops)
+                && stationsNearby.equals(other.stationsNearby)
+                && exploreAllowed == other.exploreAllowed
+                && dimensionHasOre == other.dimensionHasOre
+                && verifiedSiteIds.equals(other.verifiedSiteIds)
+                && excludedSiteIds.equals(other.excludedSiteIds)
+                && attemptedSources.equals(other.attemptedSources)
+                && toolBlocks.equals(other.toolBlocks)
+                && fuelBurnTicks.equals(other.fuelBurnTicks)
+                && shearableNearby.equals(other.shearableNearby)
+                && sameCandidates(resourceCandidates, other.resourceCandidates);
+    }
+
+    private static boolean sameCandidates(List<ResourceCandidate> left, List<ResourceCandidate> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (!sameCandidate(left.get(i), right.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Every field the planner reads; {@code ageTicks} is the one that changes without changing the plan. */
+    private static boolean sameCandidate(ResourceCandidate left, ResourceCandidate right) {
+        return left.siteId() == right.siteId()
+                && left.blockId().equals(right.blockId())
+                && left.dimension().equals(right.dimension())
+                && left.position().equals(right.position())
+                && left.approach().equals(right.approach())
+                && left.lastObservedBlocks() == right.lastObservedBlocks()
+                && left.visibleNow() == right.visibleNow()
+                && left.approximate() == right.approximate()
+                && Double.compare(left.estimatedCost(), right.estimatedCost()) == 0
+                && left.toolReadiness() == right.toolReadiness()
+                && left.approachEvidence() == right.approachEvidence()
+                && Double.compare(left.estimatedReturnCost(), right.estimatedReturnCost()) == 0;
+    }
+
     public WorldFacts withAttemptedSources(Map<String, Integer> sources) {
         return new WorldFacts(
                 blocksNearby,

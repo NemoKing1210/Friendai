@@ -152,6 +152,17 @@ public final class ObtainTask implements Task {
     private long lastChildStamp = ProgressWatch.UNKNOWN;
     /** How long the current child has run, so an explore step can declare its own bounded wait. */
     private int childTicks;
+    /** What the last planning step cost: the world snapshot, the search itself, and the work it reported. */
+    private long lastScanNanos;
+
+    private long lastPlanNanos;
+    private ObtainPlan.Work lastPlanWork = ObtainPlan.Work.ZERO;
+    /** How many passes were answered from evidence that had not changed, instead of searching again. */
+    private int planReuses;
+    /** The pass a settling step would repeat when the world around it has not changed. */
+    private ReusablePlan reusable;
+    /** A plan a caller already computed for this order, used once while the evidence it saw still holds. */
+    private ReusablePlan seeded;
 
     private int lastNoticeTick = -NOTICE_INTERVAL;
 
@@ -509,9 +520,11 @@ public final class ObtainTask implements Task {
             return fail("gave up after " + maxSteps + " steps; have " + have + " of " + count + " " + item);
         }
         ServerLevel level = c.level();
+        long scanStart = System.nanoTime();
         WorldFacts facts = WorldScan.scan(
                         level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore, Set.of(), excludedSiteIds)
                 .withAttemptedSources(attempts.sourceFailures());
+        lastScanNanos = System.nanoTime() - scanStart;
         Map<String, Integer> bag = Map.copyOf(AcquiredItems.inventoryMap(companion));
         int candidates = facts.resourceCandidates().size();
         if (settledStep != null) {
@@ -546,14 +559,29 @@ public final class ObtainTask implements Task {
                 }
             }
         }
-        ObtainPlan plan = ObtainPlanner.plan(
-                item,
-                count,
-                AcquiredItems.inventoryMap(companion),
-                RecipeIndex.of(level),
-                DropIndex.of(level),
-                facts,
-                tradingContext);
+        Map<String, Integer> currentBag = AcquiredItems.inventoryMap(companion);
+        ReusablePlan offered = seeded;
+        seeded = null;
+        if (offered == null || offered.excludedSites() != excludedSiteIds.size()) {
+            offered = reusable;
+        }
+        ObtainPlan plan = offered != null
+                        && offered.bag().equals(currentBag)
+                        && offered.facts().samePlanEvidence(facts)
+                        && (offered.plan().supplied() >= count || offered.plan().conditional())
+                ? offered.plan()
+                : null;
+        if (plan != null) {
+            planReuses++;
+            lastPlanNanos = 0L;
+        } else {
+            long planStart = System.nanoTime();
+            plan = ObtainPlanner.plan(
+                    item, count, currentBag, RecipeIndex.of(level), DropIndex.of(level), facts, tradingContext);
+            lastPlanNanos = System.nanoTime() - planStart;
+        }
+        lastPlanWork = plan.work();
+        reusable = new ReusablePlan(facts, currentBag, excludedSiteIds.size(), plan);
         if (shouldTour(plan)) {
             touredContainers = true;
             List<BlockPos> targets =
@@ -609,6 +637,13 @@ public final class ObtainTask implements Task {
         facts.put("attemptedSources", Integer.toString(attempts.entries().size()));
         String missing = ObtainText.missingText(plan.missing(), !explore);
         if (!missing.isBlank()) facts.put("missing", missing);
+        // One recorded pass costs what it measured: the search work in evaluations/copies/providers, and the wall
+        // time the scan and the search took on this tick. A slow pass is read against these, not guessed.
+        facts.put(
+                "planWork",
+                plan.work().evaluations() + "/" + plan.work().copies() + "/"
+                        + plan.work().providers());
+        facts.put("planMs", millis(lastScanNanos) + "+" + millis(lastPlanNanos));
         return facts;
     }
 
@@ -1202,6 +1237,19 @@ public final class ObtainTask implements Task {
         return 0;
     }
 
+    /**
+     * Offers a plan computed elsewhere for this same item and count, together with the evidence it was computed from.
+     * The first planning step reuses it only when its own fresh scan, the carried bag and the trading context still
+     * match; otherwise it searches again. A plan that supplies less than this order asks for is never offered, because
+     * it would report a shortfall the caller did not intend.
+     */
+    public void seedPlan(ObtainPlan plan, WorldFacts facts, Map<String, Integer> inventory, TradingContext trading) {
+        if (plan == null || facts == null || trading != tradingContext) {
+            return;
+        }
+        seeded = new ReusablePlan(facts, Map.copyOf(inventory), excludedSiteIds.size(), plan);
+    }
+
     @Override
     public String debugStatus() {
         String step = currentStep == null ? "planning" : ObtainText.stepText(currentStep);
@@ -1212,8 +1260,23 @@ public final class ObtainTask implements Task {
                 + " tries=" + attempts.attemptedSources()
                 + (blocker.isEmpty() ? "" : " blocked=" + blocker)
                 + (inner.isEmpty() ? "" : " | " + inner)
+                + " plan=" + lastPlanWork.evaluations() + "/" + lastPlanWork.copies() + "/"
+                + lastPlanWork.providers()
+                + " ms=" + millis(lastScanNanos) + "+" + millis(lastPlanNanos)
+                + " reused=" + planReuses
                 + " t=" + ticks + "/" + maxTicks;
     }
+
+    private static long millis(long nanos) {
+        return Math.max(0L, nanos) / 1_000_000L;
+    }
+
+    /**
+     * One computed pass and the inputs that decided it, so the pass that follows a settled step is not searched again
+     * when the scan reports the same evidence and the bag is the same: the settlement has just asked the world exactly
+     * those questions, and a second identical search would only arrive at the same plan.
+     */
+    private record ReusablePlan(WorldFacts facts, Map<String, Integer> bag, int excludedSites, ObtainPlan plan) {}
 
     @Override
     public List<DebugTarget> debugTargets() {

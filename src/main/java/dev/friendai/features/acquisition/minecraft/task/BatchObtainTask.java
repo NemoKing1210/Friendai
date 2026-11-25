@@ -89,6 +89,10 @@ public final class BatchObtainTask implements Task {
     private final AcquisitionAttempts attempts = new AcquisitionAttempts();
     /** The last plan that stopped at the planner's work limit, so a failure names the limit, not a missing item. */
     private ObtainPlan limitedPlan;
+    /** Planning passes and the plans a later question of the same pass could reuse instead of searching again. */
+    private int planPasses;
+
+    private int planReuses;
 
     private Task current;
     /** A child cancellation already stopped, whose terminal effects are still owed if the runner settles us after. */
@@ -407,12 +411,13 @@ public final class BatchObtainTask implements Task {
                         if (candidate == null) {
                             if (search == null) {
                                 search = new Search(
+                                        inventory,
                                         WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore)
                                                 .withAttemptedSources(attempts.sourceFailures()),
                                         book,
                                         DropIndex.of(level));
                             }
-                            List<NeedAllocation.Leg> legs = allocate(inventory, search, liveNeed);
+                            List<NeedAllocation.Leg> legs = allocate(search, liveNeed);
                             candidate = legs.isEmpty() ? null : legs.get(0).item();
                         }
                         if (candidate != null) {
@@ -428,6 +433,10 @@ public final class BatchObtainTask implements Task {
                         current.materialNeeds(context).forEach((item, count) -> needs.merge(item, count, Math::max));
                     }
                 }
+            }
+            if (search != null) {
+                planPasses += search.passes();
+                planReuses += search.reuses();
             }
         }
         return needs.isEmpty() ? Map.of() : Map.copyOf(needs);
@@ -559,12 +568,15 @@ public final class BatchObtainTask implements Task {
             // One scan answers every station this pass rejects; a later pass scans again, so a station tried and
             // skipped here is not excluded for the rest of the task.
             Search search = new Search(
+                    inventory,
                     WorldScan.scan(level, companion, WorldScan.BLOCK_RADIUS, useContainers, explore)
                             .withAttemptedSources(attempts.sourceFailures()),
                     book,
                     DropIndex.of(level));
-            StationFallback.Decision decision = StationFallback.decide(
-                    window, demand, inventory, book, stations, need -> executable(inventory, search, need));
+            StationFallback.Decision decision =
+                    StationFallback.decide(window, demand, inventory, book, stations, need -> executable(search, need));
+            planPasses += search.passes();
+            planReuses += search.reuses();
             if (decision instanceof StationFallback.Blocked blocked) {
                 String text = "station " + blocked.stationId() + " is required and cannot be made here; "
                         + progress(companion);
@@ -581,7 +593,7 @@ public final class BatchObtainTask implements Task {
                 } else {
                     // The family is ranked as for any need; the first leg is gathered now and the next pass
                     // decides the rest from what is then still missing.
-                    legs = allocate(inventory, search, next.need());
+                    legs = allocate(search, next.need());
                     if (legs.isEmpty()) {
                         NeedAllocation.Leg fallback = fallback(next.need());
                         legs = fallback == null ? List.of() : List.of(fallback);
@@ -602,8 +614,17 @@ public final class BatchObtainTask implements Task {
                     }
                     return fail(text);
                 }
+                NeedAllocation.Leg first = legs.get(0);
+                // The pass that chose this leg already computed its plan; the child starts from it when nothing
+                // around it has changed by the time it looks, instead of searching the same evidence again.
                 return gather(
-                        c, companion, next.need(), legs.get(0), remaining.get(0).item());
+                        c,
+                        companion,
+                        next.need(),
+                        first,
+                        remaining.get(0).item(),
+                        search.plan(first.item(), first.count()),
+                        search.facts);
             }
         }
         CraftPlanner.Target target = remaining.get(0);
@@ -634,8 +655,46 @@ public final class BatchObtainTask implements Task {
                 attempts);
     }
 
-    /** The world view one planning pass asks about, scanned once however many stations the pass rejects. */
-    private record Search(WorldFacts facts, RecipeIndex book, DropIndex drops) {}
+    /**
+     * The world view one planning pass asks about, scanned once however many stations the pass rejects, plus the plans
+     * it has already computed. The station check and the allocation that follows it ask about the same candidate,
+     * count and evidence, so the second question is answered from the first plan instead of a second search.
+     */
+    private final class Search {
+        private final Map<String, Integer> inventory;
+        private final WorldFacts facts;
+        private final RecipeIndex book;
+        private final DropIndex drops;
+        private final Map<String, ObtainPlan> plans = new LinkedHashMap<>();
+        private int reuses;
+
+        Search(Map<String, Integer> inventory, WorldFacts facts, RecipeIndex book, DropIndex drops) {
+            this.inventory = inventory;
+            this.facts = facts;
+            this.book = book;
+            this.drops = drops;
+        }
+
+        ObtainPlan plan(String item, int count) {
+            String key = item + "|" + count;
+            ObtainPlan cached = plans.get(key);
+            if (cached != null) {
+                reuses++;
+                return cached;
+            }
+            ObtainPlan plan = ObtainPlanner.plan(item, count, inventory, book, drops, facts, tradingContext);
+            plans.put(key, plan);
+            return plan;
+        }
+
+        int passes() {
+            return plans.size();
+        }
+
+        int reuses() {
+            return reuses;
+        }
+    }
 
     /**
      * The ways to meet one need here, ranked by {@link NeedAllocation}: the whole candidate family is planned once, so
@@ -643,15 +702,13 @@ public final class BatchObtainTask implements Task {
      * over supply already at hand. A candidate whose plan stopped at the planner's work limit is unsettled rather
      * than unobtainable: it is remembered in {@link #limitedPlan} and never contributes.
      */
-    private List<NeedAllocation.Leg> allocate(
-            Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need) {
+    private List<NeedAllocation.Leg> allocate(Search search, CraftPlanner.RawNeed need) {
         limitedPlan = null;
         List<NeedAllocation.Candidate> plans = new ArrayList<>();
         List<String> candidates = candidates(need);
         for (int preference = 0; preference < candidates.size(); preference++) {
             String candidate = candidates.get(preference);
-            ObtainPlan plan = ObtainPlanner.plan(
-                    candidate, need.count(), inventory, search.book(), search.drops(), search.facts(), tradingContext);
+            ObtainPlan plan = search.plan(candidate, need.count());
             if (plan.limited()) {
                 limitedPlan = plan;
             }
@@ -665,13 +722,12 @@ public final class BatchObtainTask implements Task {
      * one instead of starting a child bound to fail. A partial plan is not enough here: a station either works or it
      * does not.
      */
-    private String executable(Map<String, Integer> inventory, Search search, CraftPlanner.RawNeed need) {
+    private String executable(Search search, CraftPlanner.RawNeed need) {
         List<NeedAllocation.Candidate> plans = new ArrayList<>();
         List<String> candidates = candidates(need);
         for (int preference = 0; preference < candidates.size(); preference++) {
             String candidate = candidates.get(preference);
-            ObtainPlan plan = ObtainPlanner.plan(
-                    candidate, need.count(), inventory, search.book(), search.drops(), search.facts(), tradingContext);
+            ObtainPlan plan = search.plan(candidate, need.count());
             if (plan.limited()) {
                 limitedPlan = plan;
             }
@@ -717,12 +773,18 @@ public final class BatchObtainTask implements Task {
             CompanionEntity companion,
             CraftPlanner.RawNeed need,
             NeedAllocation.Leg leg,
-            String target) {
+            String target,
+            ObtainPlan plan,
+            WorldFacts facts) {
         // A leg is the part of the shared material need this source can cover; the child asks for that plus what
         // the bag already holds, because an ObtainTask succeeds once the total it was sent for is in the inventory.
         int wanted = leg.count() + AcquiredItems.have(companion, leg.item());
-        return startChild(
-                c, obtain(leg.item(), wanted), ChildKind.GATHER, need.label() + "|" + leg.item(), need.label(), target);
+        ObtainTask child = obtain(leg.item(), wanted);
+        // The pass was planned for the whole need, so it is offered only when it covers the child's smaller target.
+        if (plan.supplied() >= wanted || plan.conditional()) {
+            child.seedPlan(plan, facts, AcquiredItems.inventoryMap(companion), tradingContext);
+        }
+        return startChild(c, child, ChildKind.GATHER, need.label() + "|" + leg.item(), need.label(), target);
     }
 
     /** The craft planner accepts at most eight targets per demand; the rest are planned on the next tick. */
@@ -871,6 +933,7 @@ public final class BatchObtainTask implements Task {
         String inner = current == null ? "" : current.debugStatus();
         return "t=" + ticks + "/" + maxTicks + " children=" + children + "/" + maxChildren
                 + " failedSources=" + attempts.entries().size() + " have=" + verifiedText()
+                + " plans=" + planPasses + "/" + planReuses
                 + (inner.isEmpty() ? "" : " | " + inner);
     }
 

@@ -139,7 +139,7 @@ public final class ObtainPlanner {
                 attempt.missing,
                 steps.size(),
                 attempt.conditional,
-                new ObtainPlan.Work(search.evaluations, search.copies),
+                new ObtainPlan.Work(search.evaluations, search.copies, search.providers),
                 search.limited,
                 supplied);
     }
@@ -334,6 +334,8 @@ public final class ObtainPlanner {
         private final int maxCopies;
         private int evaluations;
         private int copies;
+        /** Candidate providers actually simulated, one per inventory copy handed to a provider's {@code take}. */
+        private int providers;
         /** The pass hit a work cap before it could decide; its {@code missing} is not proof the item is absent. */
         private boolean limited;
 
@@ -402,6 +404,7 @@ public final class ObtainPlanner {
                         total.missing.merge(item, qty, Integer::sum);
                         return total;
                     }
+                    providers++;
                     Candidate candidate = provider.take(this, copy, capacity, depth, nextPath, emitCraft);
                     if (candidate != null
                             && (candidate.supplied() > 0 || candidate.attempt().conditional)
@@ -805,6 +808,7 @@ public final class ObtainPlanner {
                     total.missing.merge(item, qty, Integer::sum);
                     break;
                 }
+                providers++;
                 Candidate candidate =
                         new CraftProvider(recipe, allowExplore).take(this, copy, qty, depth, nextPath, true);
                 if (candidate != null

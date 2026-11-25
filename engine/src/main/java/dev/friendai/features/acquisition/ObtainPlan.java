@@ -26,16 +26,22 @@ public record ObtainPlan(
         boolean limited,
         int supplied) {
     /**
-     * The measured cost of one planning pass. Both counters bound the recursion: an evaluation may copy the simulated
-     * inventory per candidate provider, so a book with many alternatives costs far more copies than evaluations.
+     * The measured cost of one planning pass. Every counter bounds the same recursion: an evaluation may copy the
+     * simulated inventory per candidate provider, so a book with many alternatives costs far more copies than
+     * evaluations. {@code providers} is how many candidate sources were actually simulated, which is what a slow pass
+     * has to be read against — a book with ten substitutes per ingredient pays ten times for one evaluation level.
      */
-    public record Work(int evaluations, int copies) {
-        public static final Work ZERO = new Work(0, 0);
+    public record Work(int evaluations, int copies, int providers) {
+        public static final Work ZERO = new Work(0, 0, 0);
 
         public Work {
-            if (evaluations < 0 || copies < 0) {
+            if (evaluations < 0 || copies < 0 || providers < 0) {
                 throw new IllegalArgumentException("work counters are never negative");
             }
+        }
+
+        public Work(int evaluations, int copies) {
+            this(evaluations, copies, 0);
         }
     }
 

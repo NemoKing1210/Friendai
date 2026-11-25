@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.234.2] - 2026-11-25
+
+### Changed
+
+- A long order no longer searches the same evidence twice: when nothing around the companion has changed since its last planning step, the earlier plan is reused, and a batch hands its chosen plan to the gathering it starts. The task's log line now also reports what each planning pass cost, so a slow pass can be told from a stalled one.
+
 ## [0.234.1] - 2026-11-25
 
 ### Fixed

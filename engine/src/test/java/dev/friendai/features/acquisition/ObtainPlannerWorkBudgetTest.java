@@ -50,6 +50,29 @@ class ObtainPlannerWorkBudgetTest {
     }
 
     @Test
+    void a_pass_counts_the_candidate_providers_it_simulated() {
+        // Two recipes make the stone; both ingredients are carried, so both sources are simulated in one pass.
+        FakeRecipeBook book = new FakeRecipeBook()
+                .add(new Recipe(
+                        "test:stone_from_cobblestone",
+                        STONE,
+                        1,
+                        List.of(Ingredient.of(COBBLESTONE)),
+                        Station.INVENTORY))
+                .add(new Recipe(
+                        "test:stone_from_granite", STONE, 1, List.of(Ingredient.of(GRANITE)), Station.INVENTORY));
+
+        ObtainPlan plan = ObtainPlanner.plan(
+                STONE, 1, Map.of(COBBLESTONE, 4, GRANITE, 4), book, new FakeSourceBook(), world(Map.of()), null);
+
+        assertTrue(plan.ok(), plan.missing().toString());
+        assertTrue(plan.work().providers() >= 2, "both candidate sources were simulated: " + plan.work());
+        assertTrue(
+                plan.work().providers() <= plan.work().copies(),
+                "a provider is simulated on its own copy: " + plan.work());
+    }
+
+    @Test
     void a_partial_plan_reports_only_the_part_it_can_supply() {
         // Two oak logs are at hand and exploring is off; the third one has no source here.
         ObtainPlan plan = ObtainPlanner.plan(
