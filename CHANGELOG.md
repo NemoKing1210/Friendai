@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.7] - 2026-11-25
+
+### Fixed
+
+- The companion can now fell a tree that stands on higher ground than it does, instead of giving up because the climb side it chose was buried in the slope.
+
 ## [0.235.6] - 2026-11-25
 
 ### Fixed

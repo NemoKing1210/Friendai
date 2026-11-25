@@ -27,8 +27,19 @@ public final class FellPlanner {
     public static final int MAX_RING = 2;
 
     private static final double EPSILON = 1.0e-9;
+    private static final ColumnGround STAND_AT_NEAR = (x, z, nearY) -> nearY;
 
     private FellPlanner() {}
+
+    /** Where a candidate climb column can stand; the world answers and the planner only asks. */
+    @FunctionalInterface
+    public interface ColumnGround {
+        /**
+         * The feet cell this column can stand in near {@code nearY}, or {@code nearY} when the world cannot tell. A
+         * column on ground higher than the companion's must not start inside the terrain.
+         */
+        int feetY(int x, int z, int nearY);
+    }
 
     /**
      * @param input every log of the tree, in any order
@@ -36,6 +47,14 @@ public final class FellPlanner {
      * @param limit how many logs to cut at most; {@code 0} for the whole tree
      */
     public static FellPlan plan(List<TreeCell> input, TreeCell stand, int limit) {
+        return plan(input, stand, limit, STAND_AT_NEAR);
+    }
+
+    /**
+     * @param ground the feet cell each candidate column can stand in, so a tree whose base stands above the
+     *               companion is climbed from the column's own ground instead of the companion's height
+     */
+    public static FellPlan plan(List<TreeCell> input, TreeCell stand, int limit, ColumnGround ground) {
         List<TreeCell> logs = input.stream().distinct().sorted().toList();
         if (logs.isEmpty()) {
             return new FellPlan(List.of(), List.of(), 0, 0);
@@ -45,8 +64,10 @@ public final class FellPlanner {
         int groundFeetY = Math.min(stand.y(), baseY);
 
         List<Built> usable = new ArrayList<>();
-        for (TreeCell column : candidateColumns(logs, baseY, groundFeetY, stand)) {
-            Built built = build(logs, column, groundFeetY, topY, baseY, limit);
+        for (TreeCell candidate : candidateColumns(logs, baseY, groundFeetY, stand)) {
+            int feetY = ground.feetY(candidate.x(), candidate.z(), groundFeetY);
+            TreeCell column = new TreeCell(candidate.x(), feetY, candidate.z());
+            Built built = build(logs, column, topY, baseY, limit);
             if (built != null) {
                 usable.add(built);
             }
@@ -68,7 +89,8 @@ public final class FellPlanner {
      * Builds one climb, or returns null when the column cannot be used: a log stands in the band the companion would
      * climb through, so the scaffold would have to grow through the trunk or a branch.
      */
-    private static Built build(List<TreeCell> logs, TreeCell column, int groundFeetY, int topY, int baseY, int limit) {
+    private static Built build(List<TreeCell> logs, TreeCell column, int topY, int baseY, int limit) {
+        int groundFeetY = column.y();
         Set<TreeCell> unreachable = new LinkedHashSet<>();
         int climbFeet = groundFeetY;
         for (TreeCell log : logs) {
@@ -80,7 +102,10 @@ public final class FellPlanner {
             }
         }
         for (TreeCell log : logs) {
-            if (log.x() == column.x() && log.z() == column.z() && log.y() >= groundFeetY && log.y() <= climbFeet + 2) {
+            if (log.x() == column.x()
+                    && log.z() == column.z()
+                    && log.y() >= Math.min(groundFeetY, baseY)
+                    && log.y() <= climbFeet + 2) {
                 return null;
             }
         }

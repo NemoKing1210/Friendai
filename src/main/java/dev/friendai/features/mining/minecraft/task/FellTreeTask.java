@@ -225,7 +225,8 @@ public final class FellTreeTask implements Task {
         if (!usable.isEmpty()) {
             TreeCell feet = cell(c.companion().blockPosition());
             List<TreeCell> planningLogs = sample(usable, 64);
-            estimate.plan = FellPlanner.plan(planningLogs, feet, 0);
+            int baseY = usable.stream().mapToInt(TreeCell::y).min().orElse(feet.y());
+            estimate.plan = FellPlanner.plan(planningLogs, feet, 0, groundLookup(c, baseY));
             estimate.scaffold = new Scaffold(c.companion());
             int available = estimate.scaffold.available(c);
             FellPlan.Climb viable = estimate.plan.climbs().stream()
@@ -339,10 +340,12 @@ public final class FellTreeTask implements Task {
             return;
         }
         BlockPos feet = c.companion().blockPosition();
+        int baseY = usable.stream().mapToInt(BlockPos::getY).min().orElse(feet.getY());
         plan = FellPlanner.plan(
                 usable.stream().map(FellTreeTask::cell).toList(),
                 new TreeCell(feet.getX(), feet.getY(), feet.getZ()),
-                limit);
+                limit,
+                groundLookup(c, baseY));
         if (plan.climbs().isEmpty()) {
             refuse("there is no clear side to climb the " + label + " tree at " + coords(tree.base()));
             return;
@@ -469,6 +472,33 @@ public final class FellTreeTask implements Task {
             }
         }
         return false;
+    }
+
+    /** The feet cell each candidate column can stand in near the tree's base, read from the world once per plan. */
+    private static FellPlanner.ColumnGround groundLookup(TaskContext c, int baseY) {
+        ServerLevel level = c.level();
+        return (x, z, nearY) -> columnFeetY(level, x, z, nearY, baseY);
+    }
+
+    /**
+     * The standable cell of one climb column: a solid floor with free or clearable feet, searched from two blocks above
+     * the tree's base down to four below it. A column with nothing better keeps the planner's default, so a floating
+     * tree and an unloaded column behave as before.
+     */
+    private static int columnFeetY(ServerLevel level, int x, int z, int nearY, int baseY) {
+        for (int y = baseY + 2; y >= baseY - 4; y--) {
+            BlockPos feet = new BlockPos(x, y, z);
+            BlockPos floor = feet.below();
+            if (!level.hasChunkAt(feet) || !level.hasChunkAt(floor)) continue;
+            BlockState below = level.getBlockState(floor);
+            if (below.getCollisionShape(level, floor).isEmpty()
+                    || !below.getFluidState().isEmpty()) continue;
+            BlockState state = level.getBlockState(feet);
+            if (passable(level, feet, state) || clearable(state)) {
+                return y;
+            }
+        }
+        return nearY;
     }
 
     /** Why the column cannot be climbed, or empty when it can: standable ground and every cell free or clearable. */
