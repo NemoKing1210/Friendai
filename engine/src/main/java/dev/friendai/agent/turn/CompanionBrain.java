@@ -302,7 +302,7 @@ public final class CompanionBrain {
         // to the incident it names, and a cancellation still ends one.
         feedIncidents(e);
         if (!CompanionSpeechPolicy.needsModelTurn(e)) {
-            observe(o -> o.onEventDropped(e, "cancellation retained in task history"));
+            observe(o -> o.onEventDropped(e, EventDropReasons.CANCELLATION));
             return;
         }
         if (shouldDrop(e)) {
@@ -310,7 +310,7 @@ public final class CompanionBrain {
         }
         boolean supersedes = e instanceof BrainEvent.PlayerSaid said && revisesTheCurrentOrder(said);
         if (e instanceof BrainEvent.PlanBlocked blocked && !mayAskAuthorityQuestion(blocked)) {
-            observe(o -> o.onEventDropped(e, "authority blocker is still pending; question cooldown"));
+            observe(o -> o.onEventDropped(e, EventDropReasons.AUTHORITY_COOLDOWN));
             return;
         }
         // The correction itself is kept: it is the newest authorized intent and opens the next turn. Only the answer
@@ -447,14 +447,14 @@ public final class CompanionBrain {
         long now = scheduler.nowMillis();
         Long last = lastAcceptedGuestMessage.get(guest);
         if (last != null && now - last < settings.get().guestCooldownMs()) {
-            observe(o -> o.onEventDropped(event, "guest cooldown"));
+            observe(o -> o.onEventDropped(event, EventDropReasons.GUEST_COOLDOWN));
             return true;
         }
         long pending = queue.stream()
                 .filter(queued -> principalOf(queued).equals(guest))
                 .count();
         if (pending >= MAX_PENDING_PER_GUEST) {
-            observe(o -> o.onEventDropped(event, "too many pending messages"));
+            observe(o -> o.onEventDropped(event, EventDropReasons.GUEST_BACKLOG));
             return true;
         }
         lastAcceptedGuestMessage.put(guest, now);

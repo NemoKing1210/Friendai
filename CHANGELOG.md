@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.6] - 2026-11-25
+
+### Fixed
+
+- A routine note about the companion cancelling its own plan is logged as info instead of a warning; guest, authority and backlog refusals still warn.
+
 ## [0.235.5] - 2026-11-25
 
 ### Fixed

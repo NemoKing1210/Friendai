@@ -245,7 +245,7 @@ public final class DebugLogObserver implements BrainObserver {
         }
         LogKind kind = e instanceof BrainEvent.PlayerSaid ? LogKind.USER : LogKind.TASK;
         emit(
-                LogLevel.WARN,
+                EventDropReasons.level(reason),
                 LogCategory.BRAIN,
                 kind,
                 LogEvents.EVENT_DROPPED,

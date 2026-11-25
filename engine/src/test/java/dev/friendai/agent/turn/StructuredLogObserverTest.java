@@ -353,6 +353,30 @@ class StructuredLogObserverTest {
     }
 
     @Test
+    void aRoutineCancellationDropsAtInfoWhileEveryRefusalWarns() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        BrainEvent said = new BrainEvent.PlayerSaid(OWNER, "Steve", "hello", BrainEvent.Source.CHAT);
+        List<String> reasons = List.of(
+                EventDropReasons.CANCELLATION,
+                EventDropReasons.GUEST_COOLDOWN,
+                EventDropReasons.AUTHORITY_COOLDOWN,
+                EventDropReasons.GUEST_BACKLOG,
+                "a reason this build does not know");
+        for (String reason : reasons) {
+            observer.onEventDropped(said, reason);
+        }
+
+        assertEquals(
+                List.of(LogLevel.INFO, LogLevel.WARN, LogLevel.WARN, LogLevel.WARN, LogLevel.WARN),
+                sink.records.stream().map(LogRecord::level).toList());
+        assertEquals(
+                reasons,
+                sink.records.stream().map(record -> record.data().get("reason")).toList());
+    }
+
+    @Test
     void aReplyAndAnAssistantTextStayDistinct() {
         Recall sink = new Recall();
         DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
