@@ -186,6 +186,21 @@ class CompanionBrainTest {
     }
 
     @Test
+    void theRequestNamesThePrefixAProviderMayCache() {
+        gateway.enqueue(text("Right here."));
+        brain.post(said("where are you?"));
+        FakeGateway.Request request = gateway.requests.get(0);
+        assertTrue(request.cacheableChars() > 0, "the brain sent no cacheable prefix");
+        assertTrue(request.system().startsWith("You are Friendai"), request.system());
+        assertTrue(
+                request.system().substring(0, request.cacheableChars()).contains("Rules:"),
+                "the cacheable prefix does not reach the rules");
+        assertFalse(
+                request.system().substring(0, request.cacheableChars()).contains(perceptionText),
+                "the perception must not sit inside the cacheable prefix");
+    }
+
+    @Test
     void routingOffSendsEveryToolSpec() {
         routedToolbox(false);
         gateway.enqueue(text("Right here."));
@@ -302,6 +317,31 @@ class CompanionBrainTest {
         assertFalse(
                 refused.text().contains("request_tools"),
                 "a teaching turn is not unlocked by a group: " + refused.text());
+    }
+
+    @Test
+    void aHugeToolResultIsBoundedInTheHistoryButWholeForTheObserver() {
+        String huge = "HEAD" + "z".repeat(20_000) + "TAIL";
+        tools.results
+                .computeIfAbsent("stay", name -> new java.util.ArrayDeque<>())
+                .add(dev.friendai.execution.tool.ToolResult.ok(huge));
+        List<String> observed = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onToolResult(
+                    dev.friendai.agent.llm.model.ToolCall call, dev.friendai.execution.tool.ToolResult result) {
+                observed.add(result.content());
+            }
+        });
+        gateway.enqueue(calls("", call("s1", "stay")));
+        gateway.enqueue(text("Waiting."));
+
+        brain.post(said("wait here"));
+
+        String history = toolResults(gateway.requests.get(1)).getFirst().text();
+        assertTrue(history.length() < ToolResultText.MAX_CHARS + 120, "history carried " + history.length());
+        assertTrue(history.contains("characters omitted"), history);
+        assertEquals(huge, observed.get(0), "the observer must see the whole result");
     }
 
     @Test

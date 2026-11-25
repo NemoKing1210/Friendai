@@ -54,6 +54,9 @@ public final class ProtocolSupport {
     }
 
     public static JsonObject obj(JsonObject o, String key) {
+        if (o == null) {
+            return null;
+        }
         JsonElement e = o.get(key);
         return e != null && e.isJsonObject() ? e.getAsJsonObject() : null;
     }

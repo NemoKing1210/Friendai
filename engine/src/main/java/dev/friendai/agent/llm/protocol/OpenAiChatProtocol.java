@@ -115,7 +115,11 @@ public final class OpenAiChatProtocol implements LlmProtocol, StreamingProtocol 
             Integer output = usage.has("completion_tokens")
                     ? usage.get("completion_tokens").getAsInt()
                     : null;
-            assembly.usage(input, output);
+            JsonObject details = ProtocolSupport.obj(usage, "prompt_tokens_details");
+            Integer cached = details != null && details.has("cached_tokens")
+                    ? details.get("cached_tokens").getAsInt()
+                    : null;
+            assembly.usage(input, output, cached);
         }
     }
 
@@ -125,7 +129,7 @@ public final class OpenAiChatProtocol implements LlmProtocol, StreamingProtocol 
         JsonArray messages = new JsonArray();
         JsonObject system = new JsonObject();
         system.addProperty("role", "system");
-        system.addProperty("content", r.system());
+        system.addProperty("content", r.system().text());
         messages.add(system);
         for (Message m : r.messages()) {
             messages.add(messageToWire(m));
@@ -234,6 +238,8 @@ public final class OpenAiChatProtocol implements LlmProtocol, StreamingProtocol 
                 stop,
                 new Usage(
                         ProtocolSupport.intOr(usage, "prompt_tokens", 0),
-                        ProtocolSupport.intOr(usage, "completion_tokens", 0)));
+                        ProtocolSupport.intOr(usage, "completion_tokens", 0),
+                        ProtocolSupport.intOr(ProtocolSupport.obj(usage, "prompt_tokens_details"), "cached_tokens", 0),
+                        0));
     }
 }

@@ -11,6 +11,16 @@ public interface LlmGateway {
     CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools);
 
     /**
+     * The same completion with the prompt split into the text that survives a turn and the text that does not. Only a
+     * protocol-backed gateway can place a cache breakpoint at that boundary; every other gateway sends {@link
+     * dev.friendai.agent.llm.model.SystemPrompt#text()} and keeps its old behaviour.
+     */
+    default CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system, List<Message> messages, List<ToolSpec> tools) {
+        return complete(system.text(), messages, tools);
+    }
+
+    /**
      * The tokens the configured model accepts in one request, or 0 when this gateway cannot say. The brain then uses a
      * conservative fallback, so an unknown provider only shortens a long history.
      */
@@ -35,6 +45,15 @@ public interface LlmGateway {
             List<ToolSpec> tools,
             dev.friendai.agent.llm.RequestTelemetry telemetry) {
         return complete(system, messages, tools);
+    }
+
+    /** The split prompt with a telemetry scope. */
+    default CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return complete(system.text(), messages, tools, telemetry);
     }
 
     default CompletableFuture<LlmResponse> completeJson(

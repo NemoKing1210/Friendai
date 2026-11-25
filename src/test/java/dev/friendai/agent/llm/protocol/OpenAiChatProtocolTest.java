@@ -135,6 +135,32 @@ class OpenAiChatProtocolTest {
     }
 
     @Test
+    void fromWireReadsCachedPromptTokens() {
+        LlmResponse r = protocol.fromWire(json("""
+                {"choices":[{"message":{"role":"assistant","content":"Hi"},"finish_reason":"stop"}],
+                 "usage":{"prompt_tokens":900,"completion_tokens":5,
+                          "prompt_tokens_details":{"cached_tokens":800}}}"""));
+        assertEquals(new Usage(900, 5, 800, 0), r.usage());
+    }
+
+    @Test
+    void aSplitPromptIsSentAsOneJoinedSystemMessage() {
+        LlmRequest request = new LlmRequest(
+                "gpt-x",
+                new dev.friendai.agent.llm.model.SystemPrompt("STABLE", "VOLATILE"),
+                List.of(Message.user("hi")),
+                List.of(),
+                null,
+                1024,
+                false,
+                dev.friendai.agent.llm.RequestTelemetry.NONE);
+        JsonObject system =
+                protocol.toWire(request).getAsJsonArray("messages").get(0).getAsJsonObject();
+        assertEquals("system", system.get("role").getAsString());
+        assertEquals("STABLE\nVOLATILE", system.get("content").getAsString());
+    }
+
+    @Test
     void fromWireToolCalls() {
         LlmResponse r = protocol.fromWire(json(TOOL_RESPONSE));
         assertEquals(2, r.toolCalls().size());

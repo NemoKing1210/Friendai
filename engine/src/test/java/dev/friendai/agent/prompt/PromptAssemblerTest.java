@@ -81,4 +81,68 @@ class PromptAssemblerTest {
         PromptAssembler a = new PromptAssembler(List.of(section("a", 1, "x".repeat(5000)), section("b", 2, "y")), 0);
         assertEquals(5002, a.assemble(CTX).length());
     }
+
+    private static PromptSection stableSection(String id, int priority, String text) {
+        return new PromptSection() {
+            @Override
+            public String id() {
+                return id;
+            }
+
+            @Override
+            public int priority() {
+                return priority;
+            }
+
+            @Override
+            public boolean stable() {
+                return true;
+            }
+
+            @Override
+            public Optional<String> render(TurnContext ctx) {
+                return text == null ? Optional.empty() : Optional.of(text);
+            }
+        };
+    }
+
+    @Test
+    void stableSectionsComeFirstWhateverTheirPlaceInTheList() {
+        PromptAssembler a = new PromptAssembler(
+                List.of(
+                        section("v1", 1, "volatile one"),
+                        stableSection("s1", 1, "stable one"),
+                        section("v2", 1, "volatile two"),
+                        stableSection("s2", 1, "stable two")),
+                0);
+        PromptAssembler.Assembly assembly = a.assembleDetailed(CTX);
+        assertEquals("stable one\nstable two", assembly.system().stable());
+        assertEquals("volatile one\nvolatile two", assembly.system().volatileText());
+        assertEquals("stable one\nstable two\nvolatile one\nvolatile two", assembly.text());
+    }
+
+    @Test
+    void theCacheablePrefixSurvivesATurnThatChangesOnlyVolatileText() {
+        PromptAssembler a =
+                new PromptAssembler(List.of(stableSection("rules", 1, "rules"), section("state", 1, "state A")), 0);
+        PromptAssembler other =
+                new PromptAssembler(List.of(stableSection("rules", 1, "rules"), section("state", 1, "state B")), 0);
+        assertEquals(
+                a.assembleDetailed(CTX).system().stable(),
+                other.assembleDetailed(CTX).system().stable());
+        assertTrue(a.assembleDetailed(CTX).system().hasStablePart());
+    }
+
+    @Test
+    void aSectionThatEndsInANewlineDoesNotOpenABlankLine() {
+        PromptAssembler a =
+                new PromptAssembler(List.of(stableSection("a", 1, "first\n"), section("b", 1, "second\n\n")), 0);
+        assertEquals("first\nsecond", a.assembleDetailed(CTX).text());
+    }
+
+    @Test
+    void aTurnWithNoStableSectionHasNoCacheablePrefix() {
+        PromptAssembler a = new PromptAssembler(List.of(section("state", 1, "state")), 0);
+        assertFalse(a.assembleDetailed(CTX).system().hasStablePart());
+    }
 }

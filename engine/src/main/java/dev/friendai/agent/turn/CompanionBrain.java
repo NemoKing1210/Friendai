@@ -629,11 +629,11 @@ public final class CompanionBrain {
 
     /** The system prompt the next request would carry. */
     public String currentSystemPrompt() {
-        return buildSystemPrompt(plannerNote);
+        return buildSystemPrompt(plannerNote).text();
     }
 
-    private String buildSystemPrompt(String note) {
-        return PromptBuilder.system(
+    private dev.friendai.agent.llm.model.SystemPrompt buildSystemPrompt(String note) {
+        return PromptBuilder.systemPrompt(
                 skillSession.persona(persona.get()),
                 perception.describe(turnCaller, turnReferent),
                 turnCaller,
@@ -1341,13 +1341,13 @@ public final class CompanionBrain {
             turnToolNames = wordsOnly
                     ? java.util.Set.of()
                     : specs.stream().map(ToolSpec::name).collect(Collectors.toUnmodifiableSet());
-            String system = buildSystemPrompt(plannerNote);
+            dev.friendai.agent.llm.model.SystemPrompt system = buildSystemPrompt(plannerNote);
             plannerNote = "";
             LlmGateway active = gateway.get();
             // System, history and schemas share one bounded budget: a long tool-result history or a large catalog
             // must never overflow the provider and fail after a paid round trip.
             RequestBudget.Fit fitted = RequestBudget.fit(
-                    system,
+                    system.text(),
                     memory.snapshot(),
                     sent,
                     active.contextTokens(),
@@ -1365,6 +1365,7 @@ public final class CompanionBrain {
                 return;
             }
             RequestBudget.Fitted fit = (RequestBudget.Fitted) fitted;
+            // Fitting never rewrites the prompt, only the history and schemas, so the split survives it.
             String prompt = fit.system();
             java.util.List<dev.friendai.agent.llm.model.Message> fittedHistory = fit.history();
             List<ToolSpec> fittedTools = fit.tools();
@@ -1388,7 +1389,7 @@ public final class CompanionBrain {
                 speechStream = ++streamSeq;
                 long stream = speechStream;
                 CompletableFuture<LlmResponse> raw = streaming.completeStreaming(
-                        prompt,
+                        system,
                         fittedHistory,
                         fittedTools,
                         delta -> {
@@ -1402,7 +1403,7 @@ public final class CompanionBrain {
                 future = raw.thenApply(response -> completeFromStream(accumulator, response));
             } else {
                 streamInFlight = false;
-                future = active.complete(prompt, fittedHistory, fittedTools, telemetry);
+                future = active.complete(system, fittedHistory, fittedTools, telemetry);
                 if (future == null) throw missingProviderResponse();
                 requestFuture = future;
             }
@@ -1634,7 +1635,9 @@ public final class CompanionBrain {
             }
             ToolResult finalResult = result;
             observe(o -> o.onToolResult(call, finalResult));
-            memory.add(Message.toolResult(call.id(), call.name(), result.content()));
+            // The history copy is bounded: it is re-sent with every later step of the turn. Observers and the
+            // repeated-call guard keep the whole result.
+            memory.add(Message.toolResult(call.id(), call.name(), ToolResultText.of(result.content())));
             queuedByModel |= !result.error() && "queue_add".equals(call.name());
             activityChosen |= !result.error() && CHOOSE_ACTIVITY.equals(call.name());
             anyCallFailed |= result.error();

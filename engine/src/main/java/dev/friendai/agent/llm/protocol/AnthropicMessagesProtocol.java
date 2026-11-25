@@ -57,7 +57,13 @@ public final class AnthropicMessagesProtocol implements LlmProtocol {
     public JsonObject toWire(LlmRequest r) {
         JsonObject body = new JsonObject();
         body.addProperty("model", r.model());
-        body.addProperty("system", r.system());
+        // A prompt with no declared stable prefix keeps the plain string form: block form exists only to carry the
+        // cache breakpoint.
+        if (r.system().hasStablePart()) {
+            body.add("system", systemBlocks(r.system()));
+        } else {
+            body.addProperty("system", r.system().text());
+        }
         body.addProperty("max_tokens", r.maxTokens());
         if (r.temperature() != null) {
             body.addProperty("temperature", r.temperature());
@@ -128,6 +134,32 @@ public final class AnthropicMessagesProtocol implements LlmProtocol {
         return body;
     }
 
+    /**
+     * The system prompt as content blocks. The tool schemas and the stable text are the part of a request that repeats
+     * unchanged, so the breakpoint goes at the end of the stable block: everything before it, tools included, is billed
+     * at the cache-read price while it stays identical. The volatile remainder follows the breakpoint, uncached.
+     */
+    private static JsonArray systemBlocks(dev.friendai.agent.llm.model.SystemPrompt system) {
+        JsonArray blocks = new JsonArray();
+        blocks.add(textBlock(system.stable(), true));
+        if (!system.volatileText().isEmpty()) {
+            blocks.add(textBlock(system.volatileText(), false));
+        }
+        return blocks;
+    }
+
+    private static JsonObject textBlock(String text, boolean cache) {
+        JsonObject block = new JsonObject();
+        block.addProperty("type", "text");
+        block.addProperty("text", text);
+        if (cache) {
+            JsonObject control = new JsonObject();
+            control.addProperty("type", "ephemeral");
+            block.add("cache_control", control);
+        }
+        return block;
+    }
+
     public LlmResponse fromWire(JsonObject o) {
         StringBuilder text = new StringBuilder();
         List<ToolCall> calls = new ArrayList<>();
@@ -160,6 +192,8 @@ public final class AnthropicMessagesProtocol implements LlmProtocol {
                 stop,
                 new Usage(
                         ProtocolSupport.intOr(usage, "input_tokens", 0),
-                        ProtocolSupport.intOr(usage, "output_tokens", 0)));
+                        ProtocolSupport.intOr(usage, "output_tokens", 0),
+                        ProtocolSupport.intOr(usage, "cache_read_input_tokens", 0),
+                        ProtocolSupport.intOr(usage, "cache_creation_input_tokens", 0)));
     }
 }

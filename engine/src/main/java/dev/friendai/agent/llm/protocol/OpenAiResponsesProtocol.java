@@ -50,7 +50,7 @@ public final class OpenAiResponsesProtocol implements LlmProtocol {
     public JsonObject toWire(LlmRequest r) {
         JsonObject body = new JsonObject();
         body.addProperty("model", r.model());
-        body.addProperty("instructions", r.system());
+        body.addProperty("instructions", r.system().text());
         body.addProperty("store", false);
         body.addProperty("max_output_tokens", r.maxTokens());
         if (r.jsonObject()) {
@@ -159,6 +159,8 @@ public final class OpenAiResponsesProtocol implements LlmProtocol {
                 stop,
                 new Usage(
                         ProtocolSupport.intOr(usage, "input_tokens", 0),
-                        ProtocolSupport.intOr(usage, "output_tokens", 0)));
+                        ProtocolSupport.intOr(usage, "output_tokens", 0),
+                        ProtocolSupport.intOr(ProtocolSupport.obj(usage, "input_tokens_details"), "cached_tokens", 0),
+                        0));
     }
 }

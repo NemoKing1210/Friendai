@@ -1,5 +1,6 @@
 package dev.friendai.agent.prompt;
 
+import dev.friendai.agent.llm.model.SystemPrompt;
 import dev.friendai.agent.route.TurnMode;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,16 @@ public final class PromptAssembler {
         return new PromptAssembler(mode == TurnMode.CHAT ? DefaultSections.chat() : DefaultSections.all(), maxChars);
     }
 
-    public record Assembly(String text, List<String> keptSectionIds, boolean mandatoryOverrun) {}
+    /**
+     * @param system the assembled prompt, with the boundary between its stable prefix and its per-turn remainder
+     * @param keptSectionIds the sections that survived the budget, in the order they were rendered
+     * @param mandatoryOverrun whether uncuttable sections alone exceed the budget
+     */
+    public record Assembly(SystemPrompt system, List<String> keptSectionIds, boolean mandatoryOverrun) {
+        public String text() {
+            return system.text();
+        }
+    }
 
     public String assemble(TurnContext ctx) {
         return assembleDetailed(ctx).text();
@@ -41,10 +51,19 @@ public final class PromptAssembler {
         List<PromptSection> all = new ArrayList<>(sections);
         all.addAll(ctx.instructionSections());
         for (PromptSection section : all) {
-            Optional<String> text = section.render(ctx);
-            if (text.isPresent() && !text.get().isEmpty()) {
+            Optional<String> render = section.render(ctx);
+            if (render.isEmpty()) {
+                continue;
+            }
+            // A section must not end in a newline: the join below adds exactly one between sections, and a second
+            // would open a blank line in the prompt.
+            String text = render.get();
+            while (text.endsWith("\n")) {
+                text = text.substring(0, text.length() - 1);
+            }
+            if (!text.isEmpty()) {
                 kept.add(section);
-                texts.add(text.get());
+                texts.add(text);
             }
         }
         if (maxChars > 0) {
@@ -57,9 +76,18 @@ public final class PromptAssembler {
                 texts.remove(cut);
             }
         }
-        String text = String.join("\n", texts);
+        // The text a turn repeats comes first and the text it changes follows: a provider caches a prefix, so a
+        // volatile section ahead of a stable one would cost the cache on every turn.
+        List<String> stable = new ArrayList<>();
+        List<String> volatileTexts = new ArrayList<>();
+        for (int i = 0; i < kept.size(); i++) {
+            (kept.get(i).stable() ? stable : volatileTexts).add(texts.get(i));
+        }
+        SystemPrompt system = new SystemPrompt(String.join("\n", stable), String.join("\n", volatileTexts));
         return new Assembly(
-                text, kept.stream().map(PromptSection::id).toList(), maxChars > 0 && text.length() > maxChars);
+                system,
+                kept.stream().map(PromptSection::id).toList(),
+                maxChars > 0 && system.text().length() > maxChars);
     }
 
     private static int length(List<String> texts) {

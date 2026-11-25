@@ -45,7 +45,15 @@ public final class FakeGateway implements LlmGateway {
     /** Usage observed on completed responses: {@code synthetic} is true for every scripted envelope. */
     public record UsageTotal(boolean synthetic, Integer inputTokens, Integer outputTokens, int sources) {}
 
-    public record Request(String system, List<Message> messages, List<ToolSpec> tools) {
+    /**
+     * @param cacheableChars characters of the leading text the gateway was told are stable across turns, and could
+     *     therefore have been cached; zero for a caller that sent one undivided string
+     */
+    public record Request(String system, List<Message> messages, List<ToolSpec> tools, int cacheableChars) {
+        public Request(String system, List<Message> messages, List<ToolSpec> tools) {
+            this(system, messages, tools, 0);
+        }
+
         public Payload payload() {
             return measure(system, messages, tools);
         }
@@ -131,12 +139,32 @@ public final class FakeGateway implements LlmGateway {
 
     @Override
     public CompletableFuture<LlmResponse> complete(String system, List<Message> messages, List<ToolSpec> tools) {
+        return submit(new Request(system, new ArrayList<>(messages), tools));
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system, List<Message> messages, List<ToolSpec> tools) {
+        return complete(system, messages, tools, dev.friendai.agent.llm.RequestTelemetry.NONE);
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return submit(new Request(
+                system.text(), new ArrayList<>(messages), tools, system.stable().length()));
+    }
+
+    private CompletableFuture<LlmResponse> submit(Request request) {
         synchronized (this) {
             if (previousCompletionFailed) {
                 retries++;
                 previousCompletionFailed = false;
             }
-            requests.add(new Request(system, new ArrayList<>(messages), tools));
+            requests.add(request);
             CompletableFuture<LlmResponse> next = queue.poll();
             if (next == null) {
                 previousCompletionFailed = true;

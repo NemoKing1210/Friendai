@@ -10,8 +10,10 @@ import dev.friendai.agent.llm.model.LlmRequest;
 import dev.friendai.agent.llm.model.LlmResponse;
 import dev.friendai.agent.llm.model.Message;
 import dev.friendai.agent.llm.model.StopReason;
+import dev.friendai.agent.llm.model.SystemPrompt;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.llm.model.ToolSpec;
+import dev.friendai.agent.llm.model.Usage;
 import dev.friendai.agent.llm.provider.AuthStyle;
 import dev.friendai.agent.llm.provider.Endpoint;
 import dev.friendai.llm.http.HttpTransport;
@@ -31,6 +33,18 @@ class AnthropicMessagesProtocolTest {
 
     private static LlmRequest request(List<Message> messages, List<ToolSpec> tools) {
         return new LlmRequest("claude-x", "SYS", messages, tools, null, 1024);
+    }
+
+    private static LlmRequest split(String stable, String volatileText) {
+        return new LlmRequest(
+                "claude-x",
+                new SystemPrompt(stable, volatileText),
+                List.of(Message.user("hi")),
+                List.of(),
+                null,
+                1024,
+                false,
+                dev.friendai.agent.llm.RequestTelemetry.NONE);
     }
 
     @Test
@@ -106,6 +120,34 @@ class AnthropicMessagesProtocolTest {
         assertEquals("text", content.get(1).getAsJsonObject().get("type").getAsString());
         assertEquals(
                 "[event] done", content.get(1).getAsJsonObject().get("text").getAsString());
+    }
+
+    @Test
+    void aSplitPromptCarriesOneCacheBreakpointAtTheEndOfTheStableText() {
+        JsonArray system = protocol.toWire(split("STABLE", "VOLATILE")).getAsJsonArray("system");
+        assertEquals(2, system.size());
+        JsonObject stable = system.get(0).getAsJsonObject();
+        assertEquals("STABLE", stable.get("text").getAsString());
+        assertEquals(
+                "ephemeral", stable.getAsJsonObject("cache_control").get("type").getAsString());
+        JsonObject volatileText = system.get(1).getAsJsonObject();
+        assertEquals("VOLATILE", volatileText.get("text").getAsString());
+        assertFalse(volatileText.has("cache_control"));
+    }
+
+    @Test
+    void aPromptWithNoStableTextKeepsThePlainStringForm() {
+        JsonObject wire = protocol.toWire(split("", "VOLATILE"));
+        assertEquals("VOLATILE", wire.get("system").getAsString());
+    }
+
+    @Test
+    void fromWireReadsTheCacheTokenCounters() {
+        LlmResponse r = protocol.fromWire(json("""
+                {"stop_reason":"end_turn","content":[{"type":"text","text":"ok"}],
+                 "usage":{"input_tokens":30,"output_tokens":8,
+                          "cache_read_input_tokens":1000,"cache_creation_input_tokens":250}}"""));
+        assertEquals(new Usage(30, 8, 1000, 250), r.usage());
     }
 
     @Test

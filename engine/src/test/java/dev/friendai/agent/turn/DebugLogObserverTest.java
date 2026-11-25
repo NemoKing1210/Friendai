@@ -77,7 +77,7 @@ class DebugLogObserverTest {
                 "request: system=6 chars; messages=USER hello; tools=[go_to]",
                 entries.get(0).text());
         assertEquals(
-                "reply: text=done; tools=[]; stop=END; usage=Usage[inputTokens=10, outputTokens=2]",
+                "reply: text=done; tools=[]; stop=END; usage=Usage[inputTokens=10, outputTokens=2, cacheReadTokens=0, cacheWriteTokens=0]",
                 entries.get(1).text());
     }
 

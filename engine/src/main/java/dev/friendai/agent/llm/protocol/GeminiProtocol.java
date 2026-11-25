@@ -59,7 +59,17 @@ public final class GeminiProtocol implements LlmProtocol {
         JsonObject body = new JsonObject();
         JsonObject system = new JsonObject();
         JsonArray systemParts = new JsonArray();
-        systemParts.add(textPart(r.system()));
+        // Two parts, stable first: Gemini caches an identical leading prefix implicitly, so the boundary stays visible
+        // on the wire even though the parts are joined into one instruction by the provider.
+        if (r.system().hasStablePart()) {
+            systemParts.add(textPart(r.system().stable()));
+        }
+        if (!r.system().volatileText().isEmpty()) {
+            systemParts.add(textPart(r.system().volatileText()));
+        }
+        if (systemParts.isEmpty()) {
+            systemParts.add(textPart(""));
+        }
         system.add("parts", systemParts);
         body.add("systemInstruction", system);
 
@@ -197,6 +207,8 @@ public final class GeminiProtocol implements LlmProtocol {
                 stop,
                 new Usage(
                         ProtocolSupport.intOr(usage, "promptTokenCount", 0),
-                        ProtocolSupport.intOr(usage, "candidatesTokenCount", 0)));
+                        ProtocolSupport.intOr(usage, "candidatesTokenCount", 0),
+                        ProtocolSupport.intOr(usage, "cachedContentTokenCount", 0),
+                        0));
     }
 }

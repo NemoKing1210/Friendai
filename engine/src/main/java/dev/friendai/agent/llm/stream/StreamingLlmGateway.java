@@ -25,4 +25,14 @@ public interface StreamingLlmGateway extends LlmGateway {
             dev.friendai.agent.llm.RequestTelemetry telemetry) {
         return completeStreaming(system, messages, tools, onDelta);
     }
+
+    /** The stream with the prompt's stable prefix named, so a provider can cache it. */
+    default CompletableFuture<LlmResponse> completeStreaming(
+            dev.friendai.agent.llm.model.SystemPrompt system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            Consumer<StreamDelta> onDelta,
+            dev.friendai.agent.llm.RequestTelemetry telemetry) {
+        return completeStreaming(system.text(), messages, tools, onDelta, telemetry);
+    }
 }

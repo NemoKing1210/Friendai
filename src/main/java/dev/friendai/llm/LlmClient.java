@@ -61,6 +61,21 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
     }
 
     @Override
+    public CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system, List<Message> messages, List<ToolSpec> tools) {
+        return complete(system, messages, tools, false, profile.maxTokens(), RequestTelemetry.NONE);
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            RequestTelemetry telemetry) {
+        return complete(system, messages, tools, false, profile.maxTokens(), telemetry);
+    }
+
+    @Override
     public CompletableFuture<LlmResponse> completeJson(String system, List<Message> messages, int outputMultiplier) {
         return complete(
                 system,
@@ -101,6 +116,17 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
     @Override
     public CompletableFuture<LlmResponse> completeStreaming(
             String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            java.util.function.Consumer<StreamDelta> onDelta,
+            RequestTelemetry telemetry) {
+        return completeStreaming(
+                dev.friendai.agent.llm.model.SystemPrompt.of(system), messages, tools, onDelta, telemetry);
+    }
+
+    @Override
+    public CompletableFuture<LlmResponse> completeStreaming(
+            dev.friendai.agent.llm.model.SystemPrompt system,
             List<Message> messages,
             List<ToolSpec> tools,
             java.util.function.Consumer<StreamDelta> onDelta,
@@ -203,7 +229,7 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
 
     /** One ordinary request when the stream carried nothing usable; the caller's cancel reaches it. */
     private void fallback(
-            String system,
+            dev.friendai.agent.llm.model.SystemPrompt system,
             List<Message> messages,
             List<ToolSpec> tools,
             RequestTelemetry telemetry,
@@ -226,6 +252,22 @@ public final class LlmClient implements LlmGateway, StreamingLlmGateway {
 
     private CompletableFuture<LlmResponse> complete(
             String system,
+            List<Message> messages,
+            List<ToolSpec> tools,
+            boolean jsonObject,
+            int maxTokens,
+            RequestTelemetry telemetry) {
+        return complete(
+                dev.friendai.agent.llm.model.SystemPrompt.of(system),
+                messages,
+                tools,
+                jsonObject,
+                maxTokens,
+                telemetry);
+    }
+
+    private CompletableFuture<LlmResponse> complete(
+            dev.friendai.agent.llm.model.SystemPrompt system,
             List<Message> messages,
             List<ToolSpec> tools,
             boolean jsonObject,

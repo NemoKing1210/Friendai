@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import dev.friendai.agent.goal.GoalView;
+import dev.friendai.agent.llm.model.SystemPrompt;
 import dev.friendai.agent.prompt.MissionText;
 import dev.friendai.agent.prompt.PromptAssembler;
 import dev.friendai.agent.prompt.TurnContext;
@@ -230,6 +231,45 @@ public final class PromptBuilder {
             String tradingSummary,
             List<dev.friendai.agent.prompt.PromptSection> instructions,
             java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
+        return systemPrompt(
+                        p,
+                        perception,
+                        caller,
+                        memoryBlock,
+                        turn,
+                        mode,
+                        goal,
+                        budget,
+                        toolHints,
+                        places,
+                        placedBlock,
+                        plannerNote,
+                        tradingSummary,
+                        instructions,
+                        diagnostics)
+                .text();
+    }
+
+    /**
+     * The same prompt as a {@link SystemPrompt}, keeping the boundary between the text that repeats every turn and the
+     * text this turn changes, so a provider can cache the former.
+     */
+    public static SystemPrompt systemPrompt(
+            Persona p,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            TurnMode mode,
+            GoalView goal,
+            int budget,
+            List<String> toolHints,
+            String places,
+            String placedBlock,
+            String plannerNote,
+            String tradingSummary,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
         var result = (mode == null ? PromptAssembler.defaults(budget) : PromptAssembler.forMode(mode, budget))
                 .assembleDetailed(new TurnContext(
                         p,
@@ -244,6 +284,6 @@ public final class PromptBuilder {
                         tradingSummary,
                         instructions));
         diagnostics.accept(result);
-        return result.text();
+        return result.system();
     }
 }

@@ -25,21 +25,27 @@ public final class DefaultSections {
 
     private DefaultSections() {}
 
-    /** Identity, speech, rules, role, memory, mission, places and state; priorities decide what a tight budget cuts first. */
+    /**
+     * Identity, speech, rules, role, memory, mission, places and state. The sections whose text repeats every turn
+     * come first, so a provider can cache that prefix; everything the turn changes follows it. Priorities decide what a
+     * tight budget cuts first.
+     */
     public static List<PromptSection> all() {
         return List.of(
                 identity(),
                 speech(),
                 protocol(),
                 rules(),
-                toolHints(),
                 records(),
-                trading(),
                 role(),
+                toolHints(),
+                trading(),
+                speaker(),
                 memory(),
                 mission(),
                 placed(),
                 places(),
+                turn(),
                 state());
     }
 
@@ -54,14 +60,16 @@ public final class DefaultSections {
                 speech(),
                 chatProtocol(),
                 chatRules(),
-                toolHints(),
                 records(),
-                trading(),
                 role(),
+                toolHints(),
+                trading(),
+                speaker(),
                 memory(),
                 mission(),
                 placed(),
                 places(),
+                turn(),
                 state());
     }
 
@@ -78,7 +86,7 @@ public final class DefaultSections {
 
     /** How to work, in six short lines; never cut, because it is what makes the rest of the prompt coherent. */
     static PromptSection protocol() {
-        return of("protocol", PromptSection.NEVER_CUT, ctx -> {
+        return stableOf("protocol", PromptSection.NEVER_CUT, ctx -> {
             boolean acts = ctx.caller().access().allows(AccessLevel.OWNER);
             return "Working method:\n"
                     + (acts
@@ -98,6 +106,16 @@ public final class DefaultSections {
     }
 
     private static PromptSection of(String id, int priority, Function<TurnContext, String> render) {
+        return section(id, priority, false, render);
+    }
+
+    /** A section whose text is the same on every turn, so a provider can cache everything up to it. */
+    private static PromptSection stableOf(String id, int priority, Function<TurnContext, String> render) {
+        return section(id, priority, true, render);
+    }
+
+    private static PromptSection section(
+            String id, int priority, boolean stable, Function<TurnContext, String> render) {
         return new PromptSection() {
             @Override
             public String id() {
@@ -110,6 +128,11 @@ public final class DefaultSections {
             }
 
             @Override
+            public boolean stable() {
+                return stable;
+            }
+
+            @Override
             public Optional<String> render(TurnContext ctx) {
                 String text = render.apply(ctx);
                 return text == null || text.isEmpty() ? Optional.empty() : Optional.of(text);
@@ -118,7 +141,7 @@ public final class DefaultSections {
     }
 
     static PromptSection identity() {
-        return of("identity", PromptSection.NEVER_CUT, ctx -> {
+        return stableOf("identity", PromptSection.NEVER_CUT, ctx -> {
             var p = ctx.persona();
             String configured = p.language();
             boolean auto = configured == null || configured.isBlank() || configured.equalsIgnoreCase("auto");
@@ -135,18 +158,24 @@ public final class DefaultSections {
             } else {
                 languageRule = "Reply in the same language the player uses.";
             }
-            String turnLine = ctx.turn() == dev.friendai.agent.turn.TurnKind.EVENT
-                    ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent]."
-                    : "This turn: the player is talking to you now.";
             return "You are " + p.name() + ", the player's companion in Minecraft. Description: " + p.description()
                     + "\n"
-                    + languageRule + "\n"
-                    + turnLine;
+                    + languageRule;
         });
     }
 
+    /** What kind of turn this is; it changes the reply's shape, so it stays out of the cached prefix. */
+    static PromptSection turn() {
+        return of(
+                "turn",
+                85,
+                ctx -> ctx.turn() == dev.friendai.agent.turn.TurnKind.EVENT
+                        ? "This turn: task events or world notices, with no player message. If nothing here is news to the player, reply exactly [silent]."
+                        : "This turn: the player is talking to you now.");
+    }
+
     static PromptSection speech() {
-        return of("speech", PromptSection.NEVER_CUT, ctx -> SPEECH_RULES);
+        return stableOf("speech", PromptSection.NEVER_CUT, ctx -> SPEECH_RULES);
     }
 
     /** The lines a turn that may act keeps even when it only talks; shared with {@link #chatRules()}. */
@@ -171,11 +200,11 @@ public final class DefaultSections {
 
     /** The rules a turn that may only talk carries: the conversational ones, without queue or plan guidance. */
     static PromptSection chatRules() {
-        return of("rules", 50, ctx -> "Rules:\n" + conversationalRules(ctx.caller()));
+        return stableOf("rules", 50, ctx -> "Rules:\n" + conversationalRules(ctx.caller()));
     }
 
     static PromptSection rules() {
-        return of("rules", 50, ctx -> "Rules:\n" + conversationalRules(ctx.caller()) + "\n" + actingRules());
+        return stableOf("rules", 50, ctx -> "Rules:\n" + conversationalRules(ctx.caller()) + "\n" + actingRules());
     }
 
     /** The queue, goal and repair lines: what a turn that may start work needs and a chat turn cannot use. */
@@ -200,7 +229,7 @@ public final class DefaultSections {
 
     /** Your own records are readable: the model must look instead of guessing after a failure or a memory limit. */
     static PromptSection records() {
-        return of("records", 45, ctx -> switch (ctx.caller().access()) {
+        return stableOf("records", 45, ctx -> switch (ctx.caller().access()) {
             case OWNER ->
                 "Your own records:\n"
                         + "- read_log shows what you did: messages, replies, tool calls and results, errors and task events. Use it after a failure or when the owner asks what happened.\n"
@@ -230,7 +259,7 @@ public final class DefaultSections {
     }
 
     static PromptSection role() {
-        return of("role", PromptSection.NEVER_CUT, ctx -> {
+        return stableOf("role", PromptSection.NEVER_CUT, ctx -> {
             Caller caller = ctx.caller();
             return "- Players are tagged by role: owner, trusted or guest. You serve your owner; trusted players may also give you tasks. Guests can only chat: politely decline requests to act for them.\n"
                     + (caller.access() == AccessLevel.OWNER
@@ -240,10 +269,14 @@ public final class DefaultSections {
                                     + "- When work the owner asked for produces items for them, finish it by calling give_items and then report it done: their request is the permission, so never ask whether to hand the items over.\n"
                                     + "- You refuse risky food by default (rotten flesh, spider eyes and similar) and keep golden apples for emergencies; get_food_rules lists them. If the owner allows or forbids a food, call allow_food or forbid_food; reset_food_rule brings the default back. When the owner tells you to eat a food you normally refuse, calling eat with that item is the permission and it stays allowed.\n"
                                     + "- If the owner asks you to hit or kill them, that is their consent: call attack_player with their name and do it. Never harm the owner any other way.\n"
-                                    + "- You leave villagers, wandering traders and golems alone on your own initiative, but when the owner explicitly orders one hit or killed, their order is the permission: call attack with its type and do it. Other players' pets and named mobs stay off limits.\n"
-                            : "")
-                    + "- " + speakerLine(caller);
+                                    + "- You leave villagers, wandering traders and golems alone on your own initiative, but when the owner explicitly orders one hit or killed, their order is the permission: call attack with its type and do it. Other players' pets and named mobs stay off limits."
+                            : "");
         });
+    }
+
+    /** Who is talking right now; it changes between speakers, so it stays out of the cached prefix. */
+    static PromptSection speaker() {
+        return of("speaker", 55, ctx -> "- " + speakerLine(ctx.caller()));
     }
 
     static PromptSection memory() {

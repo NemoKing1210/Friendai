@@ -28,6 +28,7 @@ public final class StreamAssembly {
     private final Map<Integer, Call> calls = new TreeMap<>();
     private int inputTokens;
     private int outputTokens;
+    private int cacheReadTokens;
     private StopReason stop;
     private boolean started;
     private boolean terminal;
@@ -66,8 +67,14 @@ public final class StreamAssembly {
     }
 
     public void usage(Integer input, Integer output) {
+        usage(input, output, null);
+    }
+
+    /** @param cacheRead prompt tokens the provider served from its prefix cache, or null when it does not say */
+    public void usage(Integer input, Integer output, Integer cacheRead) {
         if (input != null) inputTokens = input;
         if (output != null) outputTokens = output;
+        if (cacheRead != null) cacheReadTokens = cacheRead;
     }
 
     public void stop(StopReason reason) {
@@ -108,7 +115,8 @@ public final class StreamAssembly {
                     null));
         }
         StopReason reason = stop != null ? stop : tools.isEmpty() ? StopReason.END : StopReason.TOOL_USE;
-        return new LlmResponse(text.toString(), tools, reason, new Usage(inputTokens, outputTokens));
+        return new LlmResponse(
+                text.toString(), tools, reason, new Usage(inputTokens, outputTokens, cacheReadTokens, 0));
     }
 
     private void emit(StreamDelta delta) {

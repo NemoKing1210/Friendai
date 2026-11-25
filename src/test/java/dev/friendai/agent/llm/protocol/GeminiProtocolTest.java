@@ -114,6 +114,31 @@ class GeminiProtocolTest {
     }
 
     @Test
+    void aSplitPromptIsSentAsTwoPartsStableFirst() {
+        JsonObject w = protocol.toWire(new dev.friendai.agent.llm.model.LlmRequest(
+                "gemini-x",
+                new dev.friendai.agent.llm.model.SystemPrompt("STABLE", "VOLATILE"),
+                List.of(Message.user("hi")),
+                List.of(),
+                null,
+                1024,
+                false,
+                dev.friendai.agent.llm.RequestTelemetry.NONE));
+        var parts = w.getAsJsonObject("systemInstruction").getAsJsonArray("parts");
+        assertEquals(2, parts.size());
+        assertEquals("STABLE", parts.get(0).getAsJsonObject().get("text").getAsString());
+        assertEquals("VOLATILE", parts.get(1).getAsJsonObject().get("text").getAsString());
+    }
+
+    @Test
+    void fromWireReadsTheCachedContentCounter() {
+        LlmResponse r = protocol.fromWire(json("""
+                {"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],
+                 "usageMetadata":{"promptTokenCount":40,"candidatesTokenCount":6,"cachedContentTokenCount":900}}"""));
+        assertEquals(new dev.friendai.agent.llm.model.Usage(40, 6, 900, 0), r.usage());
+    }
+
+    @Test
     void roundTripsThoughtSignature() {
         LlmResponse r = protocol.fromWire(json("""
                 {"candidates":[{"content":{"parts":[

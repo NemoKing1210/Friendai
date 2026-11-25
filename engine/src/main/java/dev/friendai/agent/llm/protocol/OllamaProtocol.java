@@ -52,7 +52,7 @@ public final class OllamaProtocol implements LlmProtocol {
         body.addProperty("model", r.model());
         body.addProperty("stream", false);
         JsonArray messages = new JsonArray();
-        messages.add(message("system", r.system()));
+        messages.add(message("system", r.system().text()));
         for (Message m : r.messages()) {
             switch (m.role()) {
                 case USER -> messages.add(message("user", m.text()));
