@@ -531,6 +531,7 @@ Things automated tests cannot cover. Tick an item only after you have actually d
 - [ ] Make a step fail on purpose (take away the materials): the next event carries facts and a diagnosis, the companion tries one different remedy, and after `agent.maxReplans` failures it asks you for help.
 - [ ] Kill the companion with a goal active and let it respawn: the goal is still there.
 - [ ] Ask a plain question ("where are you?") with `agent.toolRouting` on: it answers without walking anywhere; ask for work afterwards and it still has its tools (check `request_tools` in the log if it needed one).
+- [ ] Read `build/tool-payload-report.md` from a full `./gradlew test` run, then talk to the companion: a greeting or a task update must answer from the reading tools alone, an order must still queue its plan without asking for a group, and an order in a language without an intent file (German, French) must either route correctly or unlock the missing family with `request_tools` in one step instead of giving up.
 - [ ] `agent.autonomy` = `passive`: an idle companion with a goal stays silent; `assistive`: it reports or continues after `agent.goalTickSec`; `autonomous`: with no goal it may ask what to do next but never starts work unasked.
 - [ ] Set `agent.planner` to a second profile and confirm the planner call uses it (the main profile sees no planner request).
 

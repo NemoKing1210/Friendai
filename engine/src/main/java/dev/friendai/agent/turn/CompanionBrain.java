@@ -1035,12 +1035,18 @@ public final class CompanionBrain {
                 + "); it is queued and will run. Tell them it has started, and do not queue another plan.";
     }
 
-    /** A known task outcome carries its own tool context; unrecognized events keep the router's full fallback. */
+    /** A known task outcome carries its own tool context; news the route cannot widen keeps the event groups. */
     private RouteDecision withEventToolContext(RouteDecision routed, List<BrainEvent> batch) {
         if (turnKind != TurnKind.EVENT) return routed;
         Set<ToolGroup> groups = ToolCatalog.recoveryGroups();
-        boolean knownTask = false;
+        boolean widened = false;
         for (BrainEvent event : batch) {
+            if (event instanceof BrainEvent.FreeTimeShift) {
+                // The shift turn exists to choose an activity, so the autonomy tools are its subject.
+                groups.add(ToolGroup.AUTONOMY);
+                widened = true;
+                continue;
+            }
             String tool = event instanceof BrainEvent.TaskFinished task
                     ? task.toolName()
                     : event instanceof BrainEvent.PlanBlocked blocked ? blocked.toolName() : "";
@@ -1052,9 +1058,9 @@ public final class CompanionBrain {
             var meta = catalog.meta(tool);
             if (meta.isEmpty()) return routed;
             groups.add(meta.get().group());
-            knownTask = true;
+            widened = true;
         }
-        return knownTask ? new RouteDecision(routed.mode(), groups, routed.planning(), routed.reason()) : routed;
+        return widened ? new RouteDecision(routed.mode(), groups, routed.planning(), routed.reason()) : routed;
     }
 
     /** A newly failed task supersedes the world facts on which an in-flight response was based. */
@@ -1732,13 +1738,16 @@ public final class CompanionBrain {
             return ToolResult.error(
                     "This turn only presents a plan to the owner, so no work may start. Answer with the plan and wait.");
         }
+        // A call with no group is the discovery request: list the groups without guessing one, so a model that
+        // needs a capability the route did not load can ask for its exact name.
+        if (wanted.isBlank()) {
+            return ToolResult.ok(
+                    "Tool groups: " + groupList()
+                            + ". Call request_tools with group \"<name>\" to load that group, read the schema, then call the tool.");
+        }
         Optional<ToolGroup> group = ToolGroup.parse(wanted).filter(g -> g != ToolGroup.CORE);
         if (group.isEmpty()) {
-            String valid = java.util.Arrays.stream(ToolGroup.values())
-                    .filter(g -> g != ToolGroup.CORE)
-                    .map(g -> g.name().toLowerCase(java.util.Locale.ROOT))
-                    .collect(Collectors.joining(", "));
-            return ToolResult.error("Unknown tool group \"" + wanted + "\". Valid groups: " + valid);
+            return ToolResult.error("Unknown tool group \"" + wanted + "\". Valid groups: " + groupList());
         }
         visibleGroups.add(group.get());
         String unlocked = tools.specs(turnCaller.access()).stream()
@@ -1750,6 +1759,14 @@ public final class CompanionBrain {
                 .collect(Collectors.joining(", "));
         return ToolResult.ok("tools unlocked: " + group.get().name().toLowerCase(java.util.Locale.ROOT)
                 + (unlocked.isEmpty() ? "" : " (" + unlocked + ")"));
+    }
+
+    /** The group names {@code request_tools} accepts, in one stable line. */
+    private static String groupList() {
+        return java.util.Arrays.stream(ToolGroup.values())
+                .filter(g -> g != ToolGroup.CORE)
+                .map(g -> g.name().toLowerCase(java.util.Locale.ROOT))
+                .collect(Collectors.joining(", "));
     }
 
     /**

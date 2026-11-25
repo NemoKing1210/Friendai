@@ -103,7 +103,39 @@ public final class ToolCatalog {
         return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY, ToolGroup.BODY);
     }
 
-    /** Shared prerequisites for a repair: travel, inspect, clear space and obtain missing materials or equipment. */
+    /**
+     * The groups a conversational turn starts with: looking, remembering and gesturing. No action group rides on a
+     * greeting, and a tool outside these groups is still one {@code request_tools} call away.
+     */
+    public static Set<ToolGroup> conversationGroups() {
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.BODY);
+    }
+
+    /** The groups a question with no action in it starts with: read the world, memory and the inventory. */
+    public static Set<ToolGroup> questionGroups() {
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY);
+    }
+
+    /**
+     * The groups an unrecognized action starts with: look, move, remember and handle items. The router prefers
+     * capability over token cost only up to this floor; every other group stays reachable through
+     * {@code request_tools}, which is why a language the intent vocabulary does not know no longer sends the whole
+     * registry.
+     */
+    public static Set<ToolGroup> fallbackGroups() {
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MOVEMENT, ToolGroup.MEMORY, ToolGroup.INVENTORY);
+    }
+
+    /**
+     * The groups an event turn starts with: read the world, keep the records, and stay in control of where the
+     * companion stands while a job runs. The brain widens this from the event's own task through
+     * {@link #recoveryGroups()}, so a message that only reports news does not carry the action catalogue.
+     */
+    public static Set<ToolGroup> eventGroups() {
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.MOVEMENT);
+    }
+
+    /** Shared prerequisites for a repair: travel, inspect, clear space, obtain missing materials and change the queue. */
     public static Set<ToolGroup> recoveryGroups() {
         return EnumSet.of(
                 ToolGroup.MOVEMENT,
@@ -115,27 +147,42 @@ public final class ToolCatalog {
                 ToolGroup.STORAGE,
                 ToolGroup.CRAFTING,
                 ToolGroup.OBTAIN,
-                ToolGroup.RESOURCE);
+                ToolGroup.RESOURCE,
+                ToolGroup.QUEUE);
+    }
+
+    /** A player-facing repair also keeps the record tools a diagnosis may need; an event already carries the facts. */
+    public static Set<ToolGroup> recoveryTurnGroups() {
+        Set<ToolGroup> groups = recoveryGroups();
+        groups.add(ToolGroup.MEMORY);
+        return groups;
     }
 
     public static ToolCatalog defaults() {
         List<ToolMeta> metas = new ArrayList<>();
+        // Looking, remembering where things are, and the two controls every turn may need: asking for another
+        // family, and stopping. Everything that changes the queue or the goal is QUEUE, so a greeting or a world
+        // notice does not carry the plan vocabulary.
         core(
                 metas,
                 ToolGroup.CORE,
                 "stop",
-                "queue_add",
-                "plan_help",
                 "queue_show",
-                "queue_edit",
-                "plan_patch",
+                "plan_help",
                 "look_around",
                 "get_inventory",
-                "set_goal",
-                "update_goal",
-                "finish_goal",
                 "request_tools",
                 "find_place");
+        group(
+                metas,
+                ToolGroup.QUEUE,
+                Cost.LOW,
+                "queue_add",
+                "queue_edit",
+                "plan_patch",
+                "set_goal",
+                "update_goal",
+                "finish_goal");
         // A plan about to be queued is validated by queue_add itself, so the dry run is not advertised on an
         // ordinary action turn; request_tools unlocks it for an explicit validation request.
         group(metas, ToolGroup.PLANNING, Cost.LOW, "plan_validate");
@@ -143,9 +190,10 @@ public final class ToolCatalog {
                 metas,
                 "plan_validate",
                 "- Use plan_validate for validation-only requests or inspection of complex conditional/repeated plans; queue_add validates plans that are about to be queued.");
-        core(
+        group(
                 metas,
                 ToolGroup.MEMORY,
+                Cost.LOW,
                 "remember",
                 "recall",
                 "forget",

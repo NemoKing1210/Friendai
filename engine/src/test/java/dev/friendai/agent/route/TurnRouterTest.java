@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.plan.PlanSubject;
+import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.turn.TurnKind;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class TurnRouterTest {
@@ -29,7 +31,7 @@ class TurnRouterTest {
         assertEquals(TurnMode.RECOVERY, d.mode());
         assertTrue(d.wantPlanner(), "a queued troubled plan may be replanned");
         assertEquals(new PlanSubject.TroubledPlan(3, ""), d.planning().subject());
-        assertEquals(ToolGroup.values().length, d.groups().size());
+        assertEquals(ToolCatalog.recoveryTurnGroups(), d.groups());
     }
 
     @Test
@@ -38,7 +40,7 @@ class TurnRouterTest {
         assertEquals(TurnMode.RECOVERY, d.mode());
         assertTrue(d.planning().subject() instanceof PlanSubject.OwnerOrder, "the owner's line is the plan's subject");
         assertEquals("owner-line-first", d.planning().reason());
-        assertEquals(ToolGroup.values().length, d.groups().size());
+        assertEquals(ToolCatalog.recoveryTurnGroups(), d.groups());
     }
 
     @Test
@@ -133,8 +135,8 @@ class TurnRouterTest {
         assertEquals(TurnMode.ACTION, player("Hello, mine some stone", false).mode());
         assertTrue(player("Привет, добудь железо", false).groups().contains(ToolGroup.GATHERING));
         assertEquals(
-                ToolGroup.values().length,
-                player("unrecognized request", false).groups().size());
+                ToolCatalog.fallbackGroups(),
+                player("unrecognized request", false).groups());
     }
 
     @Test
@@ -271,13 +273,13 @@ class TurnRouterTest {
     }
 
     @Test
-    void unclearTextDefaultsToActionWithAllGroups() {
+    void unclearTextDefaultsToActionWithTheFallbackGroups() {
         RouteDecision d = player("hmm okay then lets see", false);
         assertEquals(TurnMode.ACTION, d.mode(), "a lone 'then' is not an objective");
-        assertEquals(ToolGroup.values().length, d.groups().size());
+        assertEquals(ToolCatalog.fallbackGroups(), d.groups());
         RouteDecision plain = player("zzz qqq", false);
         assertEquals(TurnMode.ACTION, plain.mode());
-        assertEquals(ToolGroup.values().length, plain.groups().size());
+        assertEquals(ToolCatalog.fallbackGroups(), plain.groups());
     }
 
     @Test
@@ -285,7 +287,50 @@ class TurnRouterTest {
         for (String text : new String[] {"", "   ", "\n\t", null}) {
             RouteDecision d = player(text, false);
             assertEquals(TurnMode.ACTION, d.mode(), "text: " + text);
-            assertEquals(ToolGroup.values().length, d.groups().size());
+            assertEquals(ToolCatalog.fallbackGroups(), d.groups());
+        }
+    }
+
+    @Test
+    void anOrderCarriesTheQueueControlsAndAGreetingDoesNot() {
+        for (String text : List.of("mine some iron", "build a house and bring iron", "Добудь три булыжника.")) {
+            assertTrue(player(text, false).groups().contains(ToolGroup.QUEUE), text);
+        }
+        RouteDecision greeting = player("Hello!", false);
+        assertFalse(greeting.groups().contains(ToolGroup.QUEUE), "a greeting queues nothing: " + greeting.groups());
+        assertTrue(
+                route(TurnKind.PLAYER, "", false, true, true, false).groups().contains(ToolGroup.QUEUE),
+                "a repair can edit the queue");
+    }
+
+    @Test
+    void everyPlayerTurnKeepsLookingAndRemembering() {
+        for (String text : List.of(
+                "mine some iron", "where is the village?", "Hello!", "zzz qqq", "build a house and bring iron")) {
+            RouteDecision d = player(text, false);
+            assertTrue(d.groups().containsAll(Set.of(ToolGroup.INFO, ToolGroup.MEMORY)), text + ": " + d.groups());
+            assertFalse(d.groups().contains(ToolGroup.CORE), "CORE is implicit, never listed: " + d.groups());
+        }
+    }
+
+    @Test
+    void eventTurnsGetTheEventGroups() {
+        assertEquals(
+                ToolCatalog.eventGroups(),
+                route(TurnKind.EVENT, "", false, false, true, false).groups());
+    }
+
+    @Test
+    void everyGroupStaysReachableThroughRequestTools() {
+        // The narrow sets are only safe because request_tools can load any other group in one call.
+        for (Set<ToolGroup> groups : List.of(
+                ToolCatalog.conversationGroups(),
+                ToolCatalog.questionGroups(),
+                ToolCatalog.fallbackGroups(),
+                ToolCatalog.eventGroups(),
+                ToolCatalog.recoveryTurnGroups())) {
+            assertFalse(groups.contains(ToolGroup.CORE), "CORE is always loaded");
+            assertTrue(groups.size() < ToolGroup.values().length, "a narrow set stays narrow");
         }
     }
 

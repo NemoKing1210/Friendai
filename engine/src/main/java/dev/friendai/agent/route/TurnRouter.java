@@ -1,5 +1,6 @@
 package dev.friendai.agent.route;
 
+import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.agent.turn.TurnKind;
 import java.util.ArrayList;
@@ -12,8 +13,8 @@ import java.util.regex.Pattern;
 
 /**
  * Decides, without a model call, what a turn is for. The rules are deliberately blunt: anything unclear is an
- * ordinary action with every group unlocked, so a wrong guess costs tokens but never capability. Planning is a
- * second, equally blunt decision from {@link PlanningPolicy}, made from the mode and score this class resolved.
+ * ordinary action with the fallback groups, and every other group stays one {@code request_tools} call away. Planning
+ * is a second, equally blunt decision from {@link PlanningPolicy}, made from the mode and score this class resolved.
  */
 public final class TurnRouter {
     /** Longest player text looked at; the rest is ignored. */
@@ -74,7 +75,7 @@ public final class TurnRouter {
         if (s.planBlockedOrFailed()) {
             return new RouteDecision(
                     TurnMode.RECOVERY,
-                    all(),
+                    ToolCatalog.recoveryTurnGroups(),
                     plan(mode, TurnMode.RECOVERY, s, text, kinds, complex, planRequest, proposeOnly),
                     "a plan failed or needs a decision");
         }
@@ -82,14 +83,14 @@ public final class TurnRouter {
             TurnMode turnMode = s.turn() == TurnKind.EVENT ? TurnMode.EVENT : TurnMode.ACTION;
             return new RouteDecision(
                     turnMode,
-                    all(),
+                    s.turn() == TurnKind.EVENT ? ToolCatalog.eventGroups() : ToolCatalog.fallbackGroups(),
                     plan(mode, turnMode, s, text, 0, false, false, proposeOnly),
                     s.turn() == TurnKind.EVENT ? "no player message" : "empty player message");
         }
         if (vocabulary.isConversation(tokens)) {
             return new RouteDecision(
                     TurnMode.CHAT,
-                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.BODY),
+                    ToolCatalog.conversationGroups(),
                     PlanningDecision.none("conversation"),
                     "a greeting or acknowledgement");
         }
@@ -102,7 +103,7 @@ public final class TurnRouter {
             groups.add(ToolGroup.INFO);
             return new RouteDecision(
                     TurnMode.ACTION,
-                    groups.isEmpty() ? all() : groups,
+                    groups.isEmpty() ? ToolCatalog.fallbackGroups() : groups,
                     plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest, proposeOnly),
                     "a request for a plan without starting work");
         }
@@ -110,13 +111,13 @@ public final class TurnRouter {
         if (question && vocabulary.isAdviceQuestion(lower)) {
             return new RouteDecision(
                     TurnMode.CHAT,
-                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY),
+                    ToolCatalog.questionGroups(),
                     plan(mode, TurnMode.CHAT, s, text, 0, false, false, false),
                     "a shopping advice question, not an order");
         }
         if (question && groups.contains(ToolGroup.TRADING) && vocabulary.startsWithQuestionMarker(lower, tokens)) {
-            Set<ToolGroup> chatGroups =
-                    EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY, ToolGroup.TRADING);
+            Set<ToolGroup> chatGroups = ToolCatalog.questionGroups();
+            chatGroups.add(ToolGroup.TRADING);
             return new RouteDecision(
                     TurnMode.CHAT,
                     chatGroups,
@@ -124,7 +125,7 @@ public final class TurnRouter {
                     "a question about remembered market facts, not an order");
         }
         if (question && verbs.isEmpty()) {
-            Set<ToolGroup> chatGroups = EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.INVENTORY);
+            Set<ToolGroup> chatGroups = ToolCatalog.questionGroups();
             if (groups.contains(ToolGroup.TRADING)) chatGroups.add(ToolGroup.TRADING);
             return new RouteDecision(
                     TurnMode.CHAT,
@@ -136,22 +137,27 @@ public final class TurnRouter {
         if (!s.hasActiveGoal() && score >= GOAL_SCORE) {
             groups.add(ToolGroup.MOVEMENT);
             groups.add(ToolGroup.INFO);
+            groups.add(ToolGroup.MEMORY);
+            groups.add(ToolGroup.QUEUE);
             return new RouteDecision(
                     TurnMode.GOAL,
-                    groups.isEmpty() ? all() : groups,
+                    groups.isEmpty() ? ToolCatalog.fallbackGroups() : groups,
                     plan(mode, TurnMode.GOAL, s, text, kinds, complex, planRequest, proposeOnly),
                     "several kinds of work (score " + score + ")");
         }
         if (groups.isEmpty()) {
             return new RouteDecision(
                     TurnMode.ACTION,
-                    all(),
+                    ToolCatalog.fallbackGroups(),
                     plan(mode, TurnMode.ACTION, s, text, kinds, complex, planRequest, proposeOnly),
                     "no recognized words");
         }
-        // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action.
+        // Movement and the read-only info tools (find_trees, find_blocks, player_view) help every action; the record
+        // tools stay in reach because an order may carry a fact worth remembering, and an order may be queued.
         groups.add(ToolGroup.MOVEMENT);
         groups.add(ToolGroup.INFO);
+        groups.add(ToolGroup.MEMORY);
+        groups.add(ToolGroup.QUEUE);
         return new RouteDecision(
                 TurnMode.ACTION,
                 groups,
@@ -198,10 +204,6 @@ public final class TurnRouter {
                 s.unmet(),
                 s.shiftId(),
                 proposeOnly);
-    }
-
-    private static Set<ToolGroup> all() {
-        return EnumSet.allOf(ToolGroup.class);
     }
 
     private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}]+");

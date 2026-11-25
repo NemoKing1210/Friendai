@@ -1079,8 +1079,9 @@ public final class QueueTools implements FeatureToolContributor {
                         "- Use plan_validate for validation-only requests or inspection of complex conditional/repeated plans; queue_add validates plans that are about to be queued.",
                         List.of(),
                         Cost.LOW);
-            case "queue_add", "plan_help", "queue_show", "queue_edit", "plan_patch" ->
-                new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
+            case "queue_add", "queue_edit", "plan_patch" ->
+                new ToolMeta(name, ToolGroup.QUEUE, false, "", List.of(), Cost.LOW);
+            case "plan_help", "queue_show" -> new ToolMeta(name, ToolGroup.CORE, true, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for queue tool: " + name);
         };
     }

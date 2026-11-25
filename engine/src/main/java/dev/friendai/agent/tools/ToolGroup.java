@@ -6,6 +6,11 @@ import java.util.Optional;
 /** The families of tools; they mirror the {@code *Tools} classes so a new tool lands in an obvious group. */
 public enum ToolGroup {
     CORE,
+    /**
+     * The work controls: queue and goal changes. Only a turn that may start work carries them, because a greeting
+     * or a world notice answers from the queue context it already has.
+     */
+    QUEUE,
     /** Dry-run and plan-shape tools an ordinary action turn does not need; unlocked with {@code request_tools}. */
     PLANNING,
     MOVEMENT,

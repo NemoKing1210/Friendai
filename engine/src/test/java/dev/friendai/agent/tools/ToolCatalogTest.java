@@ -24,8 +24,22 @@ class ToolCatalogTest {
 
     @Test
     void coreAlwaysVisible() {
-        List<ToolSpec> specs = List.of(spec("stop"), spec("mine_blocks"), spec("request_tools"), spec("remember"));
-        assertEquals(List.of("stop", "request_tools", "remember"), names(catalog.filter(specs, Set.of())));
+        List<ToolSpec> specs = List.of(
+                spec("stop"),
+                spec("mine_blocks"),
+                spec("request_tools"),
+                spec("remember"),
+                spec("forget"),
+                spec("queue_add"),
+                spec("set_goal"));
+        assertEquals(List.of("stop", "request_tools"), names(catalog.filter(specs, Set.of())));
+        assertTrue(
+                names(catalog.filter(specs, EnumSet.of(ToolGroup.MEMORY))).containsAll(List.of("remember", "forget")),
+                "memory tools load on request instead of riding in every turn");
+        assertEquals(
+                List.of("stop", "request_tools", "queue_add", "set_goal"),
+                names(catalog.filter(specs, EnumSet.of(ToolGroup.QUEUE))),
+                "queue and goal changes belong to a turn that may start work");
     }
 
     @Test
