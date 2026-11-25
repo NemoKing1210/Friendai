@@ -230,4 +230,32 @@ class FellPlannerTest {
         }
         assertEquals(climb.logs(), flattened, "the stages are the cut order");
     }
+
+    /** A tree whose base stands above the companion is climbed from each column's own ground. */
+    @Test
+    void columnUsesItsOwnGroundWhenTheTreeStandsAboveTheCompanion() {
+        List<TreeCell> logs = trunk(0, 0, 4, 8);
+        TreeCell stand = new TreeCell(6, 2, 6);
+        FellPlan.Climb defaultPlan = FellPlanner.plan(logs, stand, 0).climbs().get(0);
+        assertEquals(2, defaultPlan.groundFeetY(), "the default keeps the stand height");
+        assertEquals(2, defaultPlan.column().y(), "and walks to it");
+        FellPlan.Climb grounded =
+                FellPlanner.plan(logs, stand, 0, (x, z, nearY) -> 4).climbs().get(0);
+        assertEquals(4, grounded.groundFeetY(), "the column stands on its own ground");
+        assertEquals(4, grounded.column().y(), "the walk target is the column's ground");
+        assertEquals(8, grounded.logs().size(), "every log is still cut");
+    }
+
+    /** Raising the ground must not put a column on top of a log: the base layer still forbids it. */
+    @Test
+    void raisedGroundStillRejectsAColumnHoldingABaseLog() {
+        List<TreeCell> logs = new ArrayList<>(trunk(0, 0, 4, 6));
+        logs.add(new TreeCell(1, 4, 0));
+        FellPlan plan = FellPlanner.plan(logs, new TreeCell(6, 2, 6), 0, (x, z, nearY) -> 5);
+        long branchColumn = new TreeCell(1, 5, 0).columnKey();
+        assertFalse(plan.climbs().isEmpty(), "climbs: " + plan.climbs());
+        assertTrue(
+                plan.climbs().stream().noneMatch(climb -> climb.column().columnKey() == branchColumn),
+                "a column on the base branch: " + plan.climbs());
+    }
 }

@@ -245,6 +245,42 @@ public class TreeFellingTests {
         });
     }
 
+    /**
+     * A tree on a one-block step above the companion: each climb column stands on the step, not on the companion's
+     * feet. The old plan put every column inside the step and refused the tree.
+     */
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 2000)
+    public void fellsTreeStandingAboveTheCompanionOnAStep(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        for (int x = 6; x <= 10; x++) {
+            for (int z = 5; z <= 9; z++) {
+                h.setBlock(new BlockPos(x, 2, z), Blocks.DIRT);
+            }
+        }
+        List<BlockPos> logs = new java.util.ArrayList<>();
+        for (int y = 3; y <= 10; y++) {
+            BlockPos p = new BlockPos(8, y, 7);
+            h.setBlock(p, Blocks.OAK_LOG);
+            logs.add(p);
+        }
+        CompanionEntity c = h.spawn(FriendaiEntities.COMPANION, 3, 2, 7);
+        c.inventory().addItem(new ItemStack(Items.DIRT, 16));
+        c.inventory().addItem(new ItemStack(Items.IRON_AXE));
+        List<BlockPos> absolute = logs.stream().map(h::absolutePos).toList();
+        TreeFinder.TreeInfo tree = new TreeFinder.TreeInfo(
+                "oak_log", absolute, absolute.get(0), 8, TreeFinder.Kind.STANDING_TREE, 0, "east");
+        Result result = new Result();
+        ExecutionCoordinator runner = start(c, result, new FellTreeTask(tree, oak(), 0, false), 300);
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(result.status == TaskStatus.SUCCESS, "status " + result.status + " " + result.summary);
+            for (BlockPos p : logs) {
+                h.assertTrue(h.getBlockState(p).isAir(), "log left at " + p);
+            }
+            h.assertTrue(result.summary.contains("8 of 8"), "summary " + result.summary);
+        });
+    }
+
     @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 800)
     public void aTreeWithNoUsableClimbIsCutFromTheGround(GameTestHelper h) {
         GameTestSupport.platform(h, 16);
