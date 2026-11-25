@@ -29,6 +29,7 @@ import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.minecraft.CreativeItemCapability;
 import dev.friendai.perception.resource.ResourceCandidates;
+import dev.friendai.task.ProgressWatch;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -140,6 +141,18 @@ public final class ObtainTask implements Task {
     private String lastFailedKey;
     private int ticks;
     private int stepsRun;
+    /**
+     * Verified effects this acquisition has seen: a carried count that grew, a credited step, or a running child's
+     * own verified stamp. Attempts never move it, so a stall report means nothing measurable changed.
+     */
+    private long verifiedProgress;
+    /** The carried count at the last observation, so only a pickup of the wanted item counts as progress. */
+    private int lastHave;
+    /** The running child's last verified stamp, so its own measured effect advances the parent too. */
+    private long lastChildStamp = ProgressWatch.UNKNOWN;
+    /** How long the current child has run, so an explore step can declare its own bounded wait. */
+    private int childTicks;
+
     private int lastNoticeTick = -NOTICE_INTERVAL;
 
     public ObtainTask(String item, int count, boolean useContainers, boolean explore) {
@@ -342,6 +355,10 @@ public final class ObtainTask implements Task {
         ticks = 0;
         stepsRun = 0;
         lastNoticeTick = -NOTICE_INTERVAL;
+        verifiedProgress = 0L;
+        lastHave = have(c.companion());
+        lastChildStamp = ProgressWatch.UNKNOWN;
+        childTicks = 0;
         history.clear();
         excludedSiteIds.clear();
         unusableContainers.clear();
@@ -357,6 +374,7 @@ public final class ObtainTask implements Task {
         if (++ticks > maxTicks) {
             return fail("ran out of time; have " + have(c.companion()) + " of " + count + " " + item);
         }
+        observeVerifiedProgress(c.companion());
         if (creativeCreationStep) {
             CreativeItemCapability.Batch batch = CreativeItemCapability.deliverOneBatch(
                     c,
@@ -502,6 +520,7 @@ public final class ObtainTask implements Task {
             if (StepVerification.progressed(
                     step, settledVisitPresent, !bag.equals(settledBag), settledCandidates, candidates)) {
                 stepsRun++;
+                verifiedProgress++;
                 history.add(pastText(step));
                 lastFailedKey = null;
                 noYieldKey = null;
@@ -574,6 +593,8 @@ public final class ObtainTask implements Task {
             c.debug("obtain " + item + ": " + ObtainText.stepText(currentStep) + " (step " + (stepsRun + 1) + ")");
         }
         current.start(childContext == null ? c : childContext);
+        lastChildStamp = current.progressStamp();
+        childTicks = 0;
         return TaskStatus.RUNNING;
     }
 
@@ -1134,11 +1155,62 @@ public final class ObtainTask implements Task {
         return "getting " + count + " " + item + ": step " + (stepsRun + 1) + " — " + step;
     }
 
+    /**
+     * One cheap per-tick reading of verified effects: a pickup of the wanted item and the running child's own stamp.
+     * A tick that changed neither is not progress, however busy the task looked.
+     */
+    private void observeVerifiedProgress(CompanionEntity companion) {
+        if (current != null) childTicks++;
+        int have = have(companion);
+        if (have > lastHave) {
+            verifiedProgress += have - lastHave;
+        }
+        lastHave = have;
+        if (current == null) return;
+        long child = current.progressStamp();
+        if (child != ProgressWatch.UNKNOWN && child != lastChildStamp) {
+            lastChildStamp = child;
+            verifiedProgress++;
+        }
+    }
+
+    @Override
+    public long progressStamp() {
+        return verifiedProgress;
+    }
+
+    /**
+     * A running child first. An explore step is additionally a declared wait under its own {@code exploreTicks}
+     * budget: the parent's generic stall window must not cut a search that is doing exactly what it was asked to.
+     */
+    @Override
+    public int waitingTicks() {
+        if (current != null) {
+            int child = current.waitingTicks();
+            if (child >= 0) return child;
+            if (currentStep instanceof ObtainStep.Explore) return childTicks;
+        }
+        return -1;
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        if (current != null) {
+            if (current.waitingTicks() >= 0) return current.waitingLimitTicks();
+            if (currentStep instanceof ObtainStep.Explore) return exploreTicks;
+        }
+        return 0;
+    }
+
     @Override
     public String debugStatus() {
         String step = currentStep == null ? "planning" : ObtainText.stepText(currentStep);
         String inner = current == null ? "" : current.debugStatus();
+        String blocker = attempts.repeatedBlocker();
         return "step " + (stepsRun + 1) + "/" + maxSteps + " " + step
+                + " have=" + lastHave + "/" + count
+                + " tries=" + attempts.attemptedSources()
+                + (blocker.isEmpty() ? "" : " blocked=" + blocker)
                 + (inner.isEmpty() ? "" : " | " + inner)
                 + " t=" + ticks + "/" + maxTicks;
     }

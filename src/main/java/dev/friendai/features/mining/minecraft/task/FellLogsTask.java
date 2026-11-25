@@ -3,6 +3,7 @@ package dev.friendai.features.mining.minecraft.task;
 import dev.friendai.execution.TaskWorkResult;
 import dev.friendai.features.mining.FellAttempts;
 import dev.friendai.foundation.diagnostics.LogEvents;
+import dev.friendai.task.ProgressWatch;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -54,6 +55,10 @@ public final class FellLogsTask implements Task {
     private final ArrayDeque<String> attemptNotes = new ArrayDeque<>();
 
     private int gained;
+    /** Verified effects only: logs actually collected plus a running child's own measured stamp. */
+    private long verifiedProgress;
+
+    private long lastChildStamp = ProgressWatch.UNKNOWN;
     private int felled;
     private int before;
     private int startCount;
@@ -91,6 +96,8 @@ public final class FellLogsTask implements Task {
         attemptNotes.clear();
         failedBases.clear();
         gained = 0;
+        verifiedProgress = 0L;
+        lastChildStamp = ProgressWatch.UNKNOWN;
         felled = 0;
         startCount = counted(c);
         before = startCount;
@@ -105,6 +112,7 @@ public final class FellLogsTask implements Task {
     @Override
     public TaskStatus tick(TaskContext c) {
         TaskStatus status = tickWork(c);
+        observeChildProgress();
         workVerified = Math.max(0, counted(c) - startCount);
         if (status != TaskStatus.RUNNING) workResult = createWorkResult(status);
         return status;
@@ -121,6 +129,7 @@ public final class FellLogsTask implements Task {
             }
             int yielded = Math.max(0, counted(c) - before);
             gained += yielded;
+            verifiedProgress += yielded;
             summary = current.resultSummary();
             boolean selectedTree = false;
             if (current instanceof FellTreeSearchTask search && search.selectedBase() != null) {
@@ -155,6 +164,7 @@ public final class FellLogsTask implements Task {
         current = new FellTreeSearchTask(
                 matcher, origin, radius, 0, collect, true, Math.max(1, count - gained), failedBases);
         current.start(c);
+        lastChildStamp = current.progressStamp();
         return TaskStatus.RUNNING;
     }
 
@@ -201,6 +211,7 @@ public final class FellLogsTask implements Task {
         before = counted(c);
         current = new MineBlocksTask(matcher, Math.max(1, count - gained), radius, origin, collect);
         current.start(c);
+        lastChildStamp = current.progressStamp();
         return TaskStatus.RUNNING;
     }
 
@@ -260,6 +271,34 @@ public final class FellLogsTask implements Task {
         return current == null ? Map.of() : current.materialNeeds(context);
     }
 
+    /**
+     * Logs the companion actually collected, plus a running child's own verified stamp. A tree attempt that yielded
+     * nothing is an attempt, not progress, so it must not keep the order looking alive.
+     */
+    private void observeChildProgress() {
+        if (current == null) return;
+        long child = current.progressStamp();
+        if (child != ProgressWatch.UNKNOWN && child != lastChildStamp) {
+            lastChildStamp = child;
+            verifiedProgress++;
+        }
+    }
+
+    @Override
+    public long progressStamp() {
+        return verifiedProgress;
+    }
+
+    @Override
+    public int waitingTicks() {
+        return current == null ? -1 : current.waitingTicks();
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return current == null || current.waitingTicks() < 0 ? 0 : current.waitingLimitTicks();
+    }
+
     @Override
     public String describe() {
         return current == null ? "looking for a " + matcher.label() + " tree" : current.describe();
@@ -267,7 +306,8 @@ public final class FellLogsTask implements Task {
 
     @Override
     public String debugStatus() {
-        return "trees=" + trees + "/" + DEFAULT_MAX_TREES + " empty=" + emptyFells + "/" + DEFAULT_MAX_EMPTY_FELLS
+        return "mode=" + (fallbackUsed ? "count-mine" : "fell") + " trees=" + trees + "/" + DEFAULT_MAX_TREES
+                + " empty=" + emptyFells + "/" + DEFAULT_MAX_EMPTY_FELLS
                 + " gained=" + gained + "/" + count
                 + (current == null ? "" : " | " + current.debugStatus());
     }

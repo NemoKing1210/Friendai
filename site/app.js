@@ -667,7 +667,7 @@ const DOC = {
       { title: "Reading it back", sub: "Four ways in, one source of truth", color: COLORS.gold,
         hub: { label: "Readers", icon: "🔎", color: COLORS.gold, desc: "The ring, the files and the bundle all project the same records." },
         items: [
-          "~Log tab|Operator-only live tail with trace and execution prefixes; Pause freezes it.",
+          "~Log tab|Operator-only live tail with trace and execution prefixes, then the task's own detail; Pause freezes it.",
           "~read_log|The companion reads its own recent ring, owner only.",
           "~logs_search|Owner-only search by level, category, event, turn, task, trace, execution or request.",
           "~Digest|A `.md` beside each closed file renders the same chain as prose.",

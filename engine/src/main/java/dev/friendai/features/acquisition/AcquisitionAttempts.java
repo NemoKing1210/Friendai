@@ -159,6 +159,11 @@ public final class AcquisitionAttempts {
         return failures(source) * PENALTY_PER_FAILURE;
     }
 
+    /** How many sources this acquisition has tried, without copying the ledger for a status line. */
+    public int attemptedSources() {
+        return entries.size();
+    }
+
     /** The per-source failure counts, for {@link WorldFacts}. */
     public Map<String, Integer> sourceFailures() {
         Map<String, Integer> counts = new LinkedHashMap<>();

@@ -1239,6 +1239,11 @@ public class TreeFellingTests {
                             && task.debugStatus().contains("empty=2/2"),
                     "the fallback must start after two empty attempts, not after every tree: " + task.debugStatus());
             h.assertTrue(
+                    task.debugStatus().contains("mode=count-mine")
+                            && task.debugStatus().contains("gained=3/3"),
+                    "the status must say which miner ran and what it collected: " + task.debugStatus());
+            h.assertTrue(task.progressStamp() > 0L, "three collected logs are verified progress");
+            h.assertTrue(
                     h.getBlockState(new BlockPos(18, surfaceY + 10, 11)).is(Blocks.OAK_LOG),
                     "a tree left standing proves the walk stopped before the budget ran out");
         });

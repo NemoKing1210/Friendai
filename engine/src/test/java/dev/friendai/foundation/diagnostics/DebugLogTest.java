@@ -147,4 +147,74 @@ class DebugLogTest {
         assertTrue(entry.text().endsWith("mine: running"));
         assertEquals(1L, entry.id(), "the ring id is its own, not the file seq");
     }
+
+    @Test
+    void aPhaseRecordProjectsTheDetailThatSaysWhatTheTaskIsDoing() {
+        DebugLog log = new DebugLog(10, 400, text -> text, () -> 7L);
+        LogRecord record = new LogRecord(
+                0L,
+                0L,
+                LogLevel.DEBUG,
+                LogCategory.TASK,
+                LogKind.TASK,
+                LogEvents.TASK_PROGRESS,
+                null,
+                null,
+                "",
+                0L,
+                0L,
+                0L,
+                3L,
+                "",
+                0L,
+                -1L,
+                "progress",
+                Map.of(
+                        "execution",
+                        "9",
+                        "phase",
+                        "progress",
+                        "reason",
+                        "running",
+                        "detail",
+                        "step 2/8 mine oak_log have=0/16 tries=3 | trees=2/8 empty=1/2 gained=0/3"),
+                null);
+
+        String text = log.add(record).text();
+
+        assertTrue(text.startsWith("execution=9 phase=progress reason=running progress"), text);
+        assertTrue(
+                text.endsWith(" | step 2/8 mine oak_log have=0/16 tries=3 | trees=2/8 empty=1/2 gained=0/3"),
+                "the row must carry the child phase and the verified count, not just the word progress: " + text);
+    }
+
+    @Test
+    void aTerminalRecordProjectsTheSummaryThatExplainsWhyItStopped() {
+        DebugLog log = new DebugLog(10, 400, text -> text, () -> 7L);
+        LogRecord record = new LogRecord(
+                0L,
+                0L,
+                LogLevel.INFO,
+                LogCategory.TASK,
+                LogKind.TASK,
+                LogEvents.TASK_FINISH,
+                null,
+                null,
+                "",
+                0L,
+                0L,
+                0L,
+                3L,
+                "",
+                0L,
+                -1L,
+                "failed",
+                Map.of("status", "failed", "summary", "can't reach oak_log: return-route-obstructed-x2"),
+                null);
+
+        String text = log.add(record).text();
+
+        assertTrue(text.startsWith("status=failed failed"), text);
+        assertTrue(text.endsWith(" | can't reach oak_log: return-route-obstructed-x2"), text);
+    }
 }

@@ -46,7 +46,8 @@ public final class DebugLog {
 
     /**
      * Stores the readable projection of a structured record: a compact identity prefix (trace/execution/span, plan/job,
-     * phase/status/reason) followed by its message. The entry keeps its own ring id; the file sequence is not copied
+     * phase/status/reason), its message, and the diagnostic body the owner needs to read the line — the phase's
+     * {@code detail} or the terminal {@code summary}. The entry keeps its own ring id; the file sequence is not copied
      * here, so the two cannot be confused in the menu.
      */
     public synchronized LogEntry add(LogRecord record) {
@@ -65,7 +66,15 @@ public final class DebugLog {
         appendKey(text, "reason", record.data().get("reason"));
         if (!text.isEmpty()) text.append(' ');
         text.append(record.message());
+        appendTrailing(text, record.data().get("detail"));
+        appendTrailing(text, record.data().get("summary"));
         return text.toString();
+    }
+
+    /** The event's own account of what it is doing, after the fixed identity prefix and message. */
+    private static void appendTrailing(StringBuilder text, String value) {
+        if (value == null || value.isBlank()) return;
+        text.append(" | ").append(value);
     }
 
     private static void appendKey(StringBuilder text, String key, String value) {

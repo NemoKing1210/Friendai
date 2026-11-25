@@ -989,8 +989,8 @@ Object.assign(RU, {
   "The ring, the files and the bundle all project the same records.":
     "Кольцо, файлы и пакет показывают одни и те же записи.",
   "Log tab": "Вкладка Log",
-  "Operator-only live tail with trace and execution prefixes; Pause freezes it.":
-    "Живой хвост только для оператора, с префиксами trace и execution; Pause его замораживает.",
+  "Operator-only live tail with trace and execution prefixes, then the task's own detail; Pause freezes it.":
+    "Живой хвост только для оператора: префиксы trace и execution, затем собственное описание задачи; Pause замораживает.",
   "The companion reads its own recent ring, owner only.":
     "Компаньон читает своё недавнее кольцо, только владелец.",
   "Owner-only search by level, category, event, turn, task, trace, execution or request.":

@@ -25,6 +25,7 @@ import dev.friendai.features.crafting.StationFallback;
 import dev.friendai.features.crafting.minecraft.RecipeIndex;
 import dev.friendai.features.crafting.minecraft.Stations;
 import dev.friendai.features.creative.CreativeAction;
+import dev.friendai.task.ProgressWatch;
 import dev.friendai.task.Task;
 import dev.friendai.task.TaskContext;
 import dev.friendai.task.TaskStatus;
@@ -101,6 +102,15 @@ public final class BatchObtainTask implements Task {
     private String summary = "";
     private int children;
     private int ticks;
+    /**
+     * Verified effects the whole order has seen: a target count that grew, a finished child, or a running child's own
+     * verified stamp. A child that keeps talking without moving any of them is not progress.
+     */
+    private long verifiedProgress;
+    /** The carried count of every target at the last observation, so only a pickup advances the stamp. */
+    private final int[] lastVerified;
+
+    private long lastChildStamp = ProgressWatch.UNKNOWN;
     private boolean workStarted;
     private String workReasonCode = "blocked";
     private String workBlocker = "work stopped before the target was met";
@@ -148,6 +158,7 @@ public final class BatchObtainTask implements Task {
         int workTargetCount = Math.min(this.targets.size(), CraftPlanner.MAX_TARGETS);
         this.workMatchers = new ItemMatcher[workTargetCount];
         this.workVerified = new int[workTargetCount];
+        this.lastVerified = new int[workTargetCount];
         for (int i = 0; i < workTargetCount; i++) {
             workMatchers[i] = ItemMatcher.parse(this.targets.get(i).item()).orElse(null);
         }
@@ -473,12 +484,16 @@ public final class BatchObtainTask implements Task {
         workResult = null;
         Arrays.fill(workVerified, 0);
         captureWorkCounts(c.companion());
+        System.arraycopy(workVerified, 0, lastVerified, 0, workVerified.length);
+        verifiedProgress = 0L;
+        lastChildStamp = ProgressWatch.UNKNOWN;
     }
 
     @Override
     public TaskStatus tick(TaskContext c) {
         TaskStatus status = tickWork(c);
         captureWorkCounts(c.companion());
+        observeVerifiedProgress();
         if (status != TaskStatus.RUNNING) {
             workReasonCode = status == TaskStatus.SUCCESS ? "complete" : hasVerifiedWork() ? "partial" : "blocked";
             workBlocker = status == TaskStatus.SUCCESS ? "" : summary;
@@ -735,6 +750,7 @@ public final class BatchObtainTask implements Task {
         childTarget = target;
         children++;
         current.start(c);
+        lastChildStamp = current.progressStamp();
         return TaskStatus.RUNNING;
     }
 
@@ -816,12 +832,56 @@ public final class BatchObtainTask implements Task {
         };
     }
 
+    /**
+     * One cheap per-tick reading of verified effects, after {@link #captureWorkCounts} refreshed the bag: a target
+     * count that grew and the running child's own stamp. A child that keeps reporting attempts without moving either
+     * leaves the order's stamp still, which is exactly what a stall report should say.
+     */
+    private void observeVerifiedProgress() {
+        for (int i = 0; i < workVerified.length; i++) {
+            if (workVerified[i] > lastVerified[i]) verifiedProgress += workVerified[i] - lastVerified[i];
+            lastVerified[i] = workVerified[i];
+        }
+        if (current == null) return;
+        long child = current.progressStamp();
+        if (child != ProgressWatch.UNKNOWN && child != lastChildStamp) {
+            lastChildStamp = child;
+            verifiedProgress++;
+        }
+    }
+
+    @Override
+    public long progressStamp() {
+        return verifiedProgress;
+    }
+
+    /** A running child's declared wait governs the order; the batch itself has none of its own. */
+    @Override
+    public int waitingTicks() {
+        return current == null ? -1 : current.waitingTicks();
+    }
+
+    @Override
+    public int waitingLimitTicks() {
+        return current == null || current.waitingTicks() < 0 ? 0 : current.waitingLimitTicks();
+    }
+
     @Override
     public String debugStatus() {
         String inner = current == null ? "" : current.debugStatus();
         return "t=" + ticks + "/" + maxTicks + " children=" + children + "/" + maxChildren
-                + " failedSources=" + attempts.entries().size()
+                + " failedSources=" + attempts.entries().size() + " have=" + verifiedText()
                 + (inner.isEmpty() ? "" : " | " + inner);
+    }
+
+    /** The carried counts of every target, so a line says what the order actually holds. */
+    private String verifiedText() {
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < workVerified.length; i++) {
+            if (i > 0) text.append(',');
+            text.append(workVerified[i]).append('/').append(targets.get(i).count());
+        }
+        return text.toString();
     }
 
     @Override

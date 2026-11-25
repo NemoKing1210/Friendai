@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.234.0] - 2026-11-25
+
+### Changed
+
+- The companion log now says what a long order is actually doing — the tree attempts that gave nothing, the switch to mining the reachable logs, the items collected so far and what refuses the route — instead of repeating "progress"; a stuck order can now be stopped for making no verified progress at all.
+
 ## [0.233.23] - 2026-11-25
 
 ### Fixed

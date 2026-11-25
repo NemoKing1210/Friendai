@@ -1831,6 +1831,252 @@ public class ActiveTaskLifecycleTests {
         }
     }
 
+    /**
+     * An order refused the same way twice verified nothing: its stamp stays at zero while its status names the count it
+     * holds, how many sources it tried and the blocker the child reported. The same detail rides the state record, so
+     * the menu row says why the order is stuck instead of repeating the word "progress".
+     */
+    @GameTest(maxTicks = 1200)
+    public void anObtainReportsItsVerifiedCountAndItsBlocker(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 3);
+        BlockedRouteFactory factory = new BlockedRouteFactory();
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        ObtainTask obtain = obtainLogs(factory);
+        runner.start(obtain, "obtain_blocked_status");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the obtain to settle");
+            h.assertValueEqual(events.finishedDispositions.getFirst(), TaskDisposition.FAILED, "blocked order");
+            h.assertValueEqual(obtain.progressStamp(), 0L, "refused attempts are not verified progress");
+            String status = obtain.debugStatus();
+            h.assertTrue(status.contains("have=0/1"), "the status names the verified count: " + status);
+            int triesAt = status.indexOf("tries=");
+            h.assertTrue(
+                    triesAt > 0 && Character.isDigit(status.charAt(triesAt + "tries=".length())),
+                    "the status names the attempts: " + status);
+            h.assertTrue(status.contains("blocked=return-route-obstructed"), "the status names the blocker: " + status);
+            String detail = events.states().getLast().facts().get("detail");
+            h.assertTrue(
+                    detail != null && detail.contains("have=0/1"),
+                    "the state record must carry the same detail: " + detail);
+        });
+    }
+
+    /**
+     * Only an effect on the ordered item counts. An unrelated pickup leaves the stamp still; the ordered log moves it
+     * while the child is still running, so the order reports progress the moment the bag holds something, and a
+     * completed child then finishes it.
+     */
+    @GameTest(maxTicks = 600)
+    public void anObtainCountsOnlyEffectsThatMoveItsOwnCount(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 1);
+        YieldingChild child = new YieldingChild();
+        ObtainSubtaskFactory factory = (context, step, options) -> ObtainSubtaskFactory.Created.task(child);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        ObtainTask obtain = obtainLogs(factory);
+        runner.start(obtain, "obtain_verified_counts");
+        try {
+            for (int i = 0; i < 40; i++) runner.tick();
+            h.assertTrue(child.ticks > 0, "the child must have run before the order is judged");
+            h.assertValueEqual(obtain.progressStamp(), 0L, "an unrelated pickup is not progress for this order");
+            h.assertTrue(obtain.debugStatus().contains("have=0/1"), obtain.debugStatus());
+            child.yield = true;
+            for (int i = 0; i < 40; i++) runner.tick();
+            h.assertTrue(events.finishedDispositions.isEmpty(), "the child is still running");
+            h.assertValueEqual(companion.inventory().countItem(Items.OAK_LOG), 1, "the log is in the bag");
+            h.assertTrue(obtain.progressStamp() > 0L, "a collected log is verified progress while the child runs");
+            h.assertTrue(obtain.debugStatus().contains("have=1/1"), obtain.debugStatus());
+            child.finish = true;
+            for (int i = 0; i < 40 && events.finishedDispositions.isEmpty(); i++) runner.tick();
+            h.assertValueEqual(events.finishedDispositions.getFirst(), TaskDisposition.SUCCESS, "the log finishes it");
+            h.assertValueEqual(companion.inventory().countItem(Items.OAK_LOG), 1, "one log collected");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    /** A composed order whose child declares a bounded wait outlives the runner's stall window. */
+    @GameTest(maxTicks = 600)
+    public void aChildsDeclaredWaitKeepsTheComposedOrderAlive(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 1);
+        WaitingChild child = new WaitingChild();
+        child.waiting = true;
+        ObtainSubtaskFactory factory = (context, step, options) -> ObtainSubtaskFactory.Created.task(child);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 10, () -> false);
+        runner.setEventSink(events);
+        ObtainTask obtain = obtainLogs(factory);
+        runner.start(obtain, "obtain_waiting_child");
+        try {
+            for (int i = 0; i < 350; i++) runner.tick();
+            h.assertTrue(events.finishedDispositions.isEmpty(), "a declared wait must not be stopped as a stall");
+            h.assertValueEqual(obtain.progressStamp(), 0L, "waiting is not progress either");
+            h.assertTrue(events.named(LogEvents.TASK_SNAPSHOT).isEmpty(), "no stall snapshot for a declared wait");
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    /** The same child without a declared wait is stopped: the order's own stamp is what the stall window reads. */
+    @GameTest(maxTicks = 600)
+    public void aChildWithoutVerifiedProgressStallsTheComposedOrder(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 1);
+        WaitingChild child = new WaitingChild();
+        ObtainSubtaskFactory factory = (context, step, options) -> ObtainSubtaskFactory.Created.task(child);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 10, () -> false);
+        runner.setEventSink(events);
+        ObtainTask obtain = obtainLogs(factory);
+        runner.start(obtain, "obtain_stalled_child");
+        try {
+            for (int i = 0; i < 350; i++) runner.tick();
+            h.assertValueEqual(events.finishedDispositions.size(), 1, "the order settles once");
+            h.assertValueEqual(events.finishedDispositions.getFirst(), TaskDisposition.FAILED, "stalled");
+            String summary = events.finishedSummaries.getFirst();
+            h.assertTrue(summary.contains("no progress"), "the stop names the stall: " + summary);
+            h.assertTrue(summary.contains("have=0/1"), "the stop says what the order held: " + summary);
+            TaskLogEvent snapshot = events.named(LogEvents.TASK_SNAPSHOT).getFirst();
+            String detail = snapshot.facts().get("phase");
+            h.assertTrue(detail != null && detail.contains("have=0/1"), "the snapshot carries the detail: " + detail);
+        } finally {
+            runner.stopAll("test cleanup");
+        }
+        h.succeed();
+    }
+
+    /** A batch reports the carried count of its targets and treats a collected item as its progress. */
+    @GameTest(maxTicks = 1200)
+    public void aBatchReportsVerifiedCountsAndProgress(GameTestHelper h) {
+        CompanionEntity companion = rememberLogSites(h, 1);
+        YieldingChild child = new YieldingChild();
+        child.yield = true;
+        child.finish = true;
+        ObtainSubtaskFactory factory = (context, step, options) -> ObtainSubtaskFactory.Created.task(child);
+        Events events = new Events();
+        ExecutionCoordinator runner = new ExecutionCoordinator(companion, () -> 1200, () -> false);
+        runner.setEventSink(events);
+        BatchObtainTask batch = new BatchObtainTask(
+                List.of(new CraftPlanner.Target("minecraft:oak_log", 1)),
+                false,
+                true,
+                4,
+                1_000,
+                32,
+                32,
+                400,
+                "local",
+                null,
+                null,
+                factory);
+        runner.start(batch, "obtain_batch_status");
+        h.succeedWhen(() -> {
+            runner.tick();
+            h.assertTrue(!events.finishedDispositions.isEmpty(), "waiting for the batch to finish");
+            h.assertValueEqual(
+                    events.finishedDispositions.getFirst(), TaskDisposition.SUCCESS, "batch gathers one log");
+            h.assertTrue(batch.progressStamp() > 0L, "a collected target is verified progress");
+            String status = batch.debugStatus();
+            h.assertTrue(status.contains("have=1/1"), "the status names the carried count: " + status);
+        });
+    }
+
+    /** Adds one unasked-for item first, then the ordered one, and finishes only when told to. */
+    private static final class YieldingChild implements Task {
+        private int ticks;
+        private boolean yield;
+        private boolean finish;
+        private boolean droppedUnrelated;
+        private boolean yielded;
+
+        @Override
+        public String type() {
+            return "yielding_child";
+        }
+
+        @Override
+        public void start(TaskContext c) {
+            ticks = 0;
+        }
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            ticks++;
+            if (!droppedUnrelated) {
+                droppedUnrelated = true;
+                c.companion().inventory().setItem(0, new ItemStack(Items.DIRT));
+            }
+            if (yield && !yielded) {
+                yielded = true;
+                c.companion().inventory().setItem(1, new ItemStack(Items.OAK_LOG));
+            }
+            return finish ? TaskStatus.SUCCESS : TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "a yielding child";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "collected a log";
+        }
+    }
+
+    /** Runs forever without an effect, optionally declaring the wait that makes the silence legitimate. */
+    private static final class WaitingChild implements Task {
+        private int ticks;
+        private boolean waiting;
+
+        @Override
+        public String type() {
+            return "waiting_child";
+        }
+
+        @Override
+        public void start(TaskContext c) {
+            ticks = 0;
+        }
+
+        @Override
+        public TaskStatus tick(TaskContext c) {
+            ticks++;
+            return TaskStatus.RUNNING;
+        }
+
+        @Override
+        public void stop(TaskContext c) {}
+
+        @Override
+        public String describe() {
+            return "a waiting child";
+        }
+
+        @Override
+        public String resultSummary() {
+            return "waited";
+        }
+
+        @Override
+        public int waitingTicks() {
+            return waiting ? ticks : -1;
+        }
+
+        @Override
+        public int waitingLimitTicks() {
+            return waiting ? 10_000 : 0;
+        }
+    }
+
     private static boolean seenByCompanion(GameTestHelper h, CompanionEntity companion, int x, int z) {
         return GameTestSupport.observeVisible(h, companion, h.absolutePos(new BlockPos(x, 2, z)));
     }
