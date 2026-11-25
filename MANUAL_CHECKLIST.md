@@ -921,3 +921,11 @@ The automated suite pins the text split and the layout arithmetic; the click, th
 - [ ] Repeat while an authorised edit moves one pending step to another requester with the same arguments: the old
       repair is refused, and a fresh one runs as the step's current requester.
 - [ ] Reorder a completely different plan while a repair is being prepared: the repair still applies.
+
+## A pause menu is named as the gap's cause (TODO 192)
+
+- [ ] In singleplayer, start an order, then open the pause menu and keep it open for several seconds before
+      resuming: the next `clock.gap` in the world log says `reason=paused` with a `pausedMs` close to the gap,
+      not `unknown`.
+- [ ] Open and close the menu twice in a row: the second gap is still attributed to the pause rather than to a
+      slow tick, and a companion that was not paused logs `slow-tick` or `unknown` exactly as before.

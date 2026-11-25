@@ -16,6 +16,7 @@ import dev.friendai.client.voice.VoiceRuntime;
 import dev.friendai.client.voice.VoiceSubmission;
 import dev.friendai.client.voice.WakeWordHandler;
 import dev.friendai.entity.FriendaiEntities;
+import dev.friendai.foundation.diagnostics.IntegratedPauseWatch;
 import dev.friendai.menu.FriendaiMenus;
 import dev.friendai.transport.payload.ProtocolAcceptC2SPayload;
 import net.fabricmc.api.ClientModInitializer;
@@ -100,6 +101,10 @@ public class FriendaiClient implements ClientModInitializer {
         SpeechKeybind.register();
         OutlineKeybind.register();
         ClientTickEvents.END_CLIENT_TICK.register(client -> SpeechRuntime.tick());
+        // The server cannot see the pause menu, and it stops ticking before it could ask: record the wall time here
+        // so a gap that resumes afterwards can be told from a slow tick or an unattributed freeze.
+        ClientTickEvents.END_CLIENT_TICK.register(
+                client -> IntegratedPauseWatch.observe(client.isPaused(), System.currentTimeMillis()));
         PauseMenuButton.register();
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
                 RUNTIME.onConnect(ClientPlayNetworking.canSend(ProtocolAcceptC2SPayload.TYPE)));

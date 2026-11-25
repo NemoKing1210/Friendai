@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.4] - 2026-11-25
+
+### Fixed
+
+- A stall in the companion log now names a pause menu (`paused`) instead of `unknown`; a slow tick, a wall-clock jump and a genuine freeze keep their own reasons.
+
 ## [0.235.3] - 2026-11-25
 
 ### Fixed

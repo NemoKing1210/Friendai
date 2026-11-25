@@ -962,8 +962,8 @@ Object.assign(RU, {
   "Bounded values, redacted before they are truncated.":
     "Ограниченные значения, вычищенные до обрезки.",
   "Spans and timings": "Спаны и тайминги",
-  "`TaskLogSpan`, `ExecutionTiming`, holds versus gaps (`clock.gap` says `slow-tick` only for work it measured, otherwise `unknown`), bounded stall snapshots.":
-    "Промежутки и тайминги: `TaskLogSpan`, `ExecutionTiming`, удержания против пауз (`clock.gap` говорит `slow-tick` только о своей измеренной работе, иначе `unknown`), ограниченные снимки застоя.",
+  "`TaskLogSpan`, `ExecutionTiming`, holds versus gaps (`clock.gap` says `slow-tick` for work it measured, `paused` for the pause menu, otherwise `unknown`), bounded stall snapshots.":
+    "Промежутки и тайминги: `TaskLogSpan`, `ExecutionTiming`, удержания против пауз (`clock.gap` говорит `slow-tick` о своей измеренной работе, `paused` — о меню паузы, иначе `unknown`), ограниченные снимки застоя.",
   "Levels, retention and privacy": "Уровни, хранение и приватность",
   "What is written, how much, and what never is": "Что пишется, сколько и что — никогда",
   "Policy": "Политика",

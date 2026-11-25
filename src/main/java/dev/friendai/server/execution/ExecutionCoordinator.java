@@ -34,7 +34,9 @@ import dev.friendai.features.creative.CreativeAction;
 import dev.friendai.features.creative.CreativeActionContext;
 import dev.friendai.features.navigation.minecraft.task.FollowTask;
 import dev.friendai.features.places.PlaceCandidate;
+import dev.friendai.foundation.diagnostics.ClockGapPolicy;
 import dev.friendai.foundation.diagnostics.DiagnosticClock;
+import dev.friendai.foundation.diagnostics.IntegratedPauseWatch;
 import dev.friendai.foundation.diagnostics.LogContext;
 import dev.friendai.foundation.movement.MovementOrders;
 import dev.friendai.server.configuration.ServerSettings;
@@ -124,18 +126,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
     private long materialReserveTick = Long.MIN_VALUE;
     private int materialReserveTaskId = -1;
 
-    /** A gap shorter than this is an ordinary slow frame, not a stall worth a record. */
-    private static final long GAP_THRESHOLD_MS = 1_000L;
-
-    /** A tick this short cannot explain a gap even when the wall clock moved by less than that. */
-    private static final long MIN_ATTRIBUTABLE_WORK_MS = 250L;
-
-    /** How much of the gap the measured work may leave unexplained before the reason stays unknown. */
-    private static final long GAP_ATTRIBUTION_SLACK_MS = 100L;
-
     private final DiagnosticClock diagnosticClock;
     private long lastTickWall = -1L;
     private boolean clockGapReported;
+    /** Paused wall time accumulated at the previous tick, so a pause shows up as the interval it covered. */
+    private long lastPausedMillis;
     /** How long the last completed runner tick itself took, so a gap can be attributed to work this tick really did. */
     private long lastTickWorkNanos;
 
@@ -1085,19 +1080,26 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
         return expanded;
     }
 
-    /** One clock.gap per observed gap over a second; the reason stays unknown, it is never inferred as a pause. */
+    /**
+     * One clock.gap per observed gap over a second. A pause menu is the one cause the runner can name from evidence
+     * outside its own tick; everything else stays unknown instead of being inferred.
+     */
     private void reportClockGap() {
         long now = diagnosticClock.wallMillis();
+        long pausedTotal = IntegratedPauseWatch.pausedMillisAt(now);
+        long pausedMs = Math.max(0L, pausedTotal - lastPausedMillis);
+        lastPausedMillis = pausedTotal;
         if (lastTickWall > 0L) {
             long gap = now - lastTickWall;
-            if (gap > GAP_THRESHOLD_MS && !clockGapReported) {
+            if (gap > ClockGapPolicy.THRESHOLD_MS && !clockGapReported) {
                 clockGapReported = true;
                 ActiveTask interrupted = activeTask();
                 if (interrupted == null) interrupted = frozenTask();
                 long workMs = lastTickWorkNanos / 1_000_000L;
-                String reason = gapReason(gap, workMs);
+                String reason = ClockGapPolicy.reason(gap, workMs, pausedMs);
                 Map<String, String> facts = new java.util.LinkedHashMap<>();
                 facts.put("workMs", Long.toString(workMs));
+                facts.put("pausedMs", Long.toString(pausedMs));
                 TaskLogEvent event;
                 if (interrupted == null) {
                     event = TaskLogEvents.clockGap(LogContext.NONE, gap, reason, facts);
@@ -1117,21 +1119,11 @@ public final class ExecutionCoordinator implements TaskExecutionPort {
                     event = TaskLogEvents.clockGap(interrupted.logContext(), gap, reason, facts);
                 }
                 emit(sink -> sink.onDiagnostic(event));
-            } else if (gap <= GAP_THRESHOLD_MS) {
+            } else if (gap <= ClockGapPolicy.THRESHOLD_MS) {
                 clockGapReported = false;
             }
         }
         lastTickWall = now;
-    }
-
-    /**
-     * What the runner can actually prove about a gap. Its own measured tick covers the interval only when that tick
-     * was long enough to explain it; anything else — a paused integrated server, a process freeze, a wall-clock jump —
-     * leaves no evidence in this tick, so it stays {@code unknown} instead of being blamed on the task.
-     */
-    private static String gapReason(long gapMs, long workMs) {
-        if (workMs < MIN_ATTRIBUTABLE_WORK_MS) return "unknown";
-        return workMs + GAP_ATTRIBUTION_SLACK_MS >= gapMs ? "slow-tick" : "unknown";
     }
 
     public void releaseAllHolds() {

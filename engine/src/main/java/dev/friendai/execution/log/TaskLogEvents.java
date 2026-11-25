@@ -173,7 +173,7 @@ public final class TaskLogEvents {
                 bounded);
     }
 
-    /** One observed server tick gap; the reason is unknown, never inferred as a pause. */
+    /** One observed server tick gap with no evidence for its cause, so its reason stays {@code unknown}. */
     public static TaskLogEvent clockGap(long gapMs) {
         return clockGap(LogContext.NONE, gapMs, Map.of());
     }
@@ -185,8 +185,9 @@ public final class TaskLogEvents {
 
     /**
      * Captures a gap under the interrupted activation with the reason its observer could measure. A caller that has no
-     * evidence passes {@code unknown}, which is the honest answer for a server-wide pause or a wall-clock jump: the
-     * runner can prove its own work covered the interval, never that it did not cover time it never saw.
+     * evidence passes {@code unknown}, which is the honest answer for a freeze or a wall-clock jump: the runner can
+     * prove its own work covered the interval, or that the client's pause menu covered it, never that time it never saw
+     * was idle.
      */
     public static TaskLogEvent clockGap(LogContext context, long gapMs, String reason, Map<String, String> facts) {
         LogContext identity = context == null ? LogContext.NONE : context;

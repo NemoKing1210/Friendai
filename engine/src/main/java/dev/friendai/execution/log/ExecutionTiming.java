@@ -8,8 +8,9 @@ import dev.friendai.foundation.diagnostics.DiagnosticClock;
  * <p>{@code activeTicks} counts invocations actually delivered to the task, including its legitimate waiting ticks;
  * {@code heldTicks} counts runner ticks observed under an explicit hold, separately, and is never folded into the
  * active count. {@code tickNanos} is the aggregate time spent inside the instrumented task callback, not CPU time and
- * not time the companion spent walking in the world. A held interval still contributes to wall time; only a
- * server-wide pause is unknowable, which is why a full pause is reported as an unknown gap rather than a hold.
+ * not time the companion spent walking in the world. A held interval still contributes to wall time; the client's
+ * pause menu is the one cause measured outside the runner, which is why a full pause is reported as a {@code paused}
+ * gap rather than a hold, and a gap no evidence covers stays {@code unknown}.
  */
 public final class ExecutionTiming {
     /** An immutable reading of one activation: elapsed wall time and the two tick counters. */
