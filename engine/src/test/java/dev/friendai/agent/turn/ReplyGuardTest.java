@@ -22,6 +22,22 @@ class ReplyGuardTest {
     }
 
     @Test
+    void silenceNamesItsReason() {
+        assertEquals(
+                ReplyGuard.Silence.SENTINEL, detailed("[silent]", false, null).silence());
+        assertEquals(
+                ReplyGuard.Silence.TOOL_MARKUP,
+                detailed("<tool_calls><invoke name=\"stay\"></invoke></tool_calls>", false, null)
+                        .silence());
+        assertEquals(ReplyGuard.Silence.EMPTY, detailed("   ", false, null).silence());
+        assertEquals(
+                ReplyGuard.Silence.REPEAT, detailed("Done.", false, "Done.").silence());
+        assertEquals(
+                java.util.Optional.of("Done."), detailed("Done.", false, null).text());
+        assertNull(detailed("Done.", false, null).silence(), "a spoken line has no silence reason");
+    }
+
+    @Test
     void sentinelMeansSilence() {
         assertNull(filter("[silent]", false, null));
         assertNull(filter("  [SILENT]  ", false, null));

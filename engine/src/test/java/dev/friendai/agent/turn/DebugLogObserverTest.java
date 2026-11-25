@@ -46,6 +46,22 @@ class DebugLogObserverTest {
     }
 
     @Test
+    void keyedLinesAndSuppressedRepliesAreMarked() {
+        DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
+        DebugLogObserver observer = new DebugLogObserver(log);
+        observer.onDirectLine("friendai.agent.plan_queued");
+        observer.onReplySuppressed("policy");
+
+        List<LogEntry> entries = log.after(0, 50);
+        assertEquals(
+                List.of(LogKind.ASSISTANT, LogKind.ASSISTANT),
+                entries.stream().map(LogEntry::kind).toList());
+        assertEquals(
+                "delivered line: friendai.agent.plan_queued", entries.get(0).text());
+        assertEquals("reply suppressed: policy", entries.get(1).text());
+    }
+
+    @Test
     void aDroppedTaskEventKeepsItsTaskLogKind() {
         DebugLog log = new DebugLog(50, 500, UnaryOperator.identity(), () -> 0L);
         DebugLogObserver observer = new DebugLogObserver(log);

@@ -73,6 +73,40 @@ public final class ReplyGuard {
      */
     public static Optional<String> filter(
             String reply, boolean coordinatesAllowed, List<String> recentSpoken, Set<String> internalNames) {
+        return filterDetailed(reply, coordinatesAllowed, recentSpoken, internalNames)
+                .text();
+    }
+
+    /** Why a reply produced no line for the player. */
+    public enum Silence {
+        SENTINEL,
+        TOOL_MARKUP,
+        EMPTY,
+        REPEAT;
+
+        /** The short English token the diagnostics log records. */
+        public String token() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /** The line to speak, or the reason there is none. */
+    public record Filtered(Optional<String> text, Silence silence) {
+        static Filtered spoken(String text) {
+            return new Filtered(Optional.of(text), null);
+        }
+
+        static Filtered silent(Silence reason) {
+            return new Filtered(Optional.empty(), reason);
+        }
+    }
+
+    /**
+     * The same guard as {@link #filter}, with the reason a reply was dropped so the log can say why the owner heard
+     * nothing.
+     */
+    public static Filtered filterDetailed(
+            String reply, boolean coordinatesAllowed, List<String> recentSpoken, Set<String> internalNames) {
         try {
             if (reply == null) {
                 return Filtered.silent(Silence.EMPTY);

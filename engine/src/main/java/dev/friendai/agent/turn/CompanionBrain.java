@@ -1365,10 +1365,10 @@ public final class CompanionBrain {
                 LOGGER.warn(
                         "Request did not fit: {} tokens over a {} token budget", refusal.tokens(), refusal.budget());
                 reportTurnEnd("error");
-                speakSafely(
-                        "request too large",
-                        () -> speaker.error(UserMessage.of(
-                                "friendai.agent.request_too_large", refusal.tokens(), refusal.budget())));
+                UserMessage tooLarge =
+                        UserMessage.of("friendai.agent.request_too_large", refusal.tokens(), refusal.budget());
+                speakSafely("request too large", () -> speaker.error(tooLarge));
+                observe(o -> o.onDirectLine(tooLarge.key()));
                 endTurn();
                 return;
             }
@@ -1585,9 +1585,20 @@ public final class CompanionBrain {
             observe(o -> o.onAssistantText(raw));
         }
         String spoken = null;
-        if (!raw.isBlank() && turnSpeechAllowed) {
-            spoken = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames)
-                    .orElse(null);
+        String suppressed = null;
+        if (!raw.isBlank()) {
+            if (!turnSpeechAllowed) {
+                suppressed = "policy";
+            } else {
+                ReplyGuard.Filtered filtered =
+                        ReplyGuard.filterDetailed(raw, coordinatesAllowed(), recentSpeech(), turnToolNames);
+                spoken = filtered.text().orElse(null);
+                if (spoken == null) {
+                    suppressed = filtered.silence() == null
+                            ? "empty"
+                            : filtered.silence().token();
+                }
+            }
         }
         if (suppressed != null) {
             String reason = suppressed;
