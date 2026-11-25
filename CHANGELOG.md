@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.3] - 2026-11-25
+
+### Fixed
+
+- When the companion cannot change a queued step, the refusal now names what does work — retry the step, patch a plan that has not started, or cancel the rest — instead of only saying the step is already finished.
+
 ## [0.235.2] - 2026-11-25
 
 ### Fixed

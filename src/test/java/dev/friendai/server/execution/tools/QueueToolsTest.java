@@ -2,6 +2,7 @@ package dev.friendai.server.execution.tools;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonObject;
@@ -13,7 +14,14 @@ import dev.friendai.entity.CompanionEntity;
 import dev.friendai.execution.queue.FailurePolicy;
 import dev.friendai.execution.queue.GuardAction;
 import dev.friendai.execution.queue.Job;
+import dev.friendai.execution.queue.JobQueue;
 import dev.friendai.execution.queue.JobState;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.PlanPatch;
+import dev.friendai.execution.queue.QueueLimits;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.Tool;
@@ -99,6 +107,35 @@ class QueueToolsTest {
         assertTrue(failed.contains("retry it first, then update"), failed);
         assertTrue(failed.contains("action=replace") && failed.contains("plan #3"), failed);
         assertFalse(failed.contains("cancel plan"), failed);
+    }
+
+    @Test
+    void aOneJobActionWithoutAJobNamesPlanPatchAndCancel() {
+        JsonObject planOnly = new JsonObject();
+        planOnly.addProperty("plan", 7);
+        JsonObject jobNamed = new JsonObject();
+        jobNamed.addProperty("job", 7);
+
+        assertNull(QueueTools.missingJobRefusal("replace", jobNamed), "a named job is not refused");
+        assertNull(QueueTools.missingJobRefusal("priority", planOnly), "priority changes a whole plan by itself");
+        String refusal = QueueTools.missingJobRefusal("replace", planOnly);
+
+        assertTrue(refusal.contains("action=replace"), refusal);
+        assertTrue(refusal.contains("job=<id>"), refusal);
+        assertTrue(refusal.contains("plan_patch"), refusal);
+        assertTrue(refusal.contains("action=cancel plan=<id>"), refusal);
+        assertTrue(refusal.contains("unstarted"), refusal);
+        assertTrue(refusal.contains("cannot be replaced as a whole"), refusal);
+
+        JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
+        long plan = queue.addStructuredPlan(
+                "p", new PlanDefinition(List.of(new PlanNode.Action(step()))), PlanOptions.DEFAULT);
+        var applied = PlanPatch.apply(queue, plan, "", List.of(), 0, 0, List.of(new PlanNode.Action(step())));
+        assertTrue(applied.ok(), "the named plan_patch path accepts an unstarted structured plan: " + applied.text());
+    }
+
+    private static QueuedStep step() {
+        return new QueuedStep("wait", new JsonObject(), null, List.of(), GuardAction.WAIT, null, 1, List.of());
     }
 
     private static Job job(long id, long planId, JobState state) {

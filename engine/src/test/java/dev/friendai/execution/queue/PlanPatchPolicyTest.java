@@ -25,7 +25,9 @@ class PlanPatchPolicyTest {
         long plan = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
         long job = queue.jobsOfPlan(plan).getFirst().id();
         queue.finish(job, "done");
-        assertTrue(PlanPatchPolicy.reject(queue, job).orElseThrow().contains("terminal"));
+        String refusal = PlanPatchPolicy.reject(queue, job).orElseThrow();
+        assertTrue(refusal.contains("already finished (done)"), refusal);
+        assertTrue(refusal.contains("nothing to replace"), refusal);
     }
 
     @Test
@@ -50,7 +52,12 @@ class PlanPatchPolicyTest {
         long plan = queue.addStructuredPlan("p", definition, PlanOptions.DEFAULT);
         long job = queue.addJob(plan, step()).id();
         queue.fail(job, "no route");
-        assertTrue(PlanPatchPolicy.reject(queue, job).orElseThrow().contains("terminal"));
+        String refusal = PlanPatchPolicy.reject(queue, job).orElseThrow();
+        assertTrue(refusal.contains("is already FAILED"), refusal);
+        assertTrue(refusal.contains("cannot be replaced in place"), refusal);
+        assertTrue(refusal.contains("queue_edit action=retry"), refusal);
+        assertTrue(queue.retry(job).ok(), "the refused replacement's named action is the one that works");
+        assertTrue(queue.job(job).orElseThrow().state() == JobState.PENDING, "retry returns the step to the queue");
     }
 
     @Test
@@ -87,7 +94,7 @@ class PlanPatchPolicyTest {
         long done = queue.addPlan("p", List.of(step()), PlanOptions.DEFAULT).planId();
         queue.finish(queue.jobsOfPlan(done).getFirst().id(), "ok");
         assertTrue(
-                PlanPatchPolicy.rejectPlan(queue, done).orElseThrow().contains("terminal"),
+                PlanPatchPolicy.rejectPlan(queue, done).orElseThrow().contains("already finished (done)"),
                 "a proposal for a plan whose only step already succeeded cannot be applied");
 
         long structured = queue.addStructuredPlan(
@@ -137,7 +144,9 @@ class PlanPatchPolicyTest {
         JobQueue queue = new JobQueue(QueueLimits.DEFAULTS);
         long job = queue.addDirect(step()).id();
         queue.finish(job, "done");
-        assertTrue(PlanPatchPolicy.reject(queue, job).orElseThrow().contains("terminal"));
+        String refusal = PlanPatchPolicy.reject(queue, job).orElseThrow();
+        assertTrue(refusal.contains("already finished (done)"), refusal);
+        assertTrue(refusal.contains("queue the work again"), refusal);
         assertTrue(PlanPatchPolicy.reject(queue, 999).orElseThrow().contains("unknown"));
     }
 }

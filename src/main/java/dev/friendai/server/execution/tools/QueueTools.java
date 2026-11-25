@@ -54,6 +54,8 @@ public final class QueueTools implements FeatureToolContributor {
     public static final String TRADING_SCOPE_ARG = dev.friendai.execution.queue.QueueTradeScope.ARG;
     private static final dev.friendai.execution.queue.QueueLimits LIMITS =
             dev.friendai.execution.queue.QueueLimits.DEFAULTS;
+    /** The queue_edit actions that change exactly one job; a whole plan has its own paths. */
+    private static final Set<String> JOB_ONLY_ACTIONS = Set.of("move", "update", "replace", "retry", "skip");
 
     private final QueueToolAccess access;
 
@@ -731,6 +733,10 @@ public final class QueueTools implements FeatureToolContributor {
     private ToolResult edit(CompanionEntity c, Caller caller, JsonObject args, Map<String, TaskToolDefinition> all) {
         if (!args.has("action")) return error("queue_edit requires action");
         String action = args.get("action").getAsString();
+        String missingJob = missingJobRefusal(action, args);
+        if (missingJob != null) {
+            return error(missingJob);
+        }
         var runner = c.executionCoordinator();
         var q = runner.queue();
         if (args.has("expected") && !args.get("expected").isJsonNull()) {
@@ -920,6 +926,19 @@ public final class QueueTools implements FeatureToolContributor {
         }
         runner.wakeQueue();
         return ToolResult.ok("queue updated");
+    }
+
+    /**
+     * The refusal for a one-job action with no job named. A plan is not moved, updated, retried or replaced as a
+     * whole, so the answer names the two paths that do work on a whole plan and says when a replacement still
+     * applies instead of only repeating that a job is missing.
+     */
+    static String missingJobRefusal(String action, JsonObject args) {
+        if (args.has("job") || !JOB_ONLY_ACTIONS.contains(action)) return null;
+        return "queue_edit action=" + action + " needs job=<id>; name the queued job to change. "
+                + "A whole unstarted structured plan can be replaced with plan_patch; once a plan has started its "
+                + "steps cannot be replaced as a whole, so cancel the rest with queue_edit action=cancel plan=<id> "
+                + "and queue the work again.";
     }
 
     /**
