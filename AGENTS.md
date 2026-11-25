@@ -27,18 +27,20 @@ The mod is **not client-only**: the server owns the companion entity, the brain,
 
 ## Working from TODO.md
 
-`TODO.md` is the one list of work, open and finished together: a finished item stays where it is, ticked `[x]`, and there is no archive. The full order of operations — gates for a stale premise, regression watch, when to ask, plan, verify, close-out — is in the [`executing-todo-items`](.agents/skills/executing-todo-items/SKILL.md) skill; the contract below is what any session must honour.
+`TODO.md` is the one list of work: open items and, until the list is cleared, finished ones ticked `[x]`. Clearing is an explicit request handled by the [`clearing-todo-list`](.agents/skills/clearing-todo-list/SKILL.md) skill; ordinary work never removes an item. The full order of operations — gates for a stale premise, regression watch, when to ask, plan, verify, close-out — is in the [`executing-todo-items`](.agents/skills/executing-todo-items/SKILL.md) skill; the contract below is what any session must honour.
 
 1. **Write a specification and then a plan before writing code**, unless the item is trivial. The spec goes to `docs/superpowers/specs/`, the plan to `docs/superpowers/plans/` (both git-ignored); name the `TODO.md` item they belong to. Skip the paperwork only when the whole change fits two sentences and the direction is settled.
 2. **Check the premise before claiming.** Read the code the item names: the cited `path:line` may have moved, another session may already have delivered the behavior, and the item's assumption may be wrong. Ask what the change does to the product, not only whether it is implementable.
 3. **Pick a whole item, never a slice.** When asked to choose work, offer two or three candidates (number, what the owner gets, size, risk, recommendation) and start when the maintainer answers; take the item directly when it was named, when "anything" was said, or when only one unclaimed item is left. A sub-item is taken alone only when the maintainer names it.
 4. **Claim it as the first edit:** change `- [ ]` to `- [~]`, with no session name, timestamp or `**In progress**` line. Check `grep -nE '^\s*- \[~\]' TODO.md`, `git status` and `git log` first. The marker is never a commit of its own; it lands with the finished task, together with `[x]`.
-5. **Never renumber an item**, finished or open: the maintainer refers to work by number.
+5. **Never renumber an item and never reuse a number**, finished or open: the maintainer refers to work by number. A cleared range stays retired in the header, and a surviving open or claimed item keeps its number.
 6. **If the item as written would leave the mod worse, do not implement it.** Restore `[ ]`, write one line under it — `**Skipped:** <what is wrong> (<evidence: path:line, commit, failing test>)` — keep `TODO.md` uncommitted for it, and report the number and reason.
-7. **Tick `[x]` in the commit that carries the change**, and leave the item where it is. A skipped or abandoned item goes back to `[ ]` with its one-line note.
+7. **Tick `[x]` in the commit that carries the change** and leave the item where it is until the list is cleared. A skipped or abandoned item goes back to `[ ]` with its one-line note.
 8. **Plan against the architecture, then extend an established mechanism instead of adding a parallel one.** Read the matching runtime flow in `ARCHITECTURE.md` before the first line of code and name the existing types that own each part. A skill is a `Task` plus a tool through `FeatureToolContributor`; a restorable task carries a checkpoint decoder; a provider is a preset entry; persistence uses `OwnerFileStore`/`StoreCodec`; configuration uses `ConfigStores` and an adjacent migration. If the item seems to need a second queue, store, event log, tool registry or turn loop, the plan is wrong.
 9. **Leave the result flexible, reliable and extensible.** Decisions live in pure policy or data, not in branches scattered through adapters. Work per tick is bounded, timeouts are in ticks, state can be held and resumed, failures are typed results, and persistence versions and protects what it writes.
 10. **Better ideas are welcome, within bounds.** Improve the item you are doing when it lowers risk or deletes code, and say what changed and why. A new dependency, package restructure, schema redesign, cross-cutting refactor or rewrite is the maintainer's decision — propose it, do not smuggle it in. Never "fix" modules the item does not touch.
+
+To review what closed items actually shipped across the whole codebase, or to explain a session from its logs, use the [`auditing-codebase`](.agents/skills/auditing-codebase/SKILL.md) and [`analyzing-logs`](.agents/skills/analyzing-logs/SKILL.md) skills. Both report and propose; neither changes code, `TODO.md` or configuration without the maintainer's approval.
 
 ## Commands
 
@@ -247,7 +249,7 @@ The step-by-step versions are in `CONTRIBUTING.md`; these are the invariants.
 
 ## Debugging with logs
 
-Every world owns `<world>/friendai/logs/` with `server/<date>/boot-<boot>.jsonl` and `owners/<uuid>/<date>/session-*.jsonl`; the client tree and world index stay in `<gameDir>/logs/friendai/`. Records are JSONL; follow `cause` back to the turn or task that started a failure.
+Every world owns `<world>/friendai/logs/` with `server/<date>/boot-<boot>.jsonl` and `owners/<uuid>/<date>/session-*.jsonl`; the client tree and world index stay in `<gameDir>/logs/friendai/`. Records are JSONL; follow `cause` back to the turn or task that started a failure. For a structured pass over these files and the launcher logs, follow the [`analyzing-logs`](.agents/skills/analyzing-logs/SKILL.md) skill.
 
 - `/friendai logs path` prints the exact world folder; `/friendai logs level …`, `logs prune` and `logs export` apply live.
 - `normal` records metadata only and is the dedicated-server default; `detailed` adds prompt/reply/tool bodies after redaction. Do not raise the level on a server carrying other people's chat without their knowledge.
