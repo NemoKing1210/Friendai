@@ -26,8 +26,9 @@ import java.util.Set;
  * A goal's class is the highest class among its tools, so one destructive tool wins over any number of safe ones.
  */
 public final class ToolRisk {
-    private static final Set<ToolGroup> SAFE_GROUPS =
-            EnumSet.of(ToolGroup.CORE, ToolGroup.MEMORY, ToolGroup.INFO, ToolGroup.PLACE, ToolGroup.BODY);
+    /** The queue and goal controls edit only the companion's own bookkeeping; the work a plan carries is judged by its steps. */
+    private static final Set<ToolGroup> SAFE_GROUPS = EnumSet.of(
+            ToolGroup.CORE, ToolGroup.QUEUE, ToolGroup.MEMORY, ToolGroup.INFO, ToolGroup.PLACE, ToolGroup.BODY);
 
     private static final Set<ToolGroup> DESTRUCTIVE_GROUPS = EnumSet.of(ToolGroup.COMBAT, ToolGroup.CONTROL);
 

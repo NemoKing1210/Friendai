@@ -1,5 +1,6 @@
 package dev.friendai.agent.prompt;
 
+import dev.friendai.agent.route.TurnMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,14 @@ public final class PromptAssembler {
     /** The standard companion prompt under the given character budget (zero or less: unlimited). */
     public static PromptAssembler defaults(int maxChars) {
         return new PromptAssembler(DefaultSections.all(), maxChars);
+    }
+
+    /**
+     * The prompt for one routed mode: a conversational turn carries the lighter section set, because the queue and
+     * plan rules describe work its tools cannot do. Every other mode keeps the full prompt.
+     */
+    public static PromptAssembler forMode(TurnMode mode, int maxChars) {
+        return new PromptAssembler(mode == TurnMode.CHAT ? DefaultSections.chat() : DefaultSections.all(), maxChars);
     }
 
     public record Assembly(String text, List<String> keptSectionIds, boolean mandatoryOverrun) {}

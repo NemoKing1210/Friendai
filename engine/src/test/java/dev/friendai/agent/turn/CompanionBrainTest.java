@@ -845,6 +845,33 @@ class CompanionBrainTest {
     }
 
     @Test
+    void aNoticeThatNamesAToolOffersThatTool() {
+        routedToolbox(true);
+        tools.available.add(spec("obtain_item"));
+        gateway.enqueue(text("I will get the iron."));
+
+        brain.post(new BrainEvent.WorldNotice(
+                "plan #3 armor failed: missing materials; try: obtain_item minecraft:iron_ingot"));
+
+        assertTrue(
+                toolNames(gateway.requests.getFirst()).contains("obtain_item"),
+                "a diagnosis naming a remedy must not leave the companion without it: "
+                        + toolNames(gateway.requests.getFirst()));
+    }
+
+    @Test
+    void aNoticeThatNamesNoToolStaysOnTheEventGroups() {
+        routedToolbox(true);
+        gateway.enqueue(text("Noted."));
+
+        brain.post(new BrainEvent.WorldNotice("the furnace finished"));
+
+        List<String> sent = toolNames(gateway.requests.getFirst());
+        assertFalse(sent.contains("mine_blocks"), "news is not an order to mine: " + sent);
+        assertTrue(sent.contains("stay") && sent.contains("request_tools"), sent.toString());
+    }
+
+    @Test
     void turnsAreGroupedByPrincipal() {
         CompletableFuture<LlmResponse> first = gateway.enqueuePending();
         gateway.enqueue(text("owner again"));

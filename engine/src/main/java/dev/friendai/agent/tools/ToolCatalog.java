@@ -127,12 +127,13 @@ public final class ToolCatalog {
     }
 
     /**
-     * The groups an event turn starts with: read the world, keep the records, and stay in control of where the
-     * companion stands while a job runs. The brain widens this from the event's own task through
-     * {@link #recoveryGroups()}, so a message that only reports news does not carry the action catalogue.
+     * The groups an event turn starts with: read the world, keep the records, stay in control of where the companion
+     * stands, and change the queue, because news is often a plan that needs repairing. The brain widens this from the
+     * event's own task through {@link #recoveryGroups()} and from any tool the event text names, so a message that
+     * only reports news does not carry the action catalogue.
      */
     public static Set<ToolGroup> eventGroups() {
-        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.MOVEMENT);
+        return EnumSet.of(ToolGroup.INFO, ToolGroup.MEMORY, ToolGroup.MOVEMENT, ToolGroup.QUEUE);
     }
 
     /** Shared prerequisites for a repair: travel, inspect, clear space, obtain missing materials and change the queue. */

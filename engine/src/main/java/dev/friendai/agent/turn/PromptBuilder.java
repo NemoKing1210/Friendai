@@ -4,6 +4,7 @@ import dev.friendai.agent.goal.GoalView;
 import dev.friendai.agent.prompt.MissionText;
 import dev.friendai.agent.prompt.PromptAssembler;
 import dev.friendai.agent.prompt.TurnContext;
+import dev.friendai.agent.route.TurnMode;
 import dev.friendai.agent.tools.ToolCatalog;
 import dev.friendai.agent.tools.ToolGroup;
 import dev.friendai.execution.tool.Caller;
@@ -190,7 +191,46 @@ public final class PromptBuilder {
             String tradingSummary,
             List<dev.friendai.agent.prompt.PromptSection> instructions,
             java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
-        var result = PromptAssembler.defaults(budget)
+        return system(
+                p,
+                perception,
+                caller,
+                memoryBlock,
+                turn,
+                (TurnMode) null,
+                goal,
+                budget,
+                toolHints,
+                places,
+                placedBlock,
+                plannerNote,
+                tradingSummary,
+                instructions,
+                diagnostics);
+    }
+
+    /**
+     * @param mode the routed mode of this turn; a {@code CHAT} turn carries the lighter rule set, and {@code null}
+     *     means the full prompt
+     * @param placedBlock the rendered blocks-the-companion-placed block, or {@code ""} when the caller sees none
+     */
+    public static String system(
+            Persona p,
+            String perception,
+            Caller caller,
+            String memoryBlock,
+            TurnKind turn,
+            TurnMode mode,
+            GoalView goal,
+            int budget,
+            List<String> toolHints,
+            String places,
+            String placedBlock,
+            String plannerNote,
+            String tradingSummary,
+            List<dev.friendai.agent.prompt.PromptSection> instructions,
+            java.util.function.Consumer<PromptAssembler.Assembly> diagnostics) {
+        var result = (mode == null ? PromptAssembler.defaults(budget) : PromptAssembler.forMode(mode, budget))
                 .assembleDetailed(new TurnContext(
                         p,
                         perception,

@@ -12,6 +12,7 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 - A greeting, a question or a task update now carries only the tools the companion can use instead of its whole catalogue, so those replies start faster and cost fewer tokens; when an order needs a family of tools that was not loaded, the companion asks for it in one step and the refusal names it.
 - The queue and goal controls arrive when the companion is about to start work rather than riding on every message, and a failed plan still gets the whole repair kit.
+- A chat reply now carries a shorter instruction set: the queue, plan and handover rules only appear on the turns that can act on them, while the companion's voice, its facts and its honesty rules stay the same.
 
 ## [0.234.2] - 2026-11-25
 

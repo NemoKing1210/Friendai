@@ -639,6 +639,7 @@ public final class CompanionBrain {
                 turnCaller,
                 memorySource.describe(turnCaller, turnMemoryQuery),
                 turnKind,
+                decision.mode(),
                 goalSource.view(turnCaller),
                 agentSettings.get().promptBudget(),
                 catalog.hints(promptGroups(), decision.mode() == TurnMode.CHAT),
@@ -1035,16 +1036,19 @@ public final class CompanionBrain {
                 + "); it is queued and will run. Tell them it has started, and do not queue another plan.";
     }
 
-    /** A known task outcome carries its own tool context; news the route cannot widen keeps the event groups. */
+    /**
+     * An event turn starts from the event groups. A known task outcome widens it to the repair kit, a shift turn adds
+     * {@code AUTONOMY}, and an event whose text names a tool — a failure's remedy line is the one place that happens —
+     * adds that tool's group, so a notice can never leave the companion without the tool it was just told to use.
+     */
     private RouteDecision withEventToolContext(RouteDecision routed, List<BrainEvent> batch) {
         if (turnKind != TurnKind.EVENT) return routed;
-        Set<ToolGroup> groups = ToolCatalog.recoveryGroups();
-        boolean widened = false;
+        Set<ToolGroup> named = EnumSet.noneOf(ToolGroup.class);
+        boolean knownTask = false;
         for (BrainEvent event : batch) {
             if (event instanceof BrainEvent.FreeTimeShift) {
                 // The shift turn exists to choose an activity, so the autonomy tools are its subject.
-                groups.add(ToolGroup.AUTONOMY);
-                widened = true;
+                named.add(ToolGroup.AUTONOMY);
                 continue;
             }
             String tool = event instanceof BrainEvent.TaskFinished task
@@ -1053,14 +1057,55 @@ public final class CompanionBrain {
             if (tool.isEmpty()) {
                 // A goal, new shift or explicit replan can require work beyond a task's local context.
                 if (!reportsNothingToActOn(event) && !(event instanceof BrainEvent.GoalTick)) return routed;
+                named.addAll(groupsNamedIn(event.toPromptLine()));
                 continue;
             }
             var meta = catalog.meta(tool);
             if (meta.isEmpty()) return routed;
-            groups.add(meta.get().group());
-            widened = true;
+            named.add(meta.get().group());
+            knownTask = true;
         }
-        return widened ? new RouteDecision(routed.mode(), groups, routed.planning(), routed.reason()) : routed;
+        if (!knownTask && named.isEmpty()) return routed;
+        Set<ToolGroup> groups = knownTask ? ToolCatalog.recoveryGroups() : EnumSet.copyOf(routed.groups());
+        groups.addAll(named);
+        return new RouteDecision(routed.mode(), groups, routed.planning(), routed.reason());
+    }
+
+    /** The groups of the catalog tools an event's text names; the diagnosis line is what makes it useful. */
+    private Set<ToolGroup> groupsNamedIn(String text) {
+        if (text == null || text.isBlank()) {
+            return Set.of();
+        }
+        Set<ToolGroup> groups = EnumSet.noneOf(ToolGroup.class);
+        for (var meta : catalog.all()) {
+            if (meta.group() != ToolGroup.CORE && names(text, meta.name())) {
+                groups.add(meta.group());
+            }
+        }
+        return groups;
+    }
+
+    /** True when the text holds the name as a whole word, so "defeat" is not the {@code eat} tool. */
+    private static boolean names(String text, String name) {
+        int from = 0;
+        while (from <= text.length() - name.length()) {
+            int at = text.indexOf(name, from);
+            if (at < 0) {
+                return false;
+            }
+            int end = at + name.length();
+            boolean leftOk = at == 0 || !isNameChar(text.charAt(at - 1));
+            boolean rightOk = end == text.length() || !isNameChar(text.charAt(end));
+            if (leftOk && rightOk) {
+                return true;
+            }
+            from = at + 1;
+        }
+        return false;
+    }
+
+    private static boolean isNameChar(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
     }
 
     /** A newly failed task supersedes the world facts on which an in-flight response was based. */

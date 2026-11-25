@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.friendai.agent.goal.GoalView;
+import dev.friendai.agent.route.TurnMode;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import java.io.IOException;
@@ -77,6 +78,42 @@ class PromptGoldenTest {
                         0,
                         List.of(),
                         PLACES));
+        cases.put(
+                "owner_chat",
+                PromptBuilder.system(
+                        PERSONA,
+                        PERCEPTION,
+                        new Caller(ID, "Steve", AccessLevel.OWNER),
+                        MEMORY,
+                        TurnKind.PLAYER,
+                        TurnMode.CHAT,
+                        GoalView.EMPTY,
+                        0,
+                        List.of(),
+                        PLACES,
+                        "",
+                        "",
+                        "",
+                        List.of(),
+                        a -> {}));
+        cases.put(
+                "guest_chat",
+                PromptBuilder.system(
+                        PERSONA,
+                        PERCEPTION,
+                        new Caller(ID, "Gus", AccessLevel.GUEST),
+                        "",
+                        TurnKind.PLAYER,
+                        TurnMode.CHAT,
+                        GoalView.EMPTY,
+                        0,
+                        List.of(),
+                        PLACES,
+                        "",
+                        "",
+                        "",
+                        List.of(),
+                        a -> {}));
         return cases;
     }
 
