@@ -137,7 +137,7 @@ public final class MemoryTools implements FeatureToolContributor {
     }
 
     private static ToolMeta metadata(String name) {
-        return new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
+        return new ToolMeta(name, ToolGroup.MEMORY, false, "", List.of(), Cost.LOW);
     }
 
     @FunctionalInterface

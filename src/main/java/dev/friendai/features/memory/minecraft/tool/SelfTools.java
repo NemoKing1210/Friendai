@@ -295,7 +295,7 @@ public final class SelfTools implements FeatureToolContributor {
 
     /** Guidance on when to look lives in the role-aware prompt section, so a guest never sees an owner-only tool. */
     private static ToolMeta meta(String name) {
-        return new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
+        return new ToolMeta(name, ToolGroup.MEMORY, false, "", List.of(), Cost.LOW);
     }
 
     private ToolResult searchLogs(CompanionEntity companion, Caller caller, JsonObject args) {

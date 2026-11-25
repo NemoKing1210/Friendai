@@ -239,7 +239,7 @@ public final class SkillTools implements FeatureToolContributor {
     private static ToolMeta metadata(String name) {
         return switch (name) {
             case "use_skill", "manage_skill", "list_skills", "skill_help" ->
-                new ToolMeta(name, ToolGroup.MEMORY, true, "", List.of(), Cost.LOW);
+                new ToolMeta(name, ToolGroup.MEMORY, false, "", List.of(), Cost.LOW);
             default -> throw new IllegalArgumentException("No metadata declared for instruction tool: " + name);
         };
     }
