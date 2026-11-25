@@ -31,6 +31,7 @@ import dev.friendai.foundation.diagnostics.LogSettings;
 import dev.friendai.foundation.diagnostics.LogSink;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -326,6 +327,29 @@ class StructuredLogObserverTest {
         assertEquals("transport", sink.records.get(1).data().get("failure"));
         assertEquals("active_goal", sink.records.get(0).data().get("subject"));
         assertEquals("4", sink.records.get(0).data().get("subjectId"));
+    }
+
+    @Test
+    void aPlannerLimitFailureCarriesWhichLimitAndItsValues() {
+        Recall sink = new Recall();
+        DebugLogObserver observer =
+                new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO), "trace-1");
+        PlanSubject subject = new PlanSubject.ActiveGoal(4, List.of("2 logs missing"));
+        observer.onPlannerAttempt(new PlannerAttempt(
+                subject,
+                1,
+                "failed",
+                "LIMIT_EXCEEDED",
+                7L,
+                0L,
+                Map.of("limitKind", "steps", "observed", "13", "limit", "12")));
+
+        LogRecord record = sink.records.getFirst();
+        assertEquals(LogEvents.PLAN_FAILED, record.event());
+        assertEquals("LIMIT_EXCEEDED", record.data().get("failure"));
+        assertEquals("steps", record.data().get("limitKind"));
+        assertEquals("13", record.data().get("observed"));
+        assertEquals("12", record.data().get("limit"));
     }
 
     @Test

@@ -170,6 +170,63 @@ class PlannerParserTest {
     }
 
     @Test
+    void aStepCapOverrunCarriesItsOwnCodeAndValues() {
+        StringBuilder steps = new StringBuilder("{\"steps\":[");
+        for (int i = 0; i < 13; i++) {
+            steps.append(i > 0 ? "," : "").append("{\"tool\":\"jump\"}");
+        }
+        PlannerParser.Parsed p = parse(steps.append("]}").toString());
+        assertFalse(p.ok());
+        assertEquals(PlanFailure.Code.LIMIT_EXCEEDED, p.failure().code());
+        assertEquals(
+                Map.of("limitKind", "steps", "observed", "13", "limit", "12"),
+                p.failure().facts());
+        assertEquals(
+                PlanFailure.Code.STEPS_INVALID,
+                parse("{\"steps\":[{\"tool\":\"teleport\"}]}").failure().code(),
+                "an unknown tool is a rejected step, not a queue limit");
+    }
+
+    @Test
+    void anArgumentCapOverrunNamesTheArgumentsAndTheirValues() {
+        long argumentChars = JsonParser.parseString("{\"count\":1}").toString().length();
+        PlannerParser.Parsed p = PlannerParser.parse(
+                "{\"steps\":[{\"tool\":\"jump\",\"args\":{\"count\":1}}]}", SCHEMAS, ALL, 12, 5, 49152);
+        assertFalse(p.ok());
+        assertEquals(PlanFailure.Code.LIMIT_EXCEEDED, p.failure().code());
+        assertEquals(
+                Map.of("limitKind", "arguments", "observed", Long.toString(argumentChars), "limit", "5"),
+                p.failure().facts());
+    }
+
+    @Test
+    void aPlanThatAlsoHasARejectedStepKeepsTheStepCode() {
+        PlannerParser.Parsed p = PlannerParser.parse(
+                "{\"steps\":[{\"tool\":\"teleport\"},{\"tool\":\"jump\",\"args\":{\"count\":1}}]}",
+                SCHEMAS,
+                ALL,
+                12,
+                5,
+                49152);
+        assertFalse(p.ok());
+        assertEquals(PlanFailure.Code.STEPS_INVALID, p.failure().code());
+        assertTrue(p.errors().stream().anyMatch(error -> error.contains("unknown tool 'teleport'")));
+    }
+
+    @Test
+    void anOversizedReplyKeepsItsOwnCodeAndNoValues() {
+        PlannerParser.Parsed p = PlannerParser.parse(
+                "{\"steps\":[{\"tool\":\"jump\"}]}" + " ".repeat(PlannerParser.MAX_REPLY_CHARS),
+                SCHEMAS,
+                ALL,
+                12,
+                8192,
+                49152);
+        assertEquals(PlanFailure.Code.TOO_LARGE, p.failure().code());
+        assertTrue(p.failure().facts().isEmpty());
+    }
+
+    @Test
     void emptyStepListIsAnError() {
         assertFalse(parse("{\"steps\":[]}").ok());
     }

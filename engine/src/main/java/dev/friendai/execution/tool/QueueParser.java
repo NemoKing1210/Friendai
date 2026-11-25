@@ -31,9 +31,21 @@ public final class QueueParser {
         }
     }
 
-    public record PlanResult(PlanDefinition plan, List<String> errors) {
+    /**
+     * One queue limit a plan broke: which limit, the value the plan reached and the allowed maximum. Reported next to
+     * the readable error strings so a caller never has to match their wording.
+     */
+    public record LimitViolation(String name, long observed, long limit) {}
+
+    public record PlanResult(PlanDefinition plan, List<String> errors, List<LimitViolation> limits) {
         public PlanResult {
             errors = List.copyOf(errors);
+            limits = List.copyOf(limits);
+        }
+
+        /** A result whose errors are not limit overruns. */
+        public PlanResult(PlanDefinition plan, List<String> errors) {
+            this(plan, errors, List.of());
         }
 
         public boolean ok() {
@@ -112,16 +124,31 @@ public final class QueueParser {
                 errors.add("plan: invalid structure");
             }
         }
-        if (plan != null && plan.worstCaseActions() > Math.max(0, maxSteps)) {
-            errors.add("plan: worst-case action count exceeds " + maxSteps);
+        if (plan != null) {
+            long worstCase = plan.worstCaseActions();
+            long stepLimit = Math.max(0, maxSteps);
+            if (worstCase > stepLimit) {
+                errors.add(
+                        "plan: worst-case action count exceeds " + stepLimit + " (the plan needs " + worstCase + ")");
+                counter.exceed("steps", worstCase, stepLimit);
+            }
+            long normalizedChars = PlanCodec.toJson(plan).toString().length();
+            long sizeLimit = Math.max(0, maxTotal);
+            if (normalizedChars > sizeLimit) {
+                errors.add(
+                        "plan: normalized JSON exceeds " + sizeLimit + " characters (it is " + normalizedChars + ")");
+                counter.exceed("plan-size", normalizedChars, sizeLimit);
+            }
         }
-        if (plan != null && PlanCodec.toJson(plan).toString().length() > Math.max(0, maxTotal)) {
-            errors.add("plan: normalized JSON exceeds " + maxTotal + " characters");
+        int argumentLimit = Math.max(0, maxTotal);
+        if (counter.argumentChars > argumentLimit) {
+            errors.add("plan: aggregate arguments exceed " + argumentLimit + " characters (they are "
+                    + counter.argumentChars + ")");
+            counter.exceed("total-arguments", counter.argumentChars, argumentLimit);
         }
-        if (counter.argumentChars > Math.max(0, maxTotal)) {
-            errors.add("plan: aggregate arguments exceed " + maxTotal + " characters");
-        }
-        return errors.isEmpty() ? new PlanResult(plan, List.of()) : new PlanResult(null, errors);
+        return errors.isEmpty()
+                ? new PlanResult(plan, List.of(), List.of())
+                : new PlanResult(null, errors, counter.limits);
     }
 
     private static List<PlanNode> parseNodes(
@@ -242,7 +269,10 @@ public final class QueueParser {
         args = ArgCoercion.coerce(schema, args);
         int argSize = args.toString().length();
         counter.argumentChars += argSize;
-        if (argSize > maxArgs) errors.add(path(path, "arguments exceed " + maxArgs + " characters"));
+        if (argSize > maxArgs) {
+            errors.add(path(path, "arguments exceed " + maxArgs + " characters (they are " + argSize + ")"));
+            counter.exceed("arguments", argSize, maxArgs);
+        }
         List<String> argIssues = ArgValidator.validate(schema, args);
         for (String issue : argIssues) errors.add(path(path, issue));
 
@@ -572,5 +602,10 @@ public final class QueueParser {
 
     private static final class Counter {
         private int argumentChars;
+        private final List<LimitViolation> limits = new ArrayList<>();
+
+        private void exceed(String name, long observed, long limit) {
+            limits.add(new LimitViolation(name, observed, limit));
+        }
     }
 }

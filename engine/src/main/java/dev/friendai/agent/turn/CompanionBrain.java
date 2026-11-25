@@ -1236,13 +1236,15 @@ public final class CompanionBrain {
             }
             if (error != null || proposal == null) {
                 Throwable cause = error == null ? null : PlanFailure.unwrap(error);
-                PlanFailure.Code code = cause instanceof PlannerException planner
-                        ? planner.failure().code()
-                        : PlanFailure.Code.REQUEST_FAILED;
+                PlanFailure planFailure = cause instanceof PlannerException planner ? planner.failure() : null;
+                PlanFailure.Code code = planFailure == null ? PlanFailure.Code.REQUEST_FAILED : planFailure.code();
+                Map<String, String> facts = planFailure == null ? Map.of() : planFailure.facts();
                 LOGGER.info("Planner gave no plan: {}", code);
-                observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "failed", code.name(), durationMs, 0L)));
+                observe(o -> o.onPlannerAttempt(
+                        new PlannerAttempt(subject, 1, "failed", code.name(), durationMs, 0L, facts)));
                 String reason = fallbackReason(cause);
-                observe(o -> o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", reason, durationMs, 0L)));
+                observe(o ->
+                        o.onPlannerAttempt(new PlannerAttempt(subject, 1, "fallback", reason, durationMs, 0L, facts)));
                 noPlannerProgress(troubledPlan);
                 plannerNote = "no plan was drafted (" + code + "); plan the next step yourself";
             } else if (proposeOnly && subject instanceof PlanSubject.OwnerOrder order) {
@@ -1727,6 +1729,7 @@ public final class CompanionBrain {
         return switch (planner.failure().code()) {
             case REQUEST_FAILED -> "transport";
             case CANCELLED -> "cancelled";
+            case LIMIT_EXCEEDED -> "limit";
             default -> "parse";
         };
     }

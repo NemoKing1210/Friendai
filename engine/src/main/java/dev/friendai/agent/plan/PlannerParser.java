@@ -79,15 +79,28 @@ public final class PlannerParser {
         QueueParser.PlanResult parsed =
                 QueueParser.parsePlan(steps, schemas, normalizers, allTools, maxSteps, maxArgs, maxTotal);
         if (!parsed.ok()) {
-            boolean oversized =
-                    parsed.errors().stream().anyMatch(e -> e.contains("exceeds") || e.contains("arguments exceed"));
+            // An over-long reply is the one TOO_LARGE case left; a plan that broke a queue cap names the cap and its
+            // observed and allowed values instead of being lumped in with it.
+            // Only a plan whose every error is a cap overrun is a limit failure; a rejected step stays a rejected step
+            // even when the same plan also had oversized arguments.
+            boolean limit = !parsed.limits().isEmpty()
+                    && parsed.errors().size() == parsed.limits().size();
+            Map<String, String> facts = Map.of();
+            if (limit) {
+                QueueParser.LimitViolation first = parsed.limits().getFirst();
+                facts = Map.of(
+                        "limitKind", first.name(),
+                        "observed", Long.toString(first.observed()),
+                        "limit", Long.toString(first.limit()));
+            }
             return new Parsed(
                     Optional.empty(),
                     parsed.errors(),
                     new PlanFailure(
-                            oversized ? PlanFailure.Code.TOO_LARGE : PlanFailure.Code.STEPS_INVALID,
+                            limit ? PlanFailure.Code.LIMIT_EXCEEDED : PlanFailure.Code.STEPS_INVALID,
                             String.join("; ", parsed.errors()),
-                            1));
+                            1,
+                            facts));
         }
         // The proposal carries the canonical tree the parser validated, so its wire steps have the documented aliases
         // already applied; a later consumer sees the same arguments as the plan and the queue.

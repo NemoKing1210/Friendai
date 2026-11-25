@@ -205,6 +205,17 @@ class PlannerFailuresTest {
     }
 
     @Test
+    void aLimitOverrunIsLocalizedWithoutItsInternalValues() {
+        var message = PlanFailure.ownerMessage(new PlannerException(new PlanFailure(
+                PlanFailure.Code.LIMIT_EXCEEDED,
+                "plan: worst-case action count exceeds 12 (the plan needs 13)",
+                1,
+                Map.of("limitKind", "steps", "observed", "13", "limit", "12"))));
+        assertEquals("friendai.freetime.no_plan.too_large", message.key());
+        assertTrue(message.args().isEmpty(), "measured values stay in the record, not in the owner's sentence");
+    }
+
+    @Test
     void rejectedStepIsTranslatedInsteadOfEchoingQueueDiagnostic() {
         var message = PlanFailure.ownerMessage(new PlannerException(
                 new PlanFailure(PlanFailure.Code.STEPS_INVALID, "step 3: unknown tool 'private_tool'", 1)));

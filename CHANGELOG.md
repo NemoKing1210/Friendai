@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.5] - 2026-11-25
+
+### Fixed
+
+- The companion's log now says which limit a rejected plan broke, and by how much, instead of recording every too-large plan as the same failure.
+
 ## [0.235.4] - 2026-11-25
 
 ### Fixed

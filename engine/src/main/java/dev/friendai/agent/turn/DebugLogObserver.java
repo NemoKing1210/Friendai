@@ -143,6 +143,7 @@ public final class DebugLogObserver implements BrainObserver {
         data.put("attempt", Integer.toString(attempt.attempt()));
         data.put("disposition", attempt.disposition());
         if (!attempt.failureCode().isEmpty()) data.put("failure", attempt.failureCode());
+        attempt.facts().forEach(data::put);
         String traceToken = trace == null ? "" : trace;
         if (!traceToken.isEmpty()) {
             data = LogEventData.build(new LogContext(traceToken, turn, 0L, 0L, 0L, 0L, 0L, 0L, "", cause), data);

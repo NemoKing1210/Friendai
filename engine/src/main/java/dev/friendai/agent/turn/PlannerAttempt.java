@@ -1,6 +1,7 @@
 package dev.friendai.agent.turn;
 
 import dev.friendai.agent.plan.PlanSubject;
+import java.util.Map;
 
 /**
  * One planner consultation as the durable log sees it.
@@ -10,17 +11,32 @@ import dev.friendai.agent.plan.PlanSubject;
  *
  * @param disposition {@code request} when the planner is asked, then {@code delivered}, {@code failed} or
  *     {@code fallback}
- * @param failureCode the plan failure code, or the fallback reason ({@code transport}, {@code parse},
+ * @param failureCode the plan failure code, or the fallback reason ({@code transport}, {@code limit}, {@code parse},
  *     {@code no-input}, {@code no-subject})
  * @param durationMs time spent waiting for the answer, or -1 when the record only announces the request
  * @param planId the queued plan, or 0 when none was queued
+ * @param facts measured failure values to log beside the code (the queue limit, its observed and allowed value), or
+ *     empty when the failure has none
  */
 public record PlannerAttempt(
-        PlanSubject subject, int attempt, String disposition, String failureCode, long durationMs, long planId) {
+        PlanSubject subject,
+        int attempt,
+        String disposition,
+        String failureCode,
+        long durationMs,
+        long planId,
+        Map<String, String> facts) {
     public PlannerAttempt {
         attempt = Math.max(1, attempt);
         disposition = disposition == null ? "" : disposition;
         failureCode = failureCode == null ? "" : failureCode;
+        facts = facts == null ? Map.of() : Map.copyOf(facts);
+    }
+
+    /** An attempt without measured failure values. */
+    public PlannerAttempt(
+            PlanSubject subject, int attempt, String disposition, String failureCode, long durationMs, long planId) {
+        this(subject, attempt, disposition, failureCode, durationMs, planId, Map.of());
     }
 
     /** The subject family, safe to log. */

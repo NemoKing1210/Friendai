@@ -10,6 +10,7 @@ import com.google.gson.JsonParser;
 import dev.friendai.execution.queue.Guard;
 import dev.friendai.execution.queue.PlanDefinition;
 import dev.friendai.execution.queue.PlanNode;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -139,6 +140,38 @@ class QueueParserTest {
                 JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{}\"}]").getAsJsonArray();
         assertFalse(QueueParser.parsePlan(tooLong, SCHEMAS, Set.of("go_to"), 32, 8192, 10)
                 .ok());
+    }
+
+    @Test
+    void reportsTypedLimitsWithTheirObservedAndAllowedValues() {
+        JsonArray thirteen = new JsonArray();
+        for (int i = 0; i < 13; i++) {
+            thirteen.add(JsonParser.parseString("{\"tool\":\"go_to\"}"));
+        }
+        var steps = QueueParser.parsePlan(thirteen, SCHEMAS, Set.of("go_to"), 4, 8192, 49152);
+        assertFalse(steps.ok());
+        assertEquals(List.of(new QueueParser.LimitViolation("steps", 13, 4)), steps.limits());
+        assertTrue(
+                steps.errors().getFirst().contains("needs 13"), steps.errors().toString());
+
+        JsonArray longArgs = JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{\\\"note\\\":\\\"abcdef\\\"}\"}]")
+                .getAsJsonArray();
+        long argumentChars =
+                JsonParser.parseString("{\"note\":\"abcdef\"}").toString().length();
+        var arguments = QueueParser.parsePlan(longArgs, SCHEMAS, Set.of("go_to"), 4, 5, 49152);
+        assertFalse(arguments.ok());
+        assertEquals(List.of(new QueueParser.LimitViolation("arguments", argumentChars, 5)), arguments.limits());
+
+        JsonArray two = JsonParser.parseString("[{\"tool\":\"go_to\",\"args\":\"{\\\"note\\\":\\\"a\\\"}\"},"
+                        + "{\"tool\":\"go_to\",\"args\":\"{\\\"note\\\":\\\"b\\\"}\"}]")
+                .getAsJsonArray();
+        var sizes = QueueParser.parsePlan(two, SCHEMAS, Set.of("go_to"), 4, 8192, 5);
+        assertFalse(sizes.ok());
+        assertEquals(
+                List.of("plan-size", "total-arguments"),
+                sizes.limits().stream().map(QueueParser.LimitViolation::name).toList());
+        assertTrue(sizes.limits().stream()
+                .allMatch(violation -> violation.observed() > violation.limit() && violation.limit() == 5L));
     }
 
     @Test
