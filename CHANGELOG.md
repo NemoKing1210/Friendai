@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.1] - 2026-11-25
+
+### Fixed
+
+- A goal is no longer stuck on the plan that failed it: once a plan ends, the companion can give the same goal a new plan, and the goal keeps its criteria and its remaining replan attempts.
+
 ## [0.235.0] - 2026-11-25
 
 ### Changed

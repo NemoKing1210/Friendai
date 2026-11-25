@@ -461,7 +461,11 @@ list and answers a silent model with the blocked line itself, and `QueueText` re
 takes the model's word and does not re-check criteria, which is exactly why false completion has to be observed
 rather than trusted. A finished goal leaves the active list but stays in a bounded `GoalBoard.finished()` list (the
 newest eight, saved by `GoalSave` and reloaded as finished, with its id never reissued), so a `goal_met` dependency
-still learns `DONE` or `ABANDONED` after the goal itself is gone.
+still learns `DONE` or `ABANDONED` after the goal itself is gone. A goal is released from its plan when that plan
+reaches its terminal boundary: `GoalBoard.releasePlan` runs after the event's facts, so a failed attempt still
+spends its replan, and the goal — criteria, lessons and budget intact — accepts the next plan, whose terminal event
+resolves it again. A link to a plan no longer in the queue (a restart archived it) is treated the same way when the
+next plan asks for the goal.
 
 | Metric | How it is counted today | Where to read it |
 |---|---|---|

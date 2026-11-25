@@ -189,6 +189,18 @@ public final class GoalBoard {
         find(goalId).ifPresent(g -> replace(g.withPlan(planId)));
     }
 
+    /**
+     * Forgets a plan that has ended, so the goal it served can accept the next one. Only a live goal whose link is
+     * that exact plan is touched; a goal that already moved to another plan keeps it, and the goal's own status,
+     * criteria and spent replan budget stay as they were.
+     */
+    public void releasePlan(long planId) {
+        if (planId <= 0) return;
+        for (Goal goal : List.copyOf(goals)) {
+            if (goal.planId() == planId) replace(goal.withPlan(0));
+        }
+    }
+
     /** Spends one replan; returns false and blocks the goal when the budget is already used up. */
     public boolean recordReplan(long goalId) {
         Optional<Goal> found = find(goalId);

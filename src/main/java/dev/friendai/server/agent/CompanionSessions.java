@@ -805,7 +805,13 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             goalId = sameTurnGoal;
         }
         var goal = goals.board(owner).find(goalId).orElse(null);
-        if (goal == null || goal.status() != GoalStatus.ACTIVE || goal.planId() != 0) {
+        // A link to a plan that is no longer queued names work that ended without this session seeing its boundary
+        // (a restart archived it, a capability change cleared the queue); the goal may take the next plan, whose
+        // link replaces the stale id.
+        boolean linkedPlanStillQueued = goal != null
+                && goal.planId() != 0
+                && companion.executionCoordinator().queue().plan(goal.planId()).isPresent();
+        if (goal == null || goal.status() != GoalStatus.ACTIVE || linkedPlanStillQueued) {
             throw new IllegalArgumentException("the requested goal is unavailable or already has a plan");
         }
         return Optional.of(goal);
@@ -819,6 +825,17 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
             throw new IllegalArgumentException("the goal changed before the plan could be linked");
         }
         board.linkPlan(snapshot.id(), planId);
+        goals.save(owner);
+    }
+
+    /**
+     * A plan ended, so the goal it served is free to accept the next one. Called after the terminal event's facts,
+     * which charge a failed attempt to the goal through that same link.
+     */
+    private void releaseEndedPlan(UUID owner, long planId) {
+        var board = goals.board(owner);
+        if (board.all().stream().noneMatch(goal -> goal.planId() == planId)) return;
+        board.releasePlan(planId);
         goals.save(owner);
     }
 
@@ -1416,17 +1433,15 @@ public final class CompanionSessions implements AutoCloseable, QueueToolAccess, 
                         || freeTime.onPlanEnded(owner, companion, planId, disposition, summary)) {
                     return;
                 }
+                // Facts and the replan charge are read while the goal still owns the plan; the plan's end then frees
+                // the goal before the model's recovery turn can ask to link the next one.
+                String extra = agent.extra(disposition, 0, planId, goal, summary, workResult);
+                releaseEndedPlan(owner, planId);
                 postFromSession(
                         session,
                         companion,
                         owner,
-                        new BrainEvent.PlanFinished(
-                                planId,
-                                goal,
-                                disposition,
-                                summary,
-                                agent.extra(disposition, 0, planId, goal, summary, workResult),
-                                workResult));
+                        new BrainEvent.PlanFinished(planId, goal, disposition, summary, extra, workResult));
             }
 
             @Override
