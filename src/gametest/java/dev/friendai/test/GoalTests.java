@@ -1,14 +1,23 @@
 package dev.friendai.test;
 
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.friendai.agent.llm.model.ToolCall;
 import dev.friendai.agent.turn.BrainEvent;
 import dev.friendai.entity.CompanionEntity;
 import dev.friendai.entity.CompanionManager;
+import dev.friendai.execution.queue.FailurePolicy;
+import dev.friendai.execution.queue.GuardAction;
+import dev.friendai.execution.queue.PlanDefinition;
+import dev.friendai.execution.queue.PlanNode;
+import dev.friendai.execution.queue.PlanOptions;
+import dev.friendai.execution.queue.QueuedStep;
 import dev.friendai.execution.tool.AccessLevel;
 import dev.friendai.execution.tool.Caller;
 import dev.friendai.execution.tool.ToolResult;
 import dev.friendai.protocol.control.ControlRequest;
+import java.util.List;
+import java.util.Map;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +26,15 @@ public class GoalTests {
     private static ToolResult call(CompanionEntity c, Caller caller, String name, String json) {
         ToolCall call = new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
         return GameTestToolRegistry.create(c, () -> 32).bind(c).execute(call, caller);
+    }
+
+    private static ToolCall tool(String name, String json) {
+        return new ToolCall("1", name, JsonParser.parseString(json).getAsJsonObject(), json, null);
+    }
+
+    private static QueuedStep step(String tool) {
+        return new QueuedStep(
+                tool, new JsonObject(), null, List.of(), GuardAction.WAIT, FailurePolicy.STOP_PLAN, 1, List.of());
     }
 
     private static Caller owner(ServerPlayer player) {
@@ -201,12 +219,16 @@ public class GoalTests {
         var runtime = GameTestSupport.runtime(h.getLevel().getServer());
         var owner = player.getUUID();
         var script = new CompanionControlTests.Script()
-                .call("set_goal", "{\"text\":\"Jump twice\"}")
-                .call("queue_add", "{\"goal\":\"Jump twice\",\"steps\":[{\"tool\":\"jump\"},{\"tool\":\"jump\"}]}")
+                .call("set_goal", "{\"text\":\"Wait here\"}")
+                // The step outlives the assertion on purpose: a plan that ends releases its goal, so a plan short
+                // enough to finish before this test observes the link would hide the very link it checks.
+                .call(
+                        "queue_add",
+                        "{\"goal\":\"Wait here\",\"steps\":[{\"tool\":\"wait\",\"args\":\"{\\\"seconds\\\":30}\"}]}")
                 .text("[silent]");
         runtime.sessions().setGatewayOverride(owner, script);
         CompanionManager.get(h.getLevel().getServer()).summon(player);
-        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(owner, "Steve", "Jump twice", BrainEvent.Source.CHAT));
+        runtime.sessions().post(owner, new BrainEvent.PlayerSaid(owner, "Steve", "Wait here", BrainEvent.Source.CHAT));
         h.succeedWhen(() -> {
             var goal = runtime.goals().board(owner).primary();
             h.assertTrue(goal.isPresent() && goal.orElseThrow().planId() > 0, "same-turn goal and plan must be linked");
@@ -242,6 +264,84 @@ public class GoalTests {
                 c.executionCoordinator().queue().archives().stream()
                         .anyMatch(result -> result.id() == goal.planId() && result.success()),
                 "the linked jump settles successfully under its own plan"));
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16, maxTicks = 300)
+    public void a_plan_that_ends_frees_its_goal_for_the_next_plan(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionEntity c = CompanionManager.get(h.getLevel().getServer()).summon(player);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var owner = player.getUUID();
+        // Running the tool through the session creates the brain whose task listener sees the plan's end.
+        ToolResult set = runtime.sessions()
+                .runTool(
+                        owner,
+                        tool(
+                                "set_goal",
+                                "{\"text\":\"Jump twice\",\"criteria\":[{\"text\":\"12 logs\",\"type\":\"has_item\",\"item\":\"minecraft:oak_log\",\"count\":12}]}"),
+                        owner(player));
+        h.assertFalse(set.error(), "set_goal error: " + set.content());
+        var board = runtime.goals().board(owner);
+        long goalId = board.primary().orElseThrow().id();
+        long doomed = c.executionCoordinator()
+                .enqueuePlan(
+                        "Jump twice",
+                        new PlanDefinition(List.of(new PlanNode.Action(step("missing_tool")))),
+                        PlanOptions.DEFAULT,
+                        Map.of(),
+                        // The link lands before the plan's first step can run, as queue_add's own callback does.
+                        planId -> board.linkPlan(goalId, planId));
+
+        h.succeedWhen(() -> {
+            h.assertTrue(
+                    c.executionCoordinator().queue().archives().stream().anyMatch(result -> result.id() == doomed),
+                    "the doomed plan reaches its terminal boundary");
+            var goal = board.primary().orElseThrow();
+            h.assertValueEqual(0L, goal.planId(), "the ended plan no longer pins the goal");
+            h.assertValueEqual(1, goal.replans(), "the failed attempt charged exactly one replan");
+            h.assertValueEqual(1, goal.criteria().size(), "the criteria the next plan must meet stay");
+            ToolResult queued = runtime.sessions()
+                    .runTool(
+                            owner,
+                            tool(
+                                    "queue_add",
+                                    "{\"goal\":\"Jump twice\",\"goal_id\":" + goalId
+                                            + ",\"steps\":[{\"tool\":\"jump\"}]}"),
+                            owner(player));
+            h.assertFalse(queued.error(), "the freed goal accepts a new linked plan: " + queued.content());
+            long relinked = board.primary().orElseThrow().planId();
+            h.assertTrue(relinked > 0 && relinked != doomed, "the goal follows its new plan: " + relinked);
+        });
+    }
+
+    @GameTest(structure = GameTestArenas.ARENA_16)
+    public void a_goal_whose_plan_is_no_longer_queued_accepts_the_next_plan(GameTestHelper h) {
+        GameTestSupport.platform(h, 16);
+        ServerPlayer player = GameTestSupport.mockPlayerAt(h, 4, 2, 4);
+        CompanionManager.get(h.getLevel().getServer()).summon(player);
+        var runtime = GameTestSupport.runtime(h.getLevel().getServer());
+        var owner = player.getUUID();
+        ToolResult set =
+                runtime.sessions().runTool(owner, tool("set_goal", "{\"text\":\"Jump twice\"}"), owner(player));
+        h.assertFalse(set.error(), "set_goal error: " + set.content());
+        var board = runtime.goals().board(owner);
+        long goalId = board.primary().orElseThrow().id();
+        // A restart archives the plan a goal was following; the stored link outlives the queue row.
+        board.linkPlan(goalId, 9999);
+
+        ToolResult queued = runtime.sessions()
+                .runTool(
+                        owner,
+                        tool(
+                                "queue_add",
+                                "{\"goal\":\"Jump twice\",\"goal_id\":" + goalId + ",\"steps\":[{\"tool\":\"jump\"}]}"),
+                        owner(player));
+
+        h.assertFalse(queued.error(), "the goal is free once its plan is gone: " + queued.content());
+        long linked = board.primary().orElseThrow().planId();
+        h.assertTrue(linked > 0 && linked != 9999, "the new plan replaces the stale link: " + linked);
+        h.succeed();
     }
 
     @GameTest(structure = GameTestArenas.ARENA_16)

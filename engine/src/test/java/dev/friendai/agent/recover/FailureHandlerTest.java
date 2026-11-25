@@ -136,6 +136,21 @@ class FailureHandlerTest {
     }
 
     @Test
+    void eachFailedPlanChargesOneReplanEvenAfterTheGoalIsReleased() {
+        GoalBoard board = boardWithPlan(3, 7);
+        long id = board.primary().orElseThrow().id();
+        handler.onTerminal(board, 7, "go_to", TaskDisposition.FAILED, "can't reach 1 2 3", "");
+        assertEquals(1, board.primary().orElseThrow().replans(), "the failed attempt charges the goal once");
+
+        board.releasePlan(7);
+        board.linkPlan(id, 8);
+        handler.onTerminal(board, 8, "go_to", TaskDisposition.FAILED, "can't reach 4 5 6", "");
+
+        assertEquals(2, board.primary().orElseThrow().replans(), "the next failed plan charges exactly one more");
+        assertEquals(8, board.primary().orElseThrow().planId(), "the goal follows its new plan");
+    }
+
+    @Test
     void directTaskFailureHasNoBudgetAndNeverTouchesTheBoard() {
         GoalBoard board = boardWithPlan(0, 7);
         String extra = handler.onFailure(board, 0, "go_to", "can't reach 1 2 3", "");

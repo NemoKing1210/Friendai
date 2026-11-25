@@ -101,6 +101,38 @@ class GoalBoardTest {
     }
 
     @Test
+    void releasingAnEndedPlanFreesOnlyTheGoalThatServedIt() {
+        GoalBoard board = new GoalBoard(3, 3);
+        Criterion logs = new Criterion("12 logs", Optional.of(new Guard.HasItem("minecraft:oak_log", 12)));
+        long primary = board.set("wood", List.of(logs), false, 1).value().id();
+        long background = board.set("home", List.of(), true, 1).value().id();
+        board.linkPlan(primary, 7);
+        board.linkPlan(background, 8);
+        board.recordReplan(primary);
+
+        board.releasePlan(7);
+
+        Goal freed = board.find(primary).orElseThrow();
+        assertEquals(0, freed.planId(), "the ended plan no longer pins the goal");
+        assertEquals(GoalStatus.ACTIVE, freed.status(), "the goal stays open for the next plan");
+        assertEquals(1, freed.criteria().size(), "the criteria the next plan must satisfy stay");
+        assertEquals(1, freed.replans(), "the budget already spent is not refunded");
+        assertEquals(8, board.find(background).orElseThrow().planId(), "another goal keeps its own plan");
+    }
+
+    @Test
+    void releasingAPlanNothingFollowsLeavesTheBoardAlone() {
+        GoalBoard board = new GoalBoard(3, 3);
+        long id = board.set("g", List.of(), false, 1).value().id();
+        board.linkPlan(id, 7);
+
+        board.releasePlan(9);
+        board.releasePlan(0);
+
+        assertEquals(7, board.primary().orElseThrow().planId());
+    }
+
+    @Test
     void recordReplanBlocksGoalWhenBudgetSpent() {
         GoalBoard board = new GoalBoard(3, 2);
         long id = board.set("g", List.of(), false, 1).value().id();
