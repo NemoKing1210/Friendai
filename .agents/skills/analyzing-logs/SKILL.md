@@ -75,6 +75,8 @@ Get-Content $f | ForEach-Object { $_ | ConvertFrom-Json } |
 
 Then look for patterns, not only single lines: the same `event` repeated for one `plan`/`job`/`task`, the same blocker text twice (`AcquisitionAttempts.MAX_SAME_BLOCKER`), a `task.finish` claiming success with no matching `inventory.delta`, a quiet period with no `task.progress`, `log.dropped`/`log.suppressed` that explains a suspected gap.
 
+**Plain-text logs.** `latest.log` and a crash report carry no JSONL fields, so the queries above do not apply and there is no `cause` chain: the timestamp is the timeline. Filter with `grep -nE '\b(ERROR|FATAL)\b'`, `grep -nE '\bWARN\b'`, `grep -ni 'friendai'` and `grep -nE 'Exception|Caused by'`; correlate the times with the crash report's `Time:` line and read the top stack frame before calling anything a defect. A development-environment warning ("missing files", "refmap", "post effect does not exist") is normally noise, not a finding.
+
 ## Cause tracing
 
 - Every record carries `cause` = the `seq` that started it (0 when none). Walk it upward until 0 and write a `seq`-ordered timeline.
