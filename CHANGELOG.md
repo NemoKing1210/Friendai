@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.9] - 2026-11-25
+
+### Fixed
+
+- The companion's log now says when a finished step had nothing to check and names the goal criteria a plan was judged against, instead of reporting both as an unknown outcome.
+
 ## [0.235.8] - 2026-11-25
 
 ### Fixed

@@ -1,6 +1,7 @@
 package dev.friendai.server.agent;
 
 import dev.friendai.FriendaiMod;
+import dev.friendai.agent.goal.Criterion;
 import dev.friendai.agent.goal.GoalService;
 import dev.friendai.agent.recover.FailureHandler;
 import dev.friendai.agent.recover.RecoveryAdvisor;
@@ -104,7 +105,7 @@ final class SessionEvents {
             boolean succeeded = disposition == TaskDisposition.SUCCESS;
             Outcome outcome = OutcomeChecker.check(
                     before == null ? after : before, after, succeeded, List.of(), null, workResult, false);
-            emitOutcomeCheck(outcome, succeeded, true, execution, planId, jobId, tool);
+            emitOutcomeCheck(outcome, succeeded, List.of(), execution, planId, jobId, tool);
         } catch (RuntimeException e) {
             FriendaiMod.LOGGER.warn("Could not build queued task evidence", e);
         }
@@ -144,7 +145,7 @@ final class SessionEvents {
                             .filter(goal -> goal.planId() == planId)
                             .findFirst()
                             .orElse(null);
-            List<dev.friendai.agent.goal.Criterion> criteria = owning == null ? List.of() : owning.criteria();
+            List<Criterion> criteria = owning == null ? List.of() : owning.criteria();
             var outcome = OutcomeChecker.check(
                     before,
                     after,
@@ -153,8 +154,7 @@ final class SessionEvents {
                     new CompanionGuardFacts(companion),
                     workResult,
                     false);
-            emitOutcomeCheck(
-                    outcome, disposition == TaskDisposition.SUCCESS, criteria.isEmpty(), execution, planId, 0, tool);
+            emitOutcomeCheck(outcome, disposition == TaskDisposition.SUCCESS, criteria, execution, planId, 0, tool);
             // One receipt per verified item, tagged with the goal and plan it proves, so a later planner call for
             // other work cannot inherit it. A delivery is history; a stock count must still be checked against the
             // live inventory when the planner asks.
@@ -201,27 +201,12 @@ final class SessionEvents {
     private void emitOutcomeCheck(
             Outcome outcome,
             boolean taskSucceeded,
-            boolean hasNoCriteria,
+            List<Criterion> criteria,
             long execution,
             long planId,
             long jobId,
             String tool) {
-        String verdict;
-        if (!taskSucceeded) {
-            verdict = "unmet";
-        } else if (hasNoCriteria) {
-            verdict = "unknown";
-        } else {
-            verdict = outcome.success() ? "met" : "unmet";
-        }
-        Map<String, String> data = new LinkedHashMap<>();
-        data.put("verdict", verdict);
-        data.put("subject", "companion");
-        data.put("source", "outcome_checker");
-        data.put("plan", Long.toString(planId));
-        if (execution > 0) data.put("execution", Long.toString(execution));
-        data.put("facts", outcome.facts().stream().map(Fact::text).collect(Collectors.joining("; ")));
-        data.put("unmet", String.join("; ", outcome.unmetCriteria()));
+        Map<String, String> data = outcomeData(outcome, taskSucceeded, criteria, execution, planId);
         debug.pipeline()
                 .emit(new LogRecord(
                         0L,
@@ -240,8 +225,35 @@ final class SessionEvents {
                         tool == null ? "" : tool,
                         0L,
                         -1L,
-                        "outcome: " + verdict,
+                        "outcome: " + data.get("verdict"),
                         data,
                         null));
+    }
+
+    /**
+     * The verdict and facts of one outcome record. A queued job has no criteria of its own, so its success is
+     * {@code unchecked} rather than {@code unknown}: the plan's own check names what it verified.
+     */
+    static Map<String, String> outcomeData(
+            Outcome outcome, boolean taskSucceeded, List<Criterion> criteria, long execution, long planId) {
+        String verdict;
+        if (!taskSucceeded) {
+            verdict = "unmet";
+        } else if (criteria.isEmpty()) {
+            verdict = "unchecked";
+        } else {
+            verdict = outcome.success() ? "met" : "unmet";
+        }
+        Map<String, String> data = new LinkedHashMap<>();
+        data.put("verdict", verdict);
+        data.put("subject", "companion");
+        data.put("source", "outcome_checker");
+        data.put("plan", Long.toString(planId));
+        if (execution > 0) data.put("execution", Long.toString(execution));
+        data.put("checked", Integer.toString(criteria.size()));
+        data.put("criteria", criteria.stream().map(Criterion::text).collect(Collectors.joining("; ")));
+        data.put("facts", outcome.facts().stream().map(Fact::text).collect(Collectors.joining("; ")));
+        data.put("unmet", String.join("; ", outcome.unmetCriteria()));
+        return data;
     }
 }
