@@ -35,6 +35,7 @@
   "friendai.companion.recovery_blocked": "Je n'arrive pas à dépasser ceci : %s. Dis-moi quoi changer.",
   "friendai.agent.plan_queued": "C'est parti : le plan est en file et je te dirai comment ça se passe.",
   "friendai.agent.request_too_large": "La demande est trop volumineuse pour le modèle (%s jetons au-dessus d'une limite de %s). Raccourcis le message ou vide le chat.",
+  "friendai.agent.step_limit": "J'ai épuisé toutes mes étapes pour ce tour et je n'ai pas terminé. Dis-moi de continuer et je reprends d'ici.",
 
   "friendai.command.stopped": "Arrêté.",
   "friendai.local_order.follow": "Je vous suis.",

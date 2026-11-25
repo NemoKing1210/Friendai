@@ -35,6 +35,7 @@
   "friendai.companion.recovery_blocked": "Não consigo superar isto: %s. Diga-me o que devo mudar.",
   "friendai.agent.plan_queued": "Certo: o plano está na fila e eu conto como foi.",
   "friendai.agent.request_too_large": "O pedido é grande demais para o modelo (%s tokens acima de um limite de %s). Encurte a mensagem ou limpe o chat.",
+  "friendai.agent.step_limit": "Usei todos os meus passos deste turno e ainda não terminei. Diga para eu continuar e sigo daqui.",
 
   "friendai.command.stopped": "Parado.",
   "friendai.local_order.follow": "Seguindo você.",

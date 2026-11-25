@@ -1255,6 +1255,63 @@ class CompanionBrainTest {
     }
 
     @Test
+    void theStepCeilingEndsTheTurnOnceAndTellsTheOwner() {
+        maxSteps = 1;
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueue(calls("", call("c1", "stay")));
+
+        brain.post(said("stay"));
+
+        assertEquals(List.of("step_limit"), ends, "the ceiling is the turn's one terminal record");
+        assertEquals(
+                List.of(UserMessage.of("friendai.agent.step_limit")),
+                speaker.messages,
+                "a turn that said nothing hears one composed line instead of silence");
+    }
+
+    @Test
+    void aReplyDeliveredBeforeTheCeilingIsNotRepeated() {
+        maxSteps = 1;
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueue(calls("Working on it.", call("c1", "stay")));
+
+        brain.post(said("stay"));
+
+        assertEquals(List.of("step_limit"), ends, "the turn still ends once, at the ceiling");
+        assertEquals(List.of("Working on it."), speaker.said);
+        assertTrue(speaker.messages.isEmpty(), "a turn that already spoke keeps its silence at the ceiling");
+    }
+
+    @Test
+    void aSilentAnswerStillLeavesOneTerminalRecord() {
+        List<String> ends = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onTurnEnd(long turn, String outcome) {
+                ends.add(outcome);
+            }
+        });
+        gateway.enqueue(text("[silent]"));
+
+        brain.post(said("just checking in"));
+
+        assertEquals(List.of("silent"), ends, "a silent turn is still a started turn");
+        assertTrue(speaker.messages.isEmpty(), "silence is the answer here, not a fallback line");
+    }
+
+    @Test
     void errorIsReportedAndBrainRecovers() {
         gateway.enqueueFailure(new LlmException(LlmErrorKind.AUTH, "bad key"));
         brain.post(said("hi"));

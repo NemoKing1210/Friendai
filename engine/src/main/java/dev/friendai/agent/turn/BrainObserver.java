@@ -10,7 +10,11 @@ public interface BrainObserver {
     /** A turn began: the batch was chosen and the request is about to be built. */
     default void onTurnStart(long turn) {}
 
-    /** A turn ended with one of `delivered`, `error` or `cancelled`. */
+    /**
+     * A started turn ended, exactly once, with one of `delivered`, `silent`, `step_limit`, `error`, `cancelled` or
+     * `superseded`: the owner heard a reply, the turn ended without saying anything, the step ceiling stopped it,
+     * the request failed, the owner cancelled it, or a correction replaced it.
+     */
     default void onTurnEnd(long turn, String outcome) {}
 
     default void onEvent(BrainEvent e) {}

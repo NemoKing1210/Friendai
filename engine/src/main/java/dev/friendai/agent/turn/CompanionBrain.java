@@ -151,6 +151,11 @@ public final class CompanionBrain {
     private boolean thinking;
     private boolean cooldownScheduled;
     private boolean hasFinishedTurn;
+    /** The current turn already reported its one terminal outcome; later paths must not report again. */
+    private boolean turnEndReported;
+    /** The owner was spoken to during the current turn, so its end is reported as {@code delivered}. */
+    private boolean turnReplyDelivered;
+
     private long lastTurnEnd;
     private int generation;
 
@@ -334,7 +339,7 @@ public final class CompanionBrain {
      * open the next turn. The task already running is not touched: stopping work stays the owner's explicit stop.
      */
     private void abortForCorrection() {
-        observe(o -> o.onTurnEnd(turnSeq, "superseded"));
+        reportTurnEnd("superseded");
         generation++;
         CompletableFuture<PlanProposal> planning = plannerFuture;
         plannerFuture = null;
@@ -458,10 +463,9 @@ public final class CompanionBrain {
 
     /** Drops the in-flight request (its response will be ignored) and all queued events. */
     public void cancel() {
-        long cancelled = turnSeq;
         // One turn ends once: only a request that is actually running has something to cancel. Queued events
         // during the post-turn cooldown belong to no turn, and a delivered turn has already ended.
-        if (thinking) observe(o -> o.onTurnEnd(cancelled, "cancelled"));
+        if (thinking) reportTurnEnd("cancelled");
         generation++;
         CompletableFuture<PlanProposal> planning = plannerFuture;
         plannerFuture = null;
@@ -839,6 +843,8 @@ public final class CompanionBrain {
         // into it still deserves the model's own answer.
         playerOnlyBatch = batch.stream().allMatch(event -> event instanceof BrainEvent.PlayerSaid);
         long startedTurn = ++turnSeq;
+        turnEndReported = false;
+        turnReplyDelivered = false;
         repeatedCalls.clear();
         turnEvent = batch.get(0);
         // A spent incident pauses only the turn that reports its own block or failure; unrelated news keeps its
@@ -1139,7 +1145,7 @@ public final class CompanionBrain {
     private boolean refreshAfterFailure(int gen) {
         if (!hasPendingFailure()) return false;
         if (step >= settings.get().maxToolSteps()) {
-            endTurn();
+            endTurnAtStepCeiling();
             return true;
         }
         List<BrainEvent.TaskFinished> outcomes = new ArrayList<>();
@@ -1321,7 +1327,7 @@ public final class CompanionBrain {
             return;
         }
         if (step >= settings.get().maxToolSteps()) {
-            endTurn();
+            endTurnAtStepCeiling();
             return;
         }
         step++;
@@ -1356,7 +1362,7 @@ public final class CompanionBrain {
             if (fitted instanceof RequestBudget.Refusal refusal) {
                 LOGGER.warn(
                         "Request did not fit: {} tokens over a {} token budget", refusal.tokens(), refusal.budget());
-                observe(o -> o.onTurnEnd(turnSeq, "error"));
+                reportTurnEnd("error");
                 speakSafely(
                         "request too large",
                         () -> speaker.error(UserMessage.of(
@@ -1564,8 +1570,7 @@ public final class CompanionBrain {
             Throwable failure = error != null ? error : missingProviderResponse();
             LOGGER.debug("LLM request failed: {}", failure.getClass().getSimpleName());
             observe(o -> o.onError(failure));
-            long failed = turnSeq;
-            observe(o -> o.onTurnEnd(failed, "error"));
+            reportTurnEnd("error");
             speakSafely("error", () -> speaker.error(ErrorMessages.forUser(failure)));
             endTurn();
             return;
@@ -1675,8 +1680,7 @@ public final class CompanionBrain {
             speakSafely(
                     "plan queued",
                     () -> speaker.say(UserMessage.of("friendai.agent.plan_queued"), turnAudience, turnCaller.uuid()));
-            long delivered = turnSeq;
-            observe(o -> o.onTurnEnd(delivered, "delivered"));
+            turnReplyDelivered = true;
             endTurn();
             return;
         }
@@ -1697,8 +1701,7 @@ public final class CompanionBrain {
         rememberSpoken(spoken);
         String heard = spoken;
         observe(o -> o.onReply(turnCaller, heard));
-        long delivered = turnSeq;
-        observe(o -> o.onTurnEnd(delivered, "delivered"));
+        turnReplyDelivered = true;
     }
 
     private boolean isRecoveryTurn() {
@@ -1868,7 +1871,7 @@ public final class CompanionBrain {
         }
         // The blocker names the owner's own goal, so it stays owner-only even when the turn was not private.
         speakSafely("blocked goal", () -> speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal())));
-        observe(o -> o.onTurnEnd(turnSeq, "delivered"));
+        turnReplyDelivered = true;
     }
 
     /**
@@ -1901,10 +1904,39 @@ public final class CompanionBrain {
         // The recovered detail belongs to the owner's work; never hand it to another player's screen.
         speakSafely(
                 "paused recovery", () -> speaker.say(UserMessage.of("friendai.companion.recovery_blocked", detail)));
-        observe(o -> o.onTurnEnd(turnSeq, "delivered"));
+        turnReplyDelivered = true;
+    }
+
+    /**
+     * The one terminal record a started turn gets: the first caller wins, so a delivered reply, a later error and a
+     * cancellation cannot describe the same turn twice. The debug log derives the turn's duration from the start and
+     * end pair, so a second record would report a wrong duration as well as a duplicate outcome.
+     */
+    private void reportTurnEnd(String outcome) {
+        if (turnEndReported) {
+            return;
+        }
+        turnEndReported = true;
+        observe(o -> o.onTurnEnd(turnSeq, outcome));
+    }
+
+    /**
+     * The turn wanted another model request but {@code maxToolSteps} is spent. The ceiling is the terminal reason,
+     * and a turn that has not told the owner anything says one localized line instead of stopping mid-work in
+     * silence; a turn that already delivered a reply keeps its silence.
+     */
+    private void endTurnAtStepCeiling() {
+        reportTurnEnd("step_limit");
+        if (!turnReplyDelivered && turnSpeechAllowed && turnCaller != null) {
+            speakSafely(
+                    "step limit",
+                    () -> speaker.say(UserMessage.of("friendai.agent.step_limit"), turnAudience, turnCaller.uuid()));
+        }
+        endTurn();
     }
 
     private void endTurn() {
+        reportTurnEnd(turnReplyDelivered ? "delivered" : "silent");
         teachingContext = null;
         thinking = false;
         if (clearConversationOnTurnEnd) {

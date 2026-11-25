@@ -35,6 +35,7 @@
   "friendai.companion.recovery_blocked": "Я не можу це подолати: %s. Скажи, що мені змінити.",
   "friendai.agent.plan_queued": "Гаразд, план у черзі — розповім, як усе мине.",
   "friendai.agent.request_too_large": "Запит завеликий для моделі (%s токенів понад ліміт %s). Скоротіть повідомлення або очистіть чат.",
+  "friendai.agent.step_limit": "У мене закінчилися кроки на цей хід, а роботу ще не завершено. Скажи «продовжуй», і я продовжу з цього місця.",
 
   "friendai.command.stopped": "Зупинено.",
   "friendai.local_order.follow": "Іду за вами.",

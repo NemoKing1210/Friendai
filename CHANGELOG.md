@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.2] - 2026-11-25
+
+### Fixed
+
+- A turn that uses up its steps before finishing now tells you so instead of going quiet, and every turn records exactly one outcome in the companion log.
+
 ## [0.235.1] - 2026-11-25
 
 ### Fixed
