@@ -387,4 +387,17 @@ class StructuredLogObserverTest {
                 sink.records.stream().map(LogRecord::event).toList());
         assertNotNull(sink.records.get(1).message());
     }
+
+    @Test
+    void keyedLinesAndSuppressedRepliesCarryTheirOwnEvents() {
+        Recall sink = new Recall();
+        DebugLogObserver observer = new DebugLogObserver(OWNER, COMPANION, "s1", pipeline(sink, LogLevel.INFO));
+        observer.onDirectLine("friendai.agent.step_limit");
+        observer.onReplySuppressed("repeat");
+        assertEquals(
+                List.of(LogEvents.ASSISTANT_DIRECT, LogEvents.ASSISTANT_SUPPRESSED),
+                sink.records.stream().map(LogRecord::event).toList());
+        assertEquals("friendai.agent.step_limit", sink.records.get(0).data().get("key"));
+        assertEquals("repeat", sink.records.get(1).data().get("reason"));
+    }
 }

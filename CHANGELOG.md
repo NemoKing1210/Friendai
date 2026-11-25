@@ -6,6 +6,12 @@ The file starts at 0.87.0. Earlier versions predate it, so their history stays i
 
 ## [Unreleased]
 
+## [0.235.8] - 2026-11-25
+
+### Fixed
+
+- The companion's log now records every line it says, including the acknowledgement after a queued plan and the note when a turn reaches its step limit, and names why a generated reply was not said.
+
 ## [0.235.7] - 2026-11-25
 
 ### Fixed

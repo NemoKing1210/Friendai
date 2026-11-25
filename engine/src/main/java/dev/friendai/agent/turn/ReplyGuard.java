@@ -75,19 +75,19 @@ public final class ReplyGuard {
             String reply, boolean coordinatesAllowed, List<String> recentSpoken, Set<String> internalNames) {
         try {
             if (reply == null) {
-                return Optional.empty();
+                return Filtered.silent(Silence.EMPTY);
             }
             String text = reply.strip();
             if (text.isEmpty()) {
-                return Optional.empty();
+                return Filtered.silent(Silence.EMPTY);
             }
             text = SENTINEL.matcher(text).replaceAll(" ").strip();
             if (text.isEmpty()) {
-                return Optional.empty();
+                return Filtered.silent(Silence.SENTINEL);
             }
             text = stripToolMarkup(text).strip();
             if (text.isEmpty()) {
-                return Optional.empty();
+                return Filtered.silent(Silence.TOOL_MARKUP);
             }
 
             text = TASK_ID.matcher(text).replaceAll(" ");
@@ -116,14 +116,14 @@ public final class ReplyGuard {
             text = text.strip();
 
             if (text.isEmpty() || PUNCT_ONLY.matcher(text).matches()) {
-                return Optional.empty();
+                return Filtered.silent(Silence.EMPTY);
             }
             if (recentSpoken != null && SpeechRepeat.repeatsAny(text, recentSpoken)) {
-                return Optional.empty();
+                return Filtered.silent(Silence.REPEAT);
             }
-            return Optional.of(text);
+            return Filtered.spoken(text);
         } catch (RuntimeException e) {
-            return Optional.empty();
+            return Filtered.silent(Silence.EMPTY);
         }
     }
 

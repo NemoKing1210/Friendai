@@ -14,6 +14,7 @@ public final class LogEvents {
     public static final String ASSISTANT_TEXT = "assistant.text";
     public static final String ASSISTANT_DELIVERED = "assistant.delivered";
     public static final String ASSISTANT_DIRECT = "assistant.direct";
+    public static final String ASSISTANT_SUPPRESSED = "assistant.suppressed";
     public static final String TOOL_CALL = "tool.call";
     public static final String TOOL_RESULT = "tool.result";
     public static final String SKILL_SELECT = "skill.select";
@@ -77,6 +78,7 @@ public final class LogEvents {
             ASSISTANT_TEXT,
             ASSISTANT_DELIVERED,
             ASSISTANT_DIRECT,
+            ASSISTANT_SUPPRESSED,
             TOOL_CALL,
             TOOL_RESULT,
             SKILL_SELECT,

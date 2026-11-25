@@ -95,6 +95,13 @@ class CompanionBrainBudgetTest {
     void aRequestThatCannotFitIsRefusedBeforeAnyCall() {
         LimitedGateway gateway = new LimitedGateway(3_000, 1_000);
         CompanionBrain brain = brain(gateway);
+        List<String> direct = new java.util.ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onDirectLine(String key) {
+                direct.add(key);
+            }
+        });
 
         brain.post(said("x".repeat(20_000)));
 
@@ -103,6 +110,7 @@ class CompanionBrainBudgetTest {
         UserMessage error = speaker.errors.getFirst();
         assertEquals("friendai.agent.request_too_large", error.key());
         assertEquals(2, error.args().size(), "the estimate and the budget are named");
+        assertEquals(List.of("friendai.agent.request_too_large"), direct, "the owner heard this line");
         assertFalse(brain.isThinking());
         assertFalse(brain.hasPendingWork());
     }

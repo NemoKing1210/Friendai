@@ -27,6 +27,12 @@ public interface BrainObserver {
     /** The text a player actually heard, after the reply guard; silent and empty lines are not reported. */
     default void onReply(dev.friendai.execution.tool.Caller caller, String text) {}
 
+    /** A player-facing line delivered from a translation key rather than from model text. */
+    default void onDirectLine(String translationKey) {}
+
+    /** A model reply this turn did not deliver, with a short English reason: policy, sentinel, tool_markup, empty or repeat. */
+    default void onReplySuppressed(String reason) {}
+
     default void onToolCall(ToolCall call) {}
 
     default void onToolResult(ToolCall call, ToolResult result) {}

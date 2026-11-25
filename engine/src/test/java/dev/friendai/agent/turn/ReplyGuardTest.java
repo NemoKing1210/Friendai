@@ -16,6 +16,11 @@ class ReplyGuardTest {
         return ReplyGuard.filter(reply, coordinatesAllowed, lastSpoken, TOOLS).orElse(null);
     }
 
+    private static ReplyGuard.Filtered detailed(String reply, boolean coordinatesAllowed, String lastSpoken) {
+        return ReplyGuard.filterDetailed(
+                reply, coordinatesAllowed, lastSpoken == null ? List.of() : List.of(lastSpoken), TOOLS);
+    }
+
     @Test
     void sentinelMeansSilence() {
         assertNull(filter("[silent]", false, null));

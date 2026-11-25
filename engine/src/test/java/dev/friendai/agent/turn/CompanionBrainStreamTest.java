@@ -383,6 +383,13 @@ class CompanionBrainStreamTest {
         };
         RecordingSpeaker speaker = new RecordingSpeaker();
         CompanionBrain brain = brain(gateway, new FakeToolExecutor(), speaker);
+        List<String> direct = new ArrayList<>();
+        brain.setObserver(new BrainObserver() {
+            @Override
+            public void onDirectLine(String key) {
+                direct.add(key);
+            }
+        });
         brain.post(new BrainEvent.PlayerSaid(OWNER, "Steve", "hi", BrainEvent.Source.CHAT));
         late.getFirst().accept(new StreamDelta.Text("```unfinished"));
         pending.complete(new LlmResponse("Hello. ```unfinished", List.of(), StopReason.END, null));
@@ -393,6 +400,7 @@ class CompanionBrainStreamTest {
                         .filter(m -> m.key().equals("friendai.voice.stream_incomplete"))
                         .count(),
                 "errors=" + speaker.errors + " streamed=" + speaker.streamed);
+        assertTrue(direct.contains("friendai.voice.stream_incomplete"), "direct=" + direct);
     }
 
     @Test

@@ -44,6 +44,16 @@ class CompanionBrainObserverTest {
         }
 
         @Override
+        public void onDirectLine(String translationKey) {
+            calls.add("direct:" + translationKey);
+        }
+
+        @Override
+        public void onReplySuppressed(String reason) {
+            calls.add("suppressed:" + reason);
+        }
+
+        @Override
         public void onToolCall(ToolCall call) {
             calls.add("call:" + call.name());
         }
@@ -129,6 +139,48 @@ class CompanionBrainObserverTest {
         gateway.enqueue(text(""));
         brain.post(said("stay"));
         assertTrue(recorder.replies.isEmpty());
+    }
+
+    @Test
+    void reportsThePlanQueuedLineTheOwnerHeard() {
+        tools.offers("queue_add");
+        gateway.enqueue(calls("", call("q1", "queue_add")));
+        brain.post(said("mine 3 stone"));
+        assertTrue(recorder.calls.contains("direct:friendai.agent.plan_queued"), recorder.calls.toString());
+    }
+
+    @Test
+    void reportsTheStepLimitLineTheOwnerHeard() {
+        CompanionBrain limited = new CompanionBrain(
+                () -> new Persona("Friendai", "friendly", "auto"),
+                () -> new BrainSettings(1, 30, 0, 5_000),
+                () -> gateway,
+                tools,
+                () -> "state-1",
+                new RecordingSpeaker(),
+                scheduler,
+                AccessResolver.of(UUID.fromString("00000000-0000-0000-0000-000000000001"), p -> false));
+        limited.setObserver(recorder);
+        gateway.enqueue(calls("", call("c1", "stay")));
+        limited.post(said("stay"));
+        assertTrue(recorder.calls.contains("direct:friendai.agent.step_limit"), recorder.calls.toString());
+    }
+
+    @Test
+    void reportsWhyASilentReplyWasNotDelivered() {
+        gateway.enqueue(text("[silent]"));
+        brain.post(said("just checking in"));
+        assertTrue(recorder.calls.contains("suppressed:sentinel"), recorder.calls.toString());
+        assertTrue(recorder.replies.isEmpty());
+    }
+
+    @Test
+    void reportsAPolicySuppressedReply() {
+        gateway.enqueue(text("I learned something."));
+        brain.post(new BrainEvent.SkillOutcome(
+                "goal-1", dev.friendai.foundation.teaching.TeachingContext.OutcomeKind.GOAL_SUCCESS, "done"));
+        assertTrue(recorder.calls.contains("suppressed:policy"), recorder.calls.toString());
+        assertTrue(recorder.replies.isEmpty(), "a SkillOutcome turn never speaks");
     }
 
     @Test

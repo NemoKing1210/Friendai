@@ -1461,6 +1461,7 @@ public final class CompanionBrain {
                             "stream incomplete notice",
                             () -> speaker.error(
                                     dev.friendai.foundation.text.UserMessage.of("friendai.voice.stream_incomplete")));
+                    observe(o -> o.onDirectLine("friendai.voice.stream_incomplete"));
                 }
             }
             case StreamSpeechPolicy.Hold ignored -> {}
@@ -1573,7 +1574,9 @@ public final class CompanionBrain {
             LOGGER.debug("LLM request failed: {}", failure.getClass().getSimpleName());
             observe(o -> o.onError(failure));
             reportTurnEnd("error");
-            speakSafely("error", () -> speaker.error(ErrorMessages.forUser(failure)));
+            UserMessage message = ErrorMessages.forUser(failure);
+            speakSafely("error", () -> speaker.error(message));
+            observe(o -> o.onDirectLine(message.key()));
             endTurn();
             return;
         }
@@ -1585,6 +1588,10 @@ public final class CompanionBrain {
         if (!raw.isBlank() && turnSpeechAllowed) {
             spoken = ReplyGuard.filter(raw, coordinatesAllowed(), recentSpeech(), turnToolNames)
                     .orElse(null);
+        }
+        if (suppressed != null) {
+            String reason = suppressed;
+            observe(o -> o.onReplySuppressed(reason));
         }
         // A words-only turn has no schema to call: a call the provider typed anyway would start the very work the
         // turn exists to stop, so it is not accepted and not remembered as an answered call.
@@ -1682,6 +1689,7 @@ public final class CompanionBrain {
             speakSafely(
                     "plan queued",
                     () -> speaker.say(UserMessage.of("friendai.agent.plan_queued"), turnAudience, turnCaller.uuid()));
+            observe(o -> o.onDirectLine("friendai.agent.plan_queued"));
             turnReplyDelivered = true;
             endTurn();
             return;
@@ -1874,6 +1882,7 @@ public final class CompanionBrain {
         }
         // The blocker names the owner's own goal, so it stays owner-only even when the turn was not private.
         speakSafely("blocked goal", () -> speaker.say(UserMessage.of("friendai.companion.goal_blocked", tick.goal())));
+        observe(o -> o.onDirectLine("friendai.companion.goal_blocked"));
         turnReplyDelivered = true;
     }
 
@@ -1907,6 +1916,7 @@ public final class CompanionBrain {
         // The recovered detail belongs to the owner's work; never hand it to another player's screen.
         speakSafely(
                 "paused recovery", () -> speaker.say(UserMessage.of("friendai.companion.recovery_blocked", detail)));
+        observe(o -> o.onDirectLine("friendai.companion.recovery_blocked"));
         turnReplyDelivered = true;
     }
 
@@ -1934,6 +1944,7 @@ public final class CompanionBrain {
             speakSafely(
                     "step limit",
                     () -> speaker.say(UserMessage.of("friendai.agent.step_limit"), turnAudience, turnCaller.uuid()));
+            observe(o -> o.onDirectLine("friendai.agent.step_limit"));
         }
         endTurn();
     }

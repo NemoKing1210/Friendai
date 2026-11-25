@@ -298,6 +298,44 @@ public final class DebugLogObserver implements BrainObserver {
     }
 
     @Override
+    public void onDirectLine(String translationKey) {
+        String key = translationKey == null ? "" : translationKey;
+        if (legacy != null) {
+            legacy.add(LogKind.ASSISTANT, "delivered line: " + key);
+            return;
+        }
+        emit(
+                LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.ASSISTANT,
+                LogEvents.ASSISTANT_DIRECT,
+                lastRequestSeq,
+                "",
+                "delivered line: " + key,
+                Map.of("key", key),
+                null);
+    }
+
+    @Override
+    public void onReplySuppressed(String reason) {
+        String why = reason == null ? "" : reason;
+        if (legacy != null) {
+            legacy.add(LogKind.ASSISTANT, "reply suppressed: " + why);
+            return;
+        }
+        emit(
+                LogLevel.INFO,
+                LogCategory.BRAIN,
+                LogKind.ASSISTANT,
+                LogEvents.ASSISTANT_SUPPRESSED,
+                lastRequestSeq,
+                "",
+                "reply suppressed: " + why,
+                Map.of("reason", why),
+                null);
+    }
+
+    @Override
     public void onToolCall(ToolCall call) {
         String name = call.name() == null ? "" : call.name();
         boolean instruction = name.equals("manage_skill") || name.equals("use_skill");

@@ -443,7 +443,8 @@ text behind. A turn arrives as a sealed `BrainEvent` — `PlayerSaid`, `TaskFini
 `PlanBlocked`, `GoalTick`, `SocialOpening`, `WorldNotice`, `SkillOutcome`, `FreeTimeShift` or `IdleNudge` — whose
 `toPromptLine` is what the model reads. `DebugLogObserver` also writes every one of them verbatim to the owner's
 `DebugLog` as a TASK line (a `PlayerSaid` as USER), the raw assistant text as ASSISTANT, each tool call and result,
-the provider error and token usage. That bounded log, `TaskRecord` history (SUCCESS, FAILED, TIMED_OUT, CANCELLED) and the goal
+the provider error and token usage, a line delivered from a translation key as `assistant.direct`, and a reply the
+turn did not say as `assistant.suppressed` with its reason. That bounded log, `TaskRecord` history (SUCCESS, FAILED, TIMED_OUT, CANCELLED) and the goal
 and free-time files are the measurement surface; the Log tab and the `/friendai diagnose` bundle read the same state.
 
 The evidence `SessionEvents.extra` builds uses a bounded set of start snapshots keyed by execution ID.
